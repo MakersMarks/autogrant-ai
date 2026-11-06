@@ -65,5 +65,22 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ proposal
               className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded border border-slate-700 font-medium transition"
             >
               Export as Markdown (.md)
-            </
+            </button>
+            <button
+              onClick={() => {
+                const updatedStatus = selectedProposal.status === 'draft' ? 'submitted' : 'draft';
+                selectedProposal.status = updatedStatus;
+                setSelectedProposal({ ...selectedProposal });
+                if (onStatusChange) onStatusChange(selectedProposal.id, updatedStatus);
+              }}
+              className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded font-medium transition"
+            >
+              Toggle Status: {selectedProposal.status === 'draft' ? 'Mark Submitted' : 'Mark Draft'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
