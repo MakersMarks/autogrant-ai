@@ -54,7 +54,7 @@ export function Vault({ userId, entityType, docs, reload, voiceSample, voiceProf
 
   const open = async (doc: VaultDoc) => {
     const { data, error } = await supabase.storage.from("vault").createSignedUrl(doc.storage_path, 60);
-    if (error || !data) return toast.error("Could not open file.");
+    if (error || !data) { toast.error("Could not open file."); return; }
     window.open(data.signedUrl, "_blank", "noopener");
   };
 
@@ -109,7 +109,7 @@ export function Vault({ userId, entityType, docs, reload, voiceSample, voiceProf
         <h3 className="text-lg font-display font-bold">Personal Writing Style & Tone Calibration</h3>
         <textarea value={sample} onChange={(e) => setSample(e.target.value)} placeholder="Paste your writing samples here..." className="w-full h-28 bg-background border border-border rounded-lg p-4 text-xs focus:outline-none focus:border-primary" />
         <button disabled={calibrating} onClick={async () => {
-          if (!sample.trim()) return toast.error("Please enter a sample first.");
+          if (!sample.trim()) { toast.error("Please enter a sample first."); return; }
           setCalibrating(true);
           try { const r = await calibrate({ data: { sample } }); setDemo(r.demo); await onVoiceSaved(); toast.success("AI voice updated"); }
           catch (e) { toast.error(e instanceof Error ? e.message : "Calibration failed"); }

@@ -31,7 +31,7 @@ export function generateDailyGrants(sectorCode: string): Grant[] {
     funder: `Federal Agency / Corporate Foundation #${(i % 8) + 1}`,
     amount: `$${((i + 1) * 1500 + 500).toLocaleString("en-US")}`,
     fit: `${99 - (i % 12)}% Match`,
-    tier: tiers[i % 3],
+    tier: tiers[i % 3]!,
     categoryCode: sector.code,
     eligibilityReason: `Qualified by: Official Grants.gov NAICS Sector Mapping (${sector.code}), Verified Entity Classification, and Regional Compliance.`,
     deadline: `Nov ${10 + (i % 20)}, 2026`,

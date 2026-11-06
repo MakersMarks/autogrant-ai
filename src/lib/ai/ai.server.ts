@@ -4,7 +4,7 @@ import { createLovableAiGatewayProvider } from "./gateway.server";
 const MODEL = "google/gemini-3-flash-preview";
 
 export async function generateWithGemini(system: string, prompt: string): Promise<string> {
-  const key = process.env.LOVABLE_API_KEY;
+  const key = process.env["LOVABLE_API_KEY"];
   if (!key) throw new Error("AI is not configured yet.");
   const provider = createLovableAiGatewayProvider(key, undefined, {
     baseURL: "https://ai.gateway.lovable.dev",
