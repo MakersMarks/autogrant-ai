@@ -1,0 +1,44 @@
+// src/lib/grants.ts
+
+export interface GrantOpportunity {
+  id: string;
+  title: string;
+  agency: string;
+  fundingAmount: number;
+  deadline: string;
+  category: string;
+  description: string;
+  grantsGovUrl: string;
+}
+
+export async function fetchGrantOpportunities(query?: string): Promise<GrantOpportunity[]> {
+  // Simulates live feed parsing or API retrieval
+  const mockFeed: GrantOpportunity[] = [
+    {
+      id: 'GRANT-2026-001',
+      title: 'Small Business Innovation Research (SBIR) Phase I',
+      agency: 'National Science Foundation',
+      fundingAmount: 275000,
+      deadline: '2026-12-15',
+      category: 'Technology & Innovation',
+      description: 'Funding early-stage research and development for high-impact commercial ventures.',
+      grantsGovUrl: 'https://www.grants.gov/search-results-detail/350001'
+    },
+    {
+      id: 'GRANT-2026-002',
+      title: 'Regional Economic Advancement & Entrepreneurship Growth',
+      agency: 'Department of Commerce',
+      fundingAmount: 150000,
+      deadline: '2026-11-30',
+      category: 'Operational Growth',
+      description: 'Support for expanding operational logistics, production capacity, and workforce development.',
+      grantsGovUrl: 'https://www.grants.gov/search-results-detail/350002'
+    }
+  ];
+
+  if (!query) return mockFeed;
+  return mockFeed.filter(g => 
+    g.title.toLowerCase().includes(query.toLowerCase()) || 
+    g.category.toLowerCase().includes(query.toLowerCase())
+  );
+}
