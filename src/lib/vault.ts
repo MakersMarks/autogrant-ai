@@ -1,11 +1,14 @@
 // src/lib/vault.ts
+import { supabase } from '../integrations/supabase/client';
+
 export interface VaultDocument {
   id: string;
   name: string;
   size: number;
   type: string;
   uploadedAt: string;
-  extractedMetadata?: Record<string, any>;
+  storagePath?: string;
+  publicUrl?: string;
 }
 
 export const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15MB Limit
@@ -31,15 +34,49 @@ export async function processDocumentUpload(file: File): Promise<VaultDocument> 
     throw new Error(check.error);
   }
 
+  const fileExt = file.name.split('.').pop();
+  const filePath = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+
+  // 1. Upload file binary directly to Supabase Storage Bucket ('vault')
+  const { data: storageData, error: storageError } = await supabase.storage
+    .from('vault')
+    .upload(filePath, file);
+
+  if (storageError) {
+    throw new Error(`Storage upload failed: ${storageError.message}`);
+  }
+
+  // 2. Fetch public URL for download reference
+  const { data: urlData } = supabase.storage.from('vault').getPublicUrl(filePath);
+
+  // 3. Persist metadata record in the database
+  const { data: dbData, error: dbError } = await supabase
+    .from('vault_documents')
+    .insert([
+      {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        storage_path: filePath,
+        public_url: urlData.publicUrl,
+        uploaded_at: new Date().toISOString()
+      }
+    ])
+    .select()
+    .single();
+
+  if (dbError) {
+    console.warn('Metadata insertion failed, returning storage payload:', dbError.message);
+  }
+
   return {
-    id: `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    id: dbData?.id || filePath,
     name: file.name,
     size: file.size,
     type: file.type,
     uploadedAt: new Date().toISOString(),
-    extractedMetadata: {
-      status: 'processed',
-      parsedAt: new Date().toISOString()
-    }
+    storagePath: filePath,
+    publicUrl: urlData.publicUrl
   };
 }
+
