@@ -52,7 +52,7 @@ export function AuthScreen() {
           <button type="button" onClick={() => social("google")} style={{ background: "#131314", color: "#E3E3E3", border: "1px solid #8E918F" }} className="w-full h-11 px-3 rounded-xl flex items-center justify-center gap-[10px] text-sm font-medium">
             {GOOGLE_G}<span>Continue with Google</span>
           </button>
-          <button type="button" onClick={() => social("apple")} style={{ background: "#FFFFFF", color: "#000000" }} className="w-full h-11 rounded-xl flex items-center justify-center text-[19px] font-medium">
+          <button type="button" onClick={() => social("apple")} style={{ background: "#FFFFFF", color: "#000000" }} className="w-full h-11 rounded-xl flex items-center justify-center text-[17px] font-medium">
             Continue with Apple
           </button>
         </div>

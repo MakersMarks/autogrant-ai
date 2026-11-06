@@ -28,3 +28,8 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+- AutoGrant UI lives in `src/components/autogrant/`; `/` renders it client-only (`ssr: false`) because the session is in localStorage.
+- AI calls go through `src/lib/ai/ai.functions.ts` (auth-protected server fns) → `ai.server.ts` on the Lovable AI Gateway; never call external AI providers or ship keys to the browser.
+- Vault files live in the private `vault` bucket under `<user_id>/...`; upload rules are in `validateVaultFile` (covered by tests).
