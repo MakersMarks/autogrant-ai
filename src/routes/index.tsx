@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { ApplicationTracker } from '../components/ApplicationTracker';
 import { processDocumentUpload } from '../lib/vault';
-import { fetchGrantOpportunities, GrantOpportunity } from '../lib/grants';
+import { generateDailyGrants, Grant, OFFICIAL_SECTORS } from '../lib/grants';
 import { generateAutopilotProposal, ProposalDraft } from '../lib/autopilot';
 import { supabase } from '../integrations/supabase/client';
 
@@ -13,13 +13,12 @@ export const Route = createFileRoute('/')({
 
 function IndexComponent() {
   const [proposals, setProposals] = useState<ProposalDraft[]>([]);
-  const [grants, setGrants] = useState<GrantOpportunity[]>([]);
+  const [grants, setGrants] = useState<Grant[]>([]);
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [userSession, setUserSession] = useState<any>(null);
   const [loadingGrants, setLoadingGrants] = useState<boolean>(true);
 
   useEffect(() => {
-    // 1. Check active user session for data isolation & security
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserSession(session);
     });
@@ -28,11 +27,9 @@ function IndexComponent() {
       setUserSession(session);
     });
 
-    // 2. Load grant opportunities feed
-    fetchGrantOpportunities().then((data) => {
-      setGrants(data);
-      setLoadingGrants(false);
-    });
+    // Load grants from your sector generator (defaulting to Business & Commerce 'BC')
+    setGrants(generateDailyGrants('BC'));
+    setLoadingGrants(false);
 
     return () => subscription.unsubscribe();
   }, []);
@@ -50,13 +47,13 @@ function IndexComponent() {
     }
   };
 
-  const handleDraftProposal = async (grant: GrantOpportunity) => {
+  const handleDraftProposal = async (grant: Grant) => {
     try {
       setUploadStatus(`Generating AI proposal for ${grant.title}...`);
       const newDraft = await generateAutopilotProposal(
         grant.id,
         grant.title,
-        { companyName: userSession?.user?.email ? 'Authenticated Applicant' : 'AutoGrant Applicant', coreFocus: grant.category }
+        { companyName: userSession?.user?.email ? 'Authenticated Applicant' : 'AutoGrant Applicant', coreFocus: grant.funder }
       );
       setProposals((prev) => [newDraft, ...prev]);
       setUploadStatus(`Proposal successfully drafted for ${grant.title}`);
@@ -97,19 +94,22 @@ function IndexComponent() {
               <p className="text-xs text-slate-400">Loading active opportunities...</p>
             ) : (
               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
-                {grants.map((grant) => (
+                {grants.slice(0, 10).map((grant) => (
                   <div key={grant.id} className="p-4 bg-slate-950 border border-slate-800 rounded-md space-y-2">
                     <div className="flex justify-between items-start">
                       <h3 className="font-bold text-sm text-blue-400">{grant.title}</h3>
-                      <span className="text-xs font-mono text-emerald-400">${Number(grant.fundingAmount).toLocaleString()}</span>
+                      <span className="text-xs font-mono text-emerald-400">{grant.amount}</span>
                     </div>
-                    <p className="text-xs text-slate-400">{grant.description}</p>
-                    <button 
-                      onClick={() => handleDraftProposal(grant)}
-                      className="mt-2 text-xs bg-blue-600 hover:bg-blue-500 text-white py-1.5 px-3 rounded font-medium transition cursor-pointer"
-                    >
-                      Draft with Autopilot
-                    </button>
+                    <p className="text-xs text-slate-400">{grant.eligibilityReason}</p>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-xs text-slate-500">{grant.funder} • Deadline: {grant.deadline}</span>
+                      <button 
+                        onClick={() => handleDraftProposal(grant)}
+                        className="text-xs bg-blue-600 hover:bg-blue-500 text-white py-1.5 px-3 rounded font-medium transition cursor-pointer"
+                      >
+                        Draft with Autopilot
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
