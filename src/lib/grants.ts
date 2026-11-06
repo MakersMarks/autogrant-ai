@@ -81,3 +81,9 @@ export function validateVaultFile(file: { name: string; type: string; size: numb
   if (file.size > MAX_UPLOAD_BYTES) return "Rejected: File exceeds 15MB limit.";
   return null;
 }
+// Add this helper to the bottom of src/lib/grants.ts
+
+export async function fetchGrantOpportunities(sectorCode: string = "BC"): Promise<Grant[]> {
+  return generateDailyGrants(sectorCode);
+}
+
