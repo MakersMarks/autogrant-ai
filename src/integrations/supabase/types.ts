@@ -14,7 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      applications: {
+        Row: {
+          amount: string
+          created_at: string
+          funder: string
+          grant_id: string
+          id: string
+          name: string
+          narrative: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount: string
+          created_at?: string
+          funder: string
+          grant_id: string
+          id?: string
+          name: string
+          narrative?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount?: string
+          created_at?: string
+          funder?: string
+          grant_id?: string
+          id?: string
+          name?: string
+          narrative?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          autopilot: boolean
+          created_at: string
+          demographics: string[]
+          email: string | null
+          entity_type: string
+          funding_goal: string
+          id: string
+          onboarded: boolean
+          sector_code: string
+          updated_at: string
+          voice_profile: string
+          voice_sample: string
+        }
+        Insert: {
+          autopilot?: boolean
+          created_at?: string
+          demographics?: string[]
+          email?: string | null
+          entity_type?: string
+          funding_goal?: string
+          id: string
+          onboarded?: boolean
+          sector_code?: string
+          updated_at?: string
+          voice_profile?: string
+          voice_sample?: string
+        }
+        Update: {
+          autopilot?: boolean
+          created_at?: string
+          demographics?: string[]
+          email?: string | null
+          entity_type?: string
+          funding_goal?: string
+          id?: string
+          onboarded?: boolean
+          sector_code?: string
+          updated_at?: string
+          voice_profile?: string
+          voice_sample?: string
+        }
+        Relationships: []
+      }
+      vault_documents: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          mime_type: string
+          size_bytes: number
+          slot_key: string
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          mime_type: string
+          size_bytes: number
+          slot_key: string
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          mime_type?: string
+          size_bytes?: number
+          slot_key?: string
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
