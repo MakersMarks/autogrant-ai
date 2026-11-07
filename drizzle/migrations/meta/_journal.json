@@ -8,6 +8,13 @@
       "when": 1793940822415,
       "tag": "0000_autogrant_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794023656054,
+      "tag": "0001_proposal_intake_and_ai_access",
+      "breakpoints": true
     }
   ]
 }

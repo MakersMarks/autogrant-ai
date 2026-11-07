@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_gateway_state: {
+        Row: {
+          created_at: string
+          model_id: string
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          model_id: string
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          model_id?: string
+          reason?: string
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           amount: string
@@ -58,8 +76,13 @@ export type Database = {
           email: string | null
           entity_type: string
           funding_goal: string
+          funding_purpose: string
           id: string
+          industry: string
+          lifecycle_stage: string
+          location: string
           onboarded: boolean
+          project_name: string
           sector_code: string
           updated_at: string
           voice_profile: string
@@ -72,8 +95,13 @@ export type Database = {
           email?: string | null
           entity_type?: string
           funding_goal?: string
+          funding_purpose?: string
           id: string
+          industry?: string
+          lifecycle_stage?: string
+          location?: string
           onboarded?: boolean
+          project_name?: string
           sector_code?: string
           updated_at?: string
           voice_profile?: string
@@ -86,8 +114,13 @@ export type Database = {
           email?: string | null
           entity_type?: string
           funding_goal?: string
+          funding_purpose?: string
           id?: string
+          industry?: string
+          lifecycle_stage?: string
+          location?: string
           onboarded?: boolean
+          project_name?: string
           sector_code?: string
           updated_at?: string
           voice_profile?: string

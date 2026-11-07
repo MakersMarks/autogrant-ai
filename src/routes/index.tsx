@@ -5,12 +5,24 @@ import { ApplicationTracker } from '../components/ApplicationTracker';
 import { AuthModal } from '../components/AuthModal';
 import { processDocumentUpload } from '../lib/vault';
 import { generateDailyGrants, Grant, OFFICIAL_SECTORS } from '../lib/grants';
-import { generateAutopilotProposal } from '../lib/autopilot';
+import { applicationToProposal } from '../lib/autopilot';
+import { useServerFn } from '@tanstack/react-start';
+import { draftProposal, saveIntake } from '@/lib/ai/ai.functions';
+import { IntakeStudio } from '@/components/autogrant/IntakeStudio';
+import type { Intake } from '@/lib/ai/proposal-policy';
+import { Button } from '@/components/ui/button';
 import { supabase } from '../integrations/supabase/client';
 import { VaultDocument, ProposalDraft, EntityType } from '../lib/types';
 
 export const Route = createFileRoute('/')({
   ssr: false,
+  head: () => ({ meta: [
+    { title: 'AutoGrant AI — Proposal Workspace' },
+    { name: 'description', content: 'Create profile-aware executive summaries and grant proposals with private Vault evidence.' },
+    { property: 'og:title', content: 'AutoGrant AI — Proposal Workspace' },
+    { property: 'og:description', content: 'Institutional proposal drafting from your active intake and private documents.' },
+    { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary_large_image' },
+  ] }),
   component: IndexComponent,
 });
 
@@ -19,9 +31,14 @@ function IndexComponent() {
   const [showAuth, setShowAuth] = useState(false);
   const [selectedSector, setSelectedSector] = useState<string>('BC');
   const [entityType, setEntityType] = useState<EntityType>('Established Operating Business');
-  const [activeProject, setActiveProject] = useState<string>('Center-Filled Functional Chewing Gum (BREAK)');
+  const [intake, setIntake] = useState<Intake | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [summary, setSummary] = useState('');
+  const draft = useServerFn(draftProposal);
+  const persistIntake = useServerFn(saveIntake);
+  const activeProject = intake?.project_name || 'No project specified';
   const [fundingGoal, setFundingGoal] = useState<number>(250000);
-  const [totalAwarded, setTotalAwarded] = useState<number>(75000);
+  const [totalAwarded, setTotalAwarded] = useState<number>(0);
   
   const [vaultDocs, setVaultDocs] = useState<VaultDocument[]>([]);
   const [proposals, setProposals] = useState<ProposalDraft[]>([]);
@@ -45,14 +62,34 @@ function IndexComponent() {
     return () => subscription.unsubscribe();
   }, [selectedSector]);
 
+  const reloadWorkspace = async () => {
+    const [{ data: profile }, { data: documents }, { data: applications }] = await Promise.all([
+      supabase.from('profiles').select('*').maybeSingle(),
+      supabase.from('vault_documents').select('*').order('created_at', { ascending: false }),
+      supabase.from('applications').select('*').order('created_at', { ascending: false }),
+    ]);
+    if (profile) {
+      setIntake({ project_name: profile.project_name, industry: profile.industry, lifecycle_stage: profile.lifecycle_stage, sector_code: profile.sector_code, entity_type: profile.entity_type, funding_goal: profile.funding_goal, demographics: profile.demographics, location: profile.location, funding_purpose: profile.funding_purpose });
+      setSelectedSector(profile.sector_code);
+      setEntityType(profile.entity_type as EntityType);
+      setFundingGoal(Number(profile.funding_goal.replace(/[^0-9.]/g, '')) || 0);
+    }
+    setVaultDocs((documents ?? []).map((d) => ({ id: d.id, name: d.file_name, size: d.size_bytes, type: d.mime_type, uploadedAt: d.created_at, storagePath: d.storage_path })));
+    setProposals((applications ?? []).map(applicationToProposal));
+  };
+  useEffect(() => {
+    setIntake(null); setVaultDocs([]); setProposals([]); setSummary('');
+    if (userSession) void reloadWorkspace();
+  }, [userSession?.user?.id]);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        setStatusMessage(`Parsing and indexing ${file.name} (Max 50MB)...`);
+        setStatusMessage(`Uploading ${file.name} (Max 15MB)...`);
         const doc = await processDocumentUpload(file);
         setVaultDocs((prev) => [doc, ...prev]);
-        setStatusMessage(`Indexed successfully: ${doc.name}`);
+        setStatusMessage(`Saved successfully: ${doc.name}`);
       } catch (err: any) {
         setStatusMessage(`Upload error: ${err.message}`);
       }
@@ -60,25 +97,21 @@ function IndexComponent() {
   };
 
   const handleDraftProposal = async (grant: Grant) => {
+    if (!userSession) { setShowAuth(true); return; }
+    if (!intake || drafting) return;
+    setDrafting(true);
     try {
-      setStatusMessage(`AI Autopilot synthesizing vault records for ${grant.title}...`);
-      const newDraft = await generateAutopilotProposal(
-        grant.id,
-        grant.title,
-        {
-          companyName: userSession?.user?.email ? 'Authenticated Applicant' : 'BreakGum LLC (BREAK)',
-          coreFocus: grant.funder,
-        },
-        vaultDocs.map((d) => d.name).join(', ')
-      );
-      setProposals((prev) => [newDraft, ...prev]);
-      setStatusMessage(`Proposal generated for ${grant.title}`);
-    } catch (err: any) {
-      setStatusMessage(`Generation error: ${err.message}`);
-    }
+      setStatusMessage(`Drafting ${grant.title} from your active intake and Vault…`);
+      await persistIntake({ data: { ...intake, sector_code: selectedSector, entity_type: entityType } });
+      const result = await draft({ data: { grantId: grant.id, title: grant.title, funder: grant.funder, amount: grant.amount, eligibilityReason: grant.eligibilityReason } });
+      setProposals((prev) => [applicationToProposal(result.application), ...prev]);
+      setStatusMessage(`Proposal saved to the tracker: ${grant.title}`);
+    } catch (err) {
+      setStatusMessage(err instanceof Error ? err.message : 'Proposal generation failed.');
+    } finally { setDrafting(false); }
   };
 
-  const fundingProgress = Math.min(Math.round((totalAwarded / fundingGoal) * 100), 100);
+  const fundingProgress = fundingGoal > 0 ? Math.min(Math.round((totalAwarded / fundingGoal) * 100), 100) : 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 font-sans space-y-6">
@@ -134,6 +167,8 @@ function IndexComponent() {
         </div>
       </section>
 
+      {intake && <IntakeStudio initial={{ ...intake, sector_code: selectedSector, entity_type: entityType }} onSaved={(value) => { setIntake(value); setFundingGoal(Number(value.funding_goal.replace(/[^0-9.]/g, '')) || 0); setStatusMessage('Intake saved.'); }} onError={setStatusMessage} onSummary={(text) => { setSummary(text); setStatusMessage('Executive summary saved to your private Vault.'); void reloadWorkspace(); }} />}
+      {summary && <section className="border-b border-border py-4"><h2 className="text-lg font-semibold text-foreground">Executive summary</h2><pre className="whitespace-pre-wrap text-sm text-foreground">{summary}</pre></section>}
       {/* Locked Desktop Split-Screen Grid Layout */}
       <main className="grid grid-cols-1 md:grid-cols-12 gap-6">
         
@@ -155,15 +190,15 @@ function IndexComponent() {
             ))}
           </div>
 
-          {/* Secure AI Document Vault (50MB Limit) */}
+          {/* Secure AI Document Vault (15MB Limit) */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-base font-semibold text-white">AI Document Vault</h2>
-                <p className="text-xs text-slate-400">Drag or upload business plans, pitch decks, or financial filings (50MB Max)</p>
+                <p className="text-xs text-slate-400">Drag or upload business plans, pitch decks, or financial filings (15MB Max)</p>
               </div>
               <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-2.5 py-1 rounded border border-blue-800">
-                {vaultDocs.length} Indexed
+                {vaultDocs.length} Saved
               </span>
             </div>
 
@@ -173,6 +208,7 @@ function IndexComponent() {
               className="block w-full text-xs text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
             />
 
+            {vaultDocs.map((doc) => <Button key={doc.id} variant="ghost" size="sm" className="max-w-full whitespace-normal text-left" onClick={async () => { if (!doc.storagePath) return; const { data, error } = await supabase.storage.from('vault').download(doc.storagePath); if (error || !data) { setStatusMessage('Document could not be opened.'); return; } if (doc.type === 'text/plain') setSummary(await data.text()); else { const url = URL.createObjectURL(data); window.open(url, '_blank', 'noopener'); setTimeout(() => URL.revokeObjectURL(url), 60000); } }}>{doc.name}</Button>)}
             {statusMessage && (
               <p className="text-xs text-emerald-400 font-mono bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                 {statusMessage}
@@ -207,12 +243,13 @@ function IndexComponent() {
 
                     <div className="flex justify-between items-center pt-1">
                       <span className="text-[11px] text-slate-500 font-mono">Deadline: {grant.deadline}</span>
-                      <button
+                      <Button
+                        disabled={drafting}
                         onClick={() => handleDraftProposal(grant)}
                         className="text-xs bg-blue-600 hover:bg-blue-500 text-white py-1.5 px-3 rounded-lg font-medium transition cursor-pointer shadow"
                       >
-                        Draft with Autopilot
-                      </button>
+                        {drafting ? 'Drafting…' : 'Draft with Autopilot'}
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -225,7 +262,7 @@ function IndexComponent() {
         {/* Right Column: Application Tracker Drawer (5 Cols - Pinned) */}
         <div className="md:col-span-5">
           <div className="sticky top-6">
-            <ApplicationTracker proposals={proposals} />
+            <ApplicationTracker proposals={proposals} onStatusChange={async (id, status) => { const { error } = await supabase.from('applications').update({ status }).eq('id', id); if (error) setStatusMessage('Status could not be saved.'); else await reloadWorkspace(); }} />
           </div>
         </div>
 

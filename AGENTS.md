@@ -33,3 +33,6 @@ use the editor.
 - AutoGrant UI lives in `src/components/autogrant/`; `/` renders it client-only (`ssr: false`) because the session is in localStorage.
 - AI calls go through `src/lib/ai/ai.functions.ts` (auth-protected server fns) → `ai.server.ts` on the Lovable AI Gateway; never call external AI providers or ship keys to the browser.
 - Vault files live in the private `vault` bucket under `<user_id>/...`; upload rules are in `validateVaultFile` (covered by tests).
+- Both drafting entry points use the shared proposal policy and server-side profile/Vault reads; persisted application rows are the tracker source of truth to prevent template-only or session-only drafts.
+- Parse Vault PDF/DOCX/TXT evidence on the server with edge-compatible libraries; fail explicitly rather than silently omit unreadable evidence.
+- Persist AI access pauses in the server-only gateway-state table; ordinary application data continues to use the authenticated RLS client.
