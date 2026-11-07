@@ -51,14 +51,17 @@ export async function processDocumentUpload(file: File): Promise<VaultDocument> 
       size_bytes: file.size,
       mime_type: file.type,
       storage_path: filePath,
-      slot_key: 'custom',
+      slot_key: `custom-${crypto.randomUUID()}`,
     })
     .select()
     .single();
-  if (dbError) console.warn('Metadata insertion failed:', dbError.message);
+  if (dbError || !dbData) {
+    await supabase.storage.from('vault').remove([filePath]);
+    throw new Error('Document metadata could not be saved. Upload was rolled back.');
+  }
 
   return {
-    id: dbData?.id || filePath,
+    id: dbData.id,
     name: file.name,
     size: file.size,
     type: file.type,
