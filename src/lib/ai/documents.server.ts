@@ -5,10 +5,8 @@ export async function extractDocumentText(bytes: Uint8Array, mime: string): Prom
   if (mime === 'text/plain' || mime === 'text/markdown') return new TextDecoder().decode(bytes);
   if (mime === 'application/pdf') {
     const pdf = await getDocumentProxy(bytes, { maxImageSize: 16_777_216 });
-    try {
-      const result = await extractText(pdf, { mergePages: true });
-      return result.text;
-    } finally { await pdf.destroy(); }
+    const result = await extractText(pdf, { mergePages: true });
+    return result.text;
   }
   if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
     const entries = unzipSync(bytes, { filter: (entry) => {
