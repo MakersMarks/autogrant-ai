@@ -34,40 +34,28 @@ export async function processDocumentUpload(file: File): Promise<VaultDocument> 
     throw new Error(check.error);
   }
 
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Please sign in before uploading documents.');
+
   const fileExt = file.name.split('.').pop();
-  const filePath = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+  const filePath = `${user.id}/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
 
-  // 1. Upload file binary directly to Supabase Storage Bucket ('vault')
-  const { data: storageData, error: storageError } = await supabase.storage
-    .from('vault')
-    .upload(filePath, file);
+  const { error: storageError } = await supabase.storage.from('vault').upload(filePath, file);
+  if (storageError) throw new Error(`Storage upload failed: ${storageError.message}`);
 
-  if (storageError) {
-    throw new Error(`Storage upload failed: ${storageError.message}`);
-  }
-
-  // 2. Fetch public URL for download reference
-  const { data: urlData } = supabase.storage.from('vault').getPublicUrl(filePath);
-
-  // 3. Persist metadata record in the database
   const { data: dbData, error: dbError } = await supabase
     .from('vault_documents')
-    .insert([
-      {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        storage_path: filePath,
-        public_url: urlData.publicUrl,
-        uploaded_at: new Date().toISOString()
-      }
-    ])
+    .insert({
+      user_id: user.id,
+      file_name: file.name,
+      size_bytes: file.size,
+      mime_type: file.type,
+      storage_path: filePath,
+      slot_key: 'custom',
+    })
     .select()
     .single();
-
-  if (dbError) {
-    console.warn('Metadata insertion failed, returning storage payload:', dbError.message);
-  }
+  if (dbError) console.warn('Metadata insertion failed:', dbError.message);
 
   return {
     id: dbData?.id || filePath,
@@ -75,8 +63,7 @@ export async function processDocumentUpload(file: File): Promise<VaultDocument> 
     size: file.size,
     type: file.type,
     uploadedAt: new Date().toISOString(),
-    storagePath: filePath,
-    publicUrl: urlData.publicUrl
+    storagePath: filePath
   };
 }
 

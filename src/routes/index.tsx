@@ -10,6 +10,7 @@ import { supabase } from '../integrations/supabase/client';
 import { VaultDocument, ProposalDraft, EntityType } from '../lib/types';
 
 export const Route = createFileRoute('/')({
+  ssr: false,
   component: IndexComponent,
 });
 
@@ -49,7 +50,7 @@ function IndexComponent() {
     if (file) {
       try {
         setStatusMessage(`Parsing and indexing ${file.name} (Max 50MB)...`);
-        const doc = await processDocumentUpload(file, userSession?.user?.id || 'guest_user');
+        const doc = await processDocumentUpload(file);
         setVaultDocs((prev) => [doc, ...prev]);
         setStatusMessage(`Indexed successfully: ${doc.name}`);
       } catch (err: any) {
@@ -67,9 +68,8 @@ function IndexComponent() {
         {
           companyName: userSession?.user?.email ? 'Authenticated Applicant' : 'BreakGum LLC (BREAK)',
           coreFocus: grant.funder,
-          fundingGoal
         },
-        vaultDocs
+        vaultDocs.map((d) => d.name).join(', ')
       );
       setProposals((prev) => [newDraft, ...prev]);
       setStatusMessage(`Proposal generated for ${grant.title}`);
@@ -82,7 +82,7 @@ function IndexComponent() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 font-sans space-y-6">
-      {showAuth && <AuthModal onSuccess={() => setShowAuth(false)} />}
+      {showAuth && <AuthModal onSuccess={() => setShowAuth(false)} onClose={() => setShowAuth(false)} />}
 
       {/* Header & Workspace Bar */}
       <header className="border-b border-slate-800 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
