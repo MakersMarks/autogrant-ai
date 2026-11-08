@@ -36,3 +36,4 @@ use the editor.
 - Both drafting entry points use the shared proposal policy and server-side profile/Vault reads; persisted application rows are the tracker source of truth to prevent template-only or session-only drafts.
 - Parse Vault PDF/DOCX/TXT evidence on the server with edge-compatible libraries; fail explicitly rather than silently omit unreadable evidence.
 - Persist AI access pauses in the server-only gateway-state table; ordinary application data continues to use the authenticated RLS client.
+- Live grants come from the public Grants.gov search2/fetchOpportunity API via auth-protected server fns in src/lib/grants-gov/; filter rules live in rules.ts (tested).

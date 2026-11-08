@@ -4,7 +4,8 @@ import { createFileRoute } from '@tanstack/react-router';
 import { ApplicationTracker } from '../components/ApplicationTracker';
 import { AuthModal } from '../components/AuthModal';
 import { processDocumentUpload } from '../lib/vault';
-import { generateDailyGrants, Grant, OFFICIAL_SECTORS } from '../lib/grants';
+import { Grant, OFFICIAL_SECTORS } from '../lib/grants';
+import { LiveGrantsFeed } from '@/components/autogrant/LiveGrantsFeed';
 import { applicationToProposal } from '../lib/autopilot';
 import { useServerFn } from '@tanstack/react-start';
 import { draftProposal, saveIntake } from '@/lib/ai/ai.functions';
@@ -42,9 +43,7 @@ function IndexComponent() {
   
   const [vaultDocs, setVaultDocs] = useState<VaultDocument[]>([]);
   const [proposals, setProposals] = useState<ProposalDraft[]>([]);
-  const [grants, setGrants] = useState<Grant[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>('');
-  const [loadingGrants, setLoadingGrants] = useState<boolean>(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -56,8 +55,6 @@ function IndexComponent() {
       if (session) setShowAuth(false);
     });
 
-    setGrants(generateDailyGrants(selectedSector));
-    setLoadingGrants(false);
 
     return () => subscription.unsubscribe();
   }, [selectedSector]);
@@ -216,46 +213,7 @@ function IndexComponent() {
             )}
           </div>
 
-          {/* Live Federal Grants Feed */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
-            <h2 className="text-base font-semibold text-white">Live Federal Opportunities ({grants.length})</h2>
-
-            {loadingGrants ? (
-              <p className="text-xs text-slate-400">Loading federal feed...</p>
-            ) : (
-              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                {grants.map((grant) => (
-                  <div key={grant.id} className="p-4 bg-slate-950 border border-slate-800 rounded-lg space-y-2 hover:border-slate-700 transition">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-bold text-sm text-blue-400">{grant.title}</h3>
-                        <p className="text-xs text-slate-400 mt-0.5">{grant.funder}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs font-mono text-emerald-400 block font-bold">{grant.amount}</span>
-                        <span className="text-[10px] bg-slate-900 text-blue-300 px-1.5 py-0.5 rounded font-mono">{grant.fit}</span>
-                      </div>
-                    </div>
-
-                    <p className="text-xs text-slate-300 bg-slate-900 p-2.5 rounded border border-slate-800/60">
-                      {grant.eligibilityReason}
-                    </p>
-
-                    <div className="flex justify-between items-center pt-1">
-                      <span className="text-[11px] text-slate-500 font-mono">Deadline: {grant.deadline}</span>
-                      <Button
-                        disabled={drafting}
-                        onClick={() => handleDraftProposal(grant)}
-                        className="text-xs bg-blue-600 hover:bg-blue-500 text-white py-1.5 px-3 rounded-lg font-medium transition cursor-pointer shadow"
-                      >
-                        {drafting ? 'Drafting…' : 'Draft with Autopilot'}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <LiveGrantsFeed signedIn={!!userSession} drafting={drafting} onDraft={(g) => handleDraftProposal({ id: g.id, title: g.title, funder: g.agency, amount: g.awardCeiling ? `Up to $${g.awardCeiling.toLocaleString('en-US')}` : 'Not listed', fit: '', tier: '', categoryCode: selectedSector, eligibilityReason: `Grants.gov ${g.number}. Eligible: ${g.eligibility.join('; ') || 'see listing'}. Closes ${g.closeDate}.`.slice(0, 500), deadline: g.closeDate })} />
 
         </div>
 
