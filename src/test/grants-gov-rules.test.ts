@@ -18,3 +18,13 @@ describe("live grant rules", () => {
     expect(matchesAmount({ awardCeiling: null }, 10000, 0)).toBe(false);
   });
 });
+
+import { stateFromLocation, isOtherStateOnly } from "@/lib/grants-gov/rules";
+describe("location relevance", () => {
+  it("reads the state from 'Nashville, TN'", () => expect(stateFromLocation("Nashville, TN")).toBe("Tennessee"));
+  it("hides Alaska-only grants for a Nashville founder", () => expect(isOtherStateOnly("Alaska Marine Education and Training", "Tennessee")).toBe(true));
+  it("keeps national and same-state grants", () => {
+    expect(isOtherStateOnly("SBIR Phase I Small Business Innovation", "Tennessee")).toBe(false);
+    expect(isOtherStateOnly("Tennessee Rural Development", "Tennessee")).toBe(false);
+  });
+});

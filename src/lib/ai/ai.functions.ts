@@ -61,7 +61,7 @@ export const generateExecutiveSummary = createServerFn({ method: 'POST' })
     const bytes = new TextEncoder().encode(narrative);
     const { error: uploadError } = await context.supabase.storage.from('vault').upload(path, bytes, { contentType: 'text/plain' });
     if (uploadError) throw new Error('Summary generated but could not be saved in your private Vault.');
-    const { data: document, error } = await context.supabase.from('vault_documents').insert({ user_id: context.userId, file_name: `${profile.project_name || 'Executive'} summary.txt`, storage_path: path, slot_key: `summary-${crypto.randomUUID()}`, mime_type: 'text/plain', size_bytes: bytes.length }).select().single();
+    const { data: document, error } = await context.supabase.from('vault_documents').insert({ user_id: context.userId, file_name: `Executive Summary (${profile.project_name?.trim() || 'Business Name'}).txt`, storage_path: path, slot_key: `summary-${crypto.randomUUID()}`, mime_type: 'text/plain', size_bytes: bytes.length }).select().single();
     if (error) { await context.supabase.storage.from('vault').remove([path]); throw new Error('Summary could not be indexed in your Vault.'); }
     return { narrative, document };
   });

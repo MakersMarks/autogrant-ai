@@ -213,7 +213,7 @@ function IndexComponent() {
             )}
           </div>
 
-          <LiveGrantsFeed signedIn={!!userSession} drafting={drafting} onDraft={(g) => handleDraftProposal({ id: g.id, title: g.title, funder: g.agency, amount: g.awardCeiling ? `Up to $${g.awardCeiling.toLocaleString('en-US')}` : 'Not listed', fit: '', tier: '', categoryCode: selectedSector, eligibilityReason: `Grants.gov ${g.number}. Eligible: ${g.eligibility.join('; ') || 'see listing'}. Closes ${g.closeDate}.`.slice(0, 500), deadline: g.closeDate })} />
+          <LiveGrantsFeed key={intake.sector_code} profile={{ sector: intake.sector_code, industry: intake.industry, location: intake.location, entityType: intake.entity_type }} signedIn={!!userSession} drafting={drafting} onDraft={(g) => handleDraftProposal({ id: g.id, title: g.title, funder: g.agency, amount: g.awardCeiling ? `Up to $${g.awardCeiling.toLocaleString('en-US')}` : 'Not listed', fit: '', tier: '', categoryCode: selectedSector, eligibilityReason: `Grants.gov ${g.number}. Eligible: ${g.eligibility.join('; ') || 'see listing'}. Closes ${g.closeDate}.`.slice(0, 500), deadline: g.closeDate })} />
 
         </div>
 
