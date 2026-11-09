@@ -3,7 +3,7 @@ import { createLovableAiGatewayProvider } from "./gateway.server";
 
 const MODEL = "google/gemini-3-flash-preview";
 
-export async function generateWithGemini(system: string, prompt: string): Promise<string> {
+export async function generateWithGemini(system: string, prompt: string, image?: { data: Uint8Array; mediaType: string }): Promise<string> {
   const key = process.env["LOVABLE_API_KEY"];
   if (!key) throw new Error("AI is not configured yet.");
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
@@ -17,7 +17,9 @@ export async function generateWithGemini(system: string, prompt: string): Promis
   const result = streamText({
     model: provider.chatModel(MODEL),
     system,
-    prompt,
+    ...(image
+      ? { messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: prompt }, { type: 'image' as const, image: image.data, mediaType: image.mediaType }] }] }
+      : { prompt }),
     maxRetries: 0,
     onError: ({ error }) => {
       failure = error;

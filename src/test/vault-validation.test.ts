@@ -12,3 +12,16 @@ describe("vault upload rules", () => {
 describe("discovery feed", () => {
   it("has 50 cards", () => expect(generateDailyGrants("ST")).toHaveLength(50));
 });
+
+import { validateVaultFile as validateUpload } from "@/lib/vault";
+describe("main vault uploader", () => {
+  const f = (type: string, size = 1000) => ({ type, size, name: "x" }) as File;
+  it("accepts JPG and PNG photos of documents", () => {
+    expect(validateUpload(f("image/jpeg")).valid).toBe(true);
+    expect(validateUpload(f("image/png")).valid).toBe(true);
+  });
+  it("still rejects GIFs and files over 15MB", () => {
+    expect(validateUpload(f("image/gif")).valid).toBe(false);
+    expect(validateUpload(f("image/png", 15 * 1024 * 1024 + 1)).valid).toBe(false);
+  });
+});
