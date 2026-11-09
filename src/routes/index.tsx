@@ -10,6 +10,7 @@ import { applicationToProposal } from '../lib/autopilot';
 import { useServerFn } from '@tanstack/react-start';
 import { draftProposal, saveIntake } from '@/lib/ai/ai.functions';
 import { IntakeStudio } from '@/components/autogrant/IntakeStudio';
+import { DocumentViewer } from '@/components/autogrant/DocumentViewer';
 import type { Intake } from '@/lib/ai/proposal-policy';
 import { Button } from '@/components/ui/button';
 import { supabase } from '../integrations/supabase/client';
@@ -35,6 +36,7 @@ function IndexComponent() {
   const [intake, setIntake] = useState<Intake | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [summary, setSummary] = useState('');
+  const [viewing, setViewing] = useState<VaultDocument | null>(null);
   const draft = useServerFn(draftProposal);
   const persistIntake = useServerFn(saveIntake);
   const activeProject = intake?.project_name || 'No project specified';
@@ -201,11 +203,12 @@ function IndexComponent() {
 
             <input
               type="file"
+              accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               onChange={handleFileUpload}
               className="block w-full text-xs text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
             />
 
-            {vaultDocs.map((doc) => <Button key={doc.id} variant="ghost" size="sm" className="max-w-full whitespace-normal text-left" onClick={async () => { if (!doc.storagePath) return; const { data, error } = await supabase.storage.from('vault').download(doc.storagePath); if (error || !data) { setStatusMessage('Document could not be opened.'); return; } if (doc.type === 'text/plain') setSummary(await data.text()); else { const url = URL.createObjectURL(data); window.open(url, '_blank', 'noopener'); setTimeout(() => URL.revokeObjectURL(url), 60000); } }}>{doc.name}</Button>)}
+            {vaultDocs.map((doc) => <Button key={doc.id} variant="ghost" size="sm" className="max-w-full whitespace-normal text-left" onClick={() => setViewing(doc)}>{doc.name}</Button>)}
             {statusMessage && (
               <p className="text-xs text-emerald-400 font-mono bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                 {statusMessage}
@@ -224,6 +227,7 @@ function IndexComponent() {
           </div>
         </div>
 
+      <DocumentViewer doc={viewing} onClose={() => setViewing(null)} />
       </main>
     </div>
   );
