@@ -14,7 +14,7 @@ const DEADLINES = [
   { value: "90", label: "Closing within 90 days" },
 ];
 
-export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signedIn: boolean; drafting: boolean; onDraft: (g: LiveGrant) => void; profile?: { sector: string; industry: string; location: string; entityType: string } }) {
+export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signedIn: boolean; drafting: boolean; onDraft: (g: LiveGrant) => void; profile?: { sector: string; industry: string; location: string; entityType: string } | undefined }) {
   const userState = stateFromLocation(profile?.location ?? "");
   const search = useServerFn(searchLiveGrants);
   const fetchDetail = useServerFn(getGrantDetail);
