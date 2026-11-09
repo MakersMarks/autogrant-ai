@@ -20,10 +20,12 @@ export function validateVaultFile(file: File): { valid: boolean; error?: string 
   const allowedTypes = [
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain'
+    'text/plain',
+    'image/jpeg',
+    'image/png'
   ];
   if (!allowedTypes.includes(file.type)) {
-    return { valid: false, error: 'Invalid file format. Please upload PDF, DOCX, or TXT.' };
+    return { valid: false, error: 'Invalid file format. Please upload PDF, DOCX, TXT, JPG, or PNG.' };
   }
   return { valid: true };
 }
