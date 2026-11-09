@@ -34,7 +34,7 @@ use the editor.
 - AI calls go through `src/lib/ai/ai.functions.ts` (auth-protected server fns) → `ai.server.ts` on the Lovable AI Gateway; never call external AI providers or ship keys to the browser.
 - Vault files live in the private `vault` bucket under `<user_id>/...`; upload rules are in `validateVaultFile` (covered by tests).
 - Both drafting entry points use the shared proposal policy and server-side profile/Vault reads; persisted application rows are the tracker source of truth to prevent template-only or session-only drafts.
-- Parse Vault PDF/DOCX/TXT evidence on the server with edge-compatible libraries; fail explicitly rather than silently omit unreadable evidence.
+- Parse Vault PDF/DOCX/TXT evidence on the server with edge-compatible libraries; JPG/PNG are transcribed via Gemini vision (generateWithGemini image arg); fail explicitly rather than silently omit unreadable evidence.
 - Persist AI access pauses in the server-only gateway-state table; ordinary application data continues to use the authenticated RLS client.
 - Live grants come from the public Grants.gov search2/fetchOpportunity API via auth-protected server fns in src/lib/grants-gov/; filter rules live in rules.ts (tested).
 - Feed seeds category/eligibility from the intake profile and hides other-state-only grants via stateFromLocation/isOtherStateOnly in rules.ts.
