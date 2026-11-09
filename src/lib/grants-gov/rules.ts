@@ -53,3 +53,24 @@ export function formatMoney(n: number | null): string {
 export function grantUrl(id: string) {
   return `https://www.grants.gov/search-results-detail/${id}`;
 }
+
+const STATES: Record<string, string> = { AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming",PR:"Puerto Rico",GU:"Guam" };
+
+/** Resolve the user's state name from free-text location like "Nashville, TN". */
+export function stateFromLocation(location: string): string | null {
+  const t = location.trim();
+  if (!t) return null;
+  const abbr = /\b([A-Z]{2})\b/.exec(t.toUpperCase().replace(/[^A-Z ,]/g, " ").split(",").pop() ?? "")?.[1];
+  if (abbr && STATES[abbr]) return STATES[abbr]!;
+  const low = t.toLowerCase();
+  return Object.values(STATES).find((s) => low.includes(s.toLowerCase())) ?? null;
+}
+
+/** True when a grant title is restricted to a different named state than the user's. */
+export function isOtherStateOnly(title: string, userState: string | null): boolean {
+  if (!userState) return false;
+  const named = Object.values(STATES).filter((s) => new RegExp(`\\b${s}\\b`, "i").test(title));
+  if (named.length === 0) return false;
+  if (userState === "Virginia" && named.every((s) => s === "West Virginia")) return true;
+  return !named.includes(userState);
+}

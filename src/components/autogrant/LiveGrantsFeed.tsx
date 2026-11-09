@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { searchLiveGrants, getGrantDetail, summarizeGrant } from "@/lib/grants-gov/grants.functions";
-import { ELIGIBILITY_OPTIONS, formatMoney, isLastChance, isLowCompetition, matchesAmount, type LiveGrant } from "@/lib/grants-gov/rules";
+import { ELIGIBILITY_OPTIONS, formatMoney, isOtherStateOnly, stateFromLocation, isLastChance, isLowCompetition, matchesAmount, type LiveGrant } from "@/lib/grants-gov/rules";
 import { OFFICIAL_SECTORS } from "@/lib/grants";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -14,13 +14,22 @@ const DEADLINES = [
   { value: "90", label: "Closing within 90 days" },
 ];
 
-export function LiveGrantsFeed({ signedIn, drafting, onDraft }: { signedIn: boolean; drafting: boolean; onDraft: (g: LiveGrant) => void }) {
+export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signedIn: boolean; drafting: boolean; onDraft: (g: LiveGrant) => void; profile?: { sector: string; industry: string; location: string; entityType: string } | undefined }) {
+  const userState = stateFromLocation(profile?.location ?? "");
   const search = useServerFn(searchLiveGrants);
   const fetchDetail = useServerFn(getGrantDetail);
   const summarize = useServerFn(summarizeGrant);
   const [keyword, setKeyword] = useState("");
-  const [category, setCategory] = useState("BC");
-  const [eligibility, setEligibility] = useState("23");
+  const [category, setCategory] = useState(profile?.sector || "BC");
+  const [eligibility, setEligibility] = useState(/nonprofit|501/i.test(profile?.entityType ?? "") ? "12" : "23");
+  const [localOnly, setLocalOnly] = useState(true);
+  const [seeded, setSeeded] = useState(false);
+  useEffect(() => {
+    if (seeded || !profile || (!profile.sector && !profile.industry)) return;
+    setSeeded(true);
+    if (profile.sector) setCategory(profile.sector);
+    if (/nonprofit|501/i.test(profile.entityType)) setEligibility("12");
+  }, [profile, seeded]);
   const [deadline, setDeadline] = useState("any");
   const [minAmt, setMinAmt] = useState("");
   const [maxAmt, setMaxAmt] = useState("");
@@ -50,8 +59,9 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft }: { signedIn: bool
     if (deadline === "last" && !isLastChance(g.daysLeft)) return false;
     if ((deadline === "30" || deadline === "90") && (g.daysLeft === null || g.daysLeft > Number(deadline))) return false;
     if (lowOnly && !isLowCompetition(g)) return false;
+    if (localOnly && isOtherStateOnly(g.title, userState)) return false;
     return matchesAmount(g, Number(minAmt) || 0, Number(maxAmt) || 0);
-  }).sort((a, b) => Number(isLowCompetition(b)) - Number(isLowCompetition(a)) || (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999)), [grants, deadline, lowOnly, minAmt, maxAmt]);
+  }).sort((a, b) => Number(isLowCompetition(b)) - Number(isLowCompetition(a)) || (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999)), [grants, deadline, lowOnly, minAmt, maxAmt, localOnly, userState]);
   const lastChanceCount = grants.filter((g) => isLastChance(g.daysLeft)).length;
 
   const openReader = async (g: LiveGrant) => {
@@ -71,6 +81,7 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft }: { signedIn: bool
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-white">Live Federal Opportunities — Grants.gov</h2>
+        {userState && <label className="flex items-center gap-1.5 text-xs text-slate-300"><input type="checkbox" checked={localOnly} onChange={(e) => setLocalOnly(e.target.checked)} />Hide grants limited to other states (you: {userState})</label>}
         <span className="text-xs text-slate-400">{signedIn ? `${shown.length} shown of ${total} open matches` : "Sign in to search"}</span>
       </div>
 
