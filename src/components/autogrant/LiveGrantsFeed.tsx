@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { searchLiveGrants, getGrantDetail, summarizeGrant } from "@/lib/grants-gov/grants.functions";
-import { ELIGIBILITY_OPTIONS, formatMoney, isOtherStateOnly, stateFromLocation, isLastChance, isLowCompetition, matchesAmount, type LiveGrant } from "@/lib/grants-gov/rules";
+import { searchLiveGrants, getGrantDetail, summarizeGrant, auditGrantFit } from "@/lib/grants-gov/grants.functions";
+import { ELIGIBILITY_OPTIONS, entityMode, eligibilityCodesFor, scoutKeywords, scoutCategories, formatMoney, isOtherStateOnly, stateFromLocation, isLastChance, isLowCompetition, matchesAmount, type LiveGrant } from "@/lib/grants-gov/rules";
 import { OFFICIAL_SECTORS } from "@/lib/grants";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -14,21 +14,27 @@ const DEADLINES = [
   { value: "90", label: "Closing within 90 days" },
 ];
 
-export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signedIn: boolean; drafting: boolean; onDraft: (g: LiveGrant) => void; profile?: { sector: string; industry: string; location: string; entityType: string } | undefined }) {
+export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signedIn: boolean; drafting: boolean; onDraft: (g: LiveGrant) => void; profile?: { sector: string; industry: string; location: string; entityType: string; fundingPurpose?: string } | undefined }) {
   const userState = stateFromLocation(profile?.location ?? "");
   const search = useServerFn(searchLiveGrants);
   const fetchDetail = useServerFn(getGrantDetail);
   const summarize = useServerFn(summarizeGrant);
   const [keyword, setKeyword] = useState("");
-  const [category, setCategory] = useState(profile?.sector || "BC");
-  const [eligibility, setEligibility] = useState(/nonprofit|501/i.test(profile?.entityType ?? "") ? "12" : "23");
+  const audit = useServerFn(auditGrantFit);
+  const mode = entityMode(profile?.entityType ?? "");
+  const scout = profile ? scoutKeywords({ industry: profile.industry, fundingPurpose: profile.fundingPurpose ?? "", entityType: profile.entityType }) : [];
+  const [category, setCategory] = useState(profile ? scoutCategories(profile.sector, profile.industry) : "BC");
+  const [eligibility, setEligibility] = useState(eligibilityCodesFor(mode));
+  const [fit, setFit] = useState<Awaited<ReturnType<typeof auditGrantFit>> | null>(null);
+  const [auditing, setAuditing] = useState(false);
+  const [fitErr, setFitErr] = useState("");
   const [localOnly, setLocalOnly] = useState(true);
   const [seeded, setSeeded] = useState(false);
   useEffect(() => {
     if (seeded || !profile || (!profile.sector && !profile.industry)) return;
     setSeeded(true);
-    if (profile.sector) setCategory(profile.sector);
-    if (/nonprofit|501/i.test(profile.entityType)) setEligibility("12");
+    setCategory(scoutCategories(profile.sector, profile.industry));
+    setEligibility(eligibilityCodesFor(entityMode(profile.entityType)));
   }, [profile, seeded]);
   const [deadline, setDeadline] = useState("any");
   const [minAmt, setMinAmt] = useState("");
@@ -48,7 +54,7 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
     if (!signedIn) return;
     setLoading(true); setError("");
     try {
-      const r = await search({ data: { keyword, category, eligibility } });
+      const r = await search({ data: { keywords: keyword.trim() ? [keyword.trim()] : scout, category, eligibility, entityType: profile?.entityType ?? "" } });
       setGrants(r.grants); setTotal(r.total);
     } catch (e) { setError(e instanceof Error ? e.message : "Search failed."); }
     finally { setLoading(false); }
@@ -65,7 +71,7 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
   const lastChanceCount = grants.filter((g) => isLastChance(g.daysLeft)).length;
 
   const openReader = async (g: LiveGrant) => {
-    setOpen(g); setDetail(null); setDetailErr(""); setSummary("");
+    setOpen(g); setDetail(null); setDetailErr(""); setSummary(""); setFit(null); setFitErr("");
     try { setDetail(await fetchDetail({ data: { id: g.id } })); } catch (e) { setDetailErr(e instanceof Error ? e.message : "Could not load grant."); }
   };
   const runSummary = async () => {
@@ -74,6 +80,14 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
     try { setSummary((await summarize({ data: { id: open.id, title: open.title } })).summary); }
     catch (e) { setSummary(e instanceof Error ? e.message : "Summary failed."); }
     finally { setSummarizing(false); }
+  };
+
+  const runAudit = async () => {
+    if (!open || auditing) return;
+    setAuditing(true); setFit(null); setFitErr("");
+    try { setFit(await audit({ data: { id: open.id, title: open.title } })); }
+    catch (e) { setFitErr(e instanceof Error ? e.message : "Fit check failed."); }
+    finally { setAuditing(false); }
   };
 
   const field = "bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white";
@@ -106,6 +120,7 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
         <label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} /> Low-competition only</label>
       </div>
 
+      {!keyword.trim() && scout.length > 0 && <p className="text-[11px] text-slate-400">Scouting from your intake for: {scout.map((k) => <span key={k} className="inline-block mr-1 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-slate-200">{k}</span>)} · only grants open to {mode === "nonprofit" ? "nonprofits" : "for-profit / small businesses"}</p>}
       {error && <p className="text-xs text-red-400">{error}</p>}
       {loading ? <p className="text-xs text-slate-400">Loading live grants from Grants.gov…</p> : (
         <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
@@ -122,6 +137,7 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
                 </div>
               </button>
               <div className="flex flex-wrap gap-1.5">
+                {g.matchedKeyword && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">Matches "{g.matchedKeyword}"</span>}
                 {isLastChance(g.daysLeft) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800">Last Chance</span>}
                 {isLowCompetition(g) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">Low competition</span>}
                 {g.eligibility.slice(0, 2).map((e) => <span key={e} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">{e}</span>)}
@@ -151,10 +167,17 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
                 <div><b>Cost sharing:</b> {detail ? (detail.costSharing ? "Required" : "Not required") : "…"}</div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={runSummary} disabled={summarizing}>{summarizing ? "Summarizing…" : "Summarize with AI"}</Button>
+                <Button onClick={runAudit} disabled={auditing}>{auditing ? "Checking fit…" : "Go / No-Go check"}</Button>
+                <Button variant="outline" onClick={runSummary} disabled={summarizing}>{summarizing ? "Summarizing…" : "Summarize with AI"}</Button>
                 <Button variant="outline" asChild><a href={open.url} target="_blank" rel="noreferrer">Open on Grants.gov</a></Button>
                 <Button variant="outline" disabled={drafting} onClick={() => onDraft(open)}>Draft proposal</Button>
               </div>
+              {fitErr && <p className="text-xs text-red-400">{fitErr}</p>}
+              {fit && <div className={`rounded-lg border p-3 text-xs space-y-1 ${fit.verdict === "GO" ? "border-emerald-600" : fit.verdict === "NO-GO" ? "border-red-600" : "border-amber-500"}`}>
+                <p className={`font-bold text-sm ${fit.verdict === "GO" ? "text-emerald-500" : fit.verdict === "NO-GO" ? "text-red-500" : "text-amber-500"}`}>{fit.verdict === "GO" ? "GO — clear to pursue" : fit.verdict === "NO-GO" ? "NO-GO — skip this one" : "CAUTION — check before writing"}</p>
+                {fit.costSharing && <p className="font-semibold text-amber-500">Cost share / matching funds required by this listing.</p>}
+                <p className="whitespace-pre-wrap leading-relaxed">{fit.report}</p>
+              </div>}
               {summary && <div className="rounded-lg border p-3 whitespace-pre-wrap text-xs leading-relaxed">{summary}</div>}
               {detailErr && <p className="text-xs text-red-400">{detailErr}</p>}
               {!detail && !detailErr && <p className="text-xs text-muted-foreground">Loading full solicitation…</p>}

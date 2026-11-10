@@ -50,9 +50,6 @@ export const searchLiveGrants = createServerFn({ method: "POST" })
         return { keyword, hits: (res?.oppHits ?? []) as any[], total: Number(res?.hitCount ?? 0) };
       } catch { return { keyword, hits: [] as any[], total: 0 }; }
     }));
-    if (results.every((r) => r.hits.length === 0 && r.total === 0) && queries.length > 1) {
-      // all queries failed or empty — surface as normal empty result
-    }
     const seen = new Map<string, { h: any; keyword: string }>();
     for (const r of results) for (const h of r.hits) if (!seen.has(String(h.id))) seen.set(String(h.id), { h, keyword: r.keyword });
     const grants: LiveGrant[] = await Promise.all([...seen.values()].map(async ({ h, keyword }) => {

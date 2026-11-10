@@ -41,6 +41,20 @@ function IndexComponent() {
   const persistIntake = useServerFn(saveIntake);
   const activeProject = intake?.project_name || 'No project specified';
   const [fundingGoal, setFundingGoal] = useState<number>(250000);
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalDraft, setGoalDraft] = useState('');
+  const saveGoal = async () => {
+    if (!editingGoal) return;
+    setEditingGoal(false);
+    const n = Number(goalDraft) || 0;
+    if (!n || n === fundingGoal || !userSession) return;
+    const prev = fundingGoal;
+    setFundingGoal(n);
+    const { error } = await supabase.from('profiles').update({ funding_goal: String(n), updated_at: new Date().toISOString() }).eq('id', userSession.user.id);
+    if (error) { setFundingGoal(prev); setStatusMessage('Could not save funding goal.'); return; }
+    setIntake((cur) => (cur ? { ...cur, funding_goal: String(n) } : cur));
+    setStatusMessage('Funding goal saved.');
+  };
   const [totalAwarded, setTotalAwarded] = useState<number>(0);
   
   const [vaultDocs, setVaultDocs] = useState<VaultDocument[]>([]);
@@ -156,7 +170,13 @@ function IndexComponent() {
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-1">
           <p className="text-[11px] font-mono text-slate-400 uppercase">Funding Goal</p>
-          <p className="text-lg font-mono font-bold text-white">${fundingGoal.toLocaleString()}</p>
+          {editingGoal ? (
+            <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); void saveGoal(); }}>
+              <input autoFocus aria-label="Funding goal" inputMode="numeric" className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm font-mono text-white" value={goalDraft} onChange={(e) => setGoalDraft(e.target.value.replace(/\D/g, ''))} onBlur={() => void saveGoal()} />
+            </form>
+          ) : (
+            <button type="button" title="Click to edit" onClick={() => { setGoalDraft(String(fundingGoal || '')); setEditingGoal(true); }} className="text-lg font-mono font-bold text-white hover:underline decoration-dotted">${fundingGoal.toLocaleString()} <span className="text-[10px] text-slate-400 font-sans">edit</span></button>
+          )}
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-1">
           <p className="text-[11px] font-mono text-slate-400 uppercase">Goal Progress ({fundingProgress}%)</p>
@@ -216,7 +236,7 @@ function IndexComponent() {
             )}
           </div>
 
-          <LiveGrantsFeed key={intake?.sector_code ?? 'none'} profile={intake ? { sector: intake.sector_code, industry: intake.industry, location: intake.location, entityType: intake.entity_type } : undefined} signedIn={!!userSession} drafting={drafting} onDraft={(g) => handleDraftProposal({ id: g.id, title: g.title, funder: g.agency, amount: g.awardCeiling ? `Up to $${g.awardCeiling.toLocaleString('en-US')}` : 'Not listed', fit: '', tier: '', categoryCode: selectedSector, eligibilityReason: `Grants.gov ${g.number}. Eligible: ${g.eligibility.join('; ') || 'see listing'}. Closes ${g.closeDate}.`.slice(0, 500), deadline: g.closeDate })} />
+          <LiveGrantsFeed key={intake?.sector_code ?? 'none'} profile={intake ? { sector: intake.sector_code, industry: intake.industry, location: intake.location, entityType: intake.entity_type, fundingPurpose: intake.funding_purpose } : undefined} signedIn={!!userSession} drafting={drafting} onDraft={(g) => handleDraftProposal({ id: g.id, title: g.title, funder: g.agency, amount: g.awardCeiling ? `Up to $${g.awardCeiling.toLocaleString('en-US')}` : 'Not listed', fit: '', tier: '', categoryCode: selectedSector, eligibilityReason: `Grants.gov ${g.number}. Eligible: ${g.eligibility.join('; ') || 'see listing'}. Closes ${g.closeDate}.`.slice(0, 500), deadline: g.closeDate })} />
 
         </div>
 
