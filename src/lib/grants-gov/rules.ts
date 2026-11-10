@@ -3,10 +3,12 @@ export type LiveGrant = {
   id: string; number: string; title: string; agency: string;
   openDate: string; closeDate: string; daysLeft: number | null;
   awardCeiling: number | null; awardFloor: number | null; numberOfAwards: number | null;
-  eligibility: string[]; url: string;
+  eligibility: string[]; url: string; matchedKeyword?: string;
 };
 
 export const ELIGIBILITY_OPTIONS = [
+  { value: "23|22|99|25", label: "For-profit & small business (all)" },
+  { value: "12|13|99|25", label: "Nonprofits (all)" },
   { value: "", label: "Any eligibility" },
   { value: "23", label: "Small businesses" },
   { value: "22", label: "For-profit (not small business)" },
@@ -73,4 +75,38 @@ export function isOtherStateOnly(title: string, userState: string | null): boole
   if (named.length === 0) return false;
   if (userState === "Virginia" && named.every((s) => s === "West Virginia")) return true;
   return !named.includes(userState);
+}
+
+export type EntityMode = "forprofit" | "nonprofit";
+export function entityMode(entityType: string): EntityMode {
+  return /non-?profit|501|charit|foundation/i.test(entityType) ? "nonprofit" : "forprofit";
+}
+export function eligibilityCodesFor(mode: EntityMode): string {
+  return mode === "nonprofit" ? "12|13|99|25" : "23|22|99|25";
+}
+
+/** Hard gate: hide grants whose listed applicant types exclude the user's entity type. */
+export function isEntityEligible(applicantTypes: string[], mode: EntityMode): boolean {
+  if (applicantTypes.length === 0) return true;
+  return applicantTypes.some((t) => /unrestricted|^others?\b/i.test(t.trim()) ||
+    (mode === "forprofit" ? /small business|for[- ]profit/i.test(t) : /non-?profit/i.test(t) && !/other than nonprofit/i.test(t)));
+}
+
+const TECH = /\b(ai|a\.i\.|artificial intelligence|machine learning|software|saas|tech|data|automation|platform|app)\b/i;
+/** Derive targeted Grants.gov keywords from the intake profile (max 4). */
+export function scoutKeywords(p: { industry: string; fundingPurpose?: string; entityType: string }): string[] {
+  const text = `${p.industry} ${p.fundingPurpose ?? ""}`;
+  const out: string[] = [];
+  const ind = p.industry.trim().replace(/[^\w\s&-]/g, " ").replace(/\s+/g, " ").slice(0, 60);
+  if (ind) out.push(ind);
+  if (TECH.test(text)) out.push("artificial intelligence", entityMode(p.entityType) === "forprofit" ? "SBIR" : "technology capacity", "software");
+  else if (entityMode(p.entityType) === "forprofit") out.push("small business");
+  else out.push("community");
+  return [...new Set(out.map((k) => k.toLowerCase()))].slice(0, 4);
+}
+
+/** Tech profiles also search Science & Technology alongside their sector. */
+export function scoutCategories(sector: string, industry: string): string {
+  const set = new Set([sector, ...(TECH.test(industry) ? ["ST"] : [])].filter(Boolean));
+  return [...set].join("|");
 }

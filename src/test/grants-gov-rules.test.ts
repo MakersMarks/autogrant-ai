@@ -28,3 +28,20 @@ describe("location relevance", () => {
     expect(isOtherStateOnly("Tennessee Rural Development", "Tennessee")).toBe(false);
   });
 });
+
+import { entityMode, eligibilityCodesFor, isEntityEligible, scoutKeywords } from "@/lib/grants-gov/rules";
+describe("scout + entity gate", () => {
+  it("nonprofits get nonprofit codes, companies get business codes", () => {
+    expect(eligibilityCodesFor(entityMode("501(c)(3) Nonprofit"))).toBe("12|13|99|25");
+    expect(eligibilityCodesFor(entityMode("LLC / Corporation"))).toBe("23|22|99|25");
+  });
+  it("hides university-only grants from a for-profit", () => {
+    expect(isEntityEligible(["Public and State controlled institutions of higher education"], "forprofit")).toBe(false);
+    expect(isEntityEligible(["Small businesses"], "forprofit")).toBe(true);
+    expect(isEntityEligible(["Small businesses"], "nonprofit")).toBe(false);
+  });
+  it("an AI company searches for AI and SBIR, never blank", () => {
+    const k = scoutKeywords({ industry: "AI software", entityType: "LLC / Corporation" });
+    expect(k).toContain("artificial intelligence"); expect(k).toContain("sbir");
+  });
+});

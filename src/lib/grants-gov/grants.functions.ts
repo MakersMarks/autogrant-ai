@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { daysUntil, grantUrl, type LiveGrant } from "./rules";
+import { daysUntil, grantUrl, isEntityEligible, entityMode, type LiveGrant } from "./rules";
 
 const API = "https://api.grants.gov/v1/api";
 
@@ -33,31 +33,38 @@ async function detail(id: string) {
 }
 
 const searchSchema = z.object({
-  keyword: z.string().max(200).default(""),
-  category: z.string().max(10).default(""),
-  eligibility: z.string().max(10).default(""),
+  keywords: z.array(z.string().max(100)).max(5).default([]),
+  category: z.string().max(30).default(""),
+  eligibility: z.string().max(30).default(""),
+  entityType: z.string().max(100).default(""),
 });
 
 export const searchLiveGrants = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) => searchSchema.parse(i))
   .handler(async ({ data }) => {
-    const res = await gov("search2", {
-      keyword: data.keyword, rows: 40, oppStatuses: "posted", sortBy: "closeDate|asc",
-      fundingCategories: data.category, eligibilities: data.eligibility,
-    });
-    const hits: any[] = res?.oppHits ?? [];
-    const grants: LiveGrant[] = await Promise.all(hits.map(async (h) => {
+    const queries = data.keywords.length ? data.keywords : [""];
+    const results = await Promise.all(queries.map(async (keyword) => {
+      try {
+        const res = await gov("search2", { keyword, rows: queries.length > 1 ? 15 : 40, oppStatuses: "posted", sortBy: "closeDate|asc", fundingCategories: data.category, eligibilities: data.eligibility });
+        return { keyword, hits: (res?.oppHits ?? []) as any[], total: Number(res?.hitCount ?? 0) };
+      } catch { return { keyword, hits: [] as any[], total: 0 }; }
+    }));
+    const seen = new Map<string, { h: any; keyword: string }>();
+    for (const r of results) for (const h of r.hits) if (!seen.has(String(h.id))) seen.set(String(h.id), { h, keyword: r.keyword });
+    const grants: LiveGrant[] = await Promise.all([...seen.values()].map(async ({ h, keyword }) => {
       let extra = { awardCeiling: null as number | null, awardFloor: null as number | null, numberOfAwards: null as number | null, eligibility: [] as string[] };
       try { extra = await detail(String(h.id)); } catch { /* keep listing without amounts */ }
       return {
         id: String(h.id), number: String(h.number), title: String(h.title), agency: String(h.agency ?? h.agencyCode),
         openDate: String(h.openDate ?? ""), closeDate: String(h.closeDate ?? ""), daysLeft: daysUntil(String(h.closeDate ?? "")),
         awardCeiling: extra.awardCeiling, awardFloor: extra.awardFloor, numberOfAwards: extra.numberOfAwards,
-        eligibility: extra.eligibility, url: grantUrl(String(h.id)),
+        eligibility: extra.eligibility, url: grantUrl(String(h.id)), ...(keyword ? { matchedKeyword: keyword } : {}),
       };
     }));
-    return { total: Number(res?.hitCount ?? 0), grants: grants.filter((g) => g.daysLeft === null || g.daysLeft >= 0) };
+    const mode = entityMode(data.entityType);
+    const kept = grants.filter((g) => (g.daysLeft === null || g.daysLeft >= 0) && (!data.entityType || isEntityEligible(g.eligibility, mode)));
+    return { total: results.reduce((n, r) => n + r.total, 0), grants: kept };
   });
 
 export const getGrantDetail = createServerFn({ method: "POST" })
@@ -76,4 +83,19 @@ export const summarizeGrant = createServerFn({ method: "POST" })
       `Grant: ${data.title}\nAward floor/ceiling: ${d.awardFloor ?? "?"} / ${d.awardCeiling ?? "?"}\nNumber of awards: ${d.numberOfAwards ?? "?"}\nCost sharing required: ${d.costSharing ? "yes" : "no"}\nEligible applicants: ${d.eligibility.join("; ") || "Not stated"}\nEligibility notes: ${d.eligibilityNotes.slice(0, 3000)}\nDescription: ${d.description.slice(0, 12000)}\n\nWrite four short labeled lines: Who qualifies:, What they fund:, Award size:, Watch out for: (common reasons applications get rejected for this program). Plain sentences, no markdown symbols.`,
     );
     return { summary: text };
+  });
+
+export const auditGrantFit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ id: z.string().regex(/^\d+$/), title: z.string().max(500) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const [d, { data: p }] = await Promise.all([detail(data.id), context.supabase.from("profiles").select("*").eq("id", context.userId).maybeSingle()]);
+    const { generateWithGemini } = await import("@/lib/ai/ai.server");
+    const profile = p ? `Name: ${p.project_name}\nEntity: ${p.entity_type}\nIndustry: ${p.industry}\nStage: ${p.lifecycle_stage}\nLocation: ${p.location}\nFunding goal: ${p.funding_goal}\nUse of funds: ${p.funding_purpose}\nDemographics: ${(p.demographics ?? []).join(", ")}` : "No profile on file.";
+    const text = await generateWithGemini(
+      "You are a veteran federal grant consultant doing a fast Go/No-Go screen before a founder spends time writing. Use only the facts given. Be blunt. Never invent rules; if unclear say 'Not stated — confirm with the program officer'.",
+      `APPLICANT\n${profile}\n\nGRANT: ${data.title}\nEligible applicants: ${d.eligibility.join("; ") || "Not stated"}\nEligibility notes: ${d.eligibilityNotes.slice(0, 3000)}\nCost sharing flag: ${d.costSharing ? "REQUIRED" : "not required"}\nAward: ${d.awardFloor ?? "?"} - ${d.awardCeiling ?? "?"}\nDescription: ${d.description.slice(0, 10000)}\n\nReply in exactly this plain-text format, no markdown:\nVERDICT: GO or CAUTION or NO-GO\nEntity fit: one sentence\nCost share: one sentence (amount/percent if stated)\nTopic fit: one sentence on how well the applicant's business matches what is funded\nRegistrations needed: SAM.gov/UEI/Grants.gov/other, one line\nNext steps: 2-3 short actions separated by semicolons`,
+    );
+    const v = /VERDICT:\s*(NO-GO|CAUTION|GO)/i.exec(text)?.[1]?.toUpperCase() ?? "CAUTION";
+    return { verdict: (d.costSharing && v === "GO" ? "CAUTION" : v) as "GO" | "CAUTION" | "NO-GO", costSharing: d.costSharing, report: text.replace(/^VERDICT:.*\n?/im, "").trim() };
   });
