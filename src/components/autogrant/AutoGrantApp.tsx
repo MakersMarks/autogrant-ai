@@ -12,6 +12,7 @@ import { Discovery } from "./Discovery";
 import { Vault, type VaultDoc } from "./Vault";
 import { Tracker, type AppRow } from "./Tracker";
 import { Logo } from "./Logo";
+import { ProposalStudio } from "./ProposalStudio";
 
 type Tab = "dashboard" | "discovery" | "vault" | "tracker";
 
@@ -37,8 +38,6 @@ function Platform({ userId }: { userId: string }) {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [deckIndex, setDeckIndex] = useState(0);
   const [selected, setSelected] = useState<Grant | null>(null);
-  const [narrative, setNarrative] = useState("");
-  const [drafting, setDrafting] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const draft = useServerFn(draftProposal);
 
@@ -67,12 +66,7 @@ function Platform({ userId }: { userId: string }) {
     if (error) throw new Error(error.message);
   };
 
-  const openDraft = async (g: Grant) => {
-    setSelected(g); setNarrative(""); setDrafting(true);
-    try { const r = await draft({ data: { title: g.title, funder: g.funder, amount: g.amount, eligibilityReason: g.eligibilityReason } }); setNarrative(r.narrative); }
-    catch (e) { toast.error(e instanceof Error ? e.message : "Drafting failed"); }
-    setDrafting(false);
-  };
+  const openDraft = (g: Grant) => setSelected(g);
 
   const toggleAutopilot = async () => {
     if (!profile || autoRunning) return;
@@ -152,29 +146,7 @@ function Platform({ userId }: { userId: string }) {
         {tab === "tracker" && <Tracker applications={apps} />}
       </main>
 
-      {selected && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-border pb-3">
-              <div><h3 className="text-lg font-display font-bold">AI Proposal Editor</h3><p className="text-xs text-muted-foreground">{selected.title}</p></div>
-              <button aria-label="Close" onClick={() => setSelected(null)} className="text-muted-foreground">✕</button>
-            </div>
-            {drafting ? (
-              <div className="h-72 flex items-center justify-center gap-2 text-sm text-primary"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />Drafting your proposal with AI…</div>
-            ) : (
-              <textarea value={narrative} onChange={(e) => setNarrative(e.target.value)} className="w-full h-72 bg-background border border-border rounded-xl p-4 text-xs font-mono focus:outline-none focus:border-primary" />
-            )}
-            <div className="flex gap-3">
-              <button onClick={() => setSelected(null)} className="flex-1 py-2.5 bg-secondary rounded-lg text-sm font-semibold">Discard</button>
-              <button disabled={drafting} onClick={() => openDraft(selected)} className="px-4 py-2.5 border border-primary/40 text-primary rounded-lg text-sm font-semibold disabled:opacity-40">Regenerate</button>
-              <button disabled={drafting || !narrative.trim()} onClick={async () => {
-                try { await saveApplication(selected, narrative, "Submitted & Queued"); await loadApps(); setSelected(null); setDeckIndex(deckIndex + 1); toast.success("Application saved to tracker"); }
-                catch (e) { toast.error(e instanceof Error ? e.message : "Save failed"); }
-              }} className="flex-1 py-2.5 bg-success text-primary-foreground font-bold rounded-lg text-sm disabled:opacity-40">Approve & Submit</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {selected && <ProposalStudio grant={selected} voiceCalibrated={!!profile.voice_profile} onClose={() => { setSelected(null); setDeckIndex(deckIndex + 1); }} onSaved={() => { loadApps(); loadDocs(); }} />}
     </div>
   );
 }
