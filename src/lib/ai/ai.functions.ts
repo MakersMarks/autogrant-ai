@@ -4,7 +4,7 @@ import { generateWithGemini } from "./ai.server";
 import { sectorName } from "@/lib/grants";
 
 import { z } from "zod";
-import { intakeSchema, summarySchema, buildProposalPrompt, validateProposalOutput } from "./proposal-policy";
+import { intakeSchema, summarySchema, buildProposalPrompt, validateProposalOutput, documentTypes, buildDocumentPrompt, parseDocument, voiceDirective, documentFileName } from "./proposal-policy";
 import { extractDocumentText } from "./documents.server";
 
 const grantSchema = z.object({ title: z.string().min(1).max(500), funder: z.string().max(500), amount: z.string().max(500), eligibilityReason: z.string().max(500), grantId: z.string().max(200).optional() });
@@ -89,4 +89,35 @@ export const calibrateVoice = createServerFn({ method: "POST" })
       .eq("id", context.userId);
     if (error) throw new Error(error.message);
     return { profile: profileText, demo };
+  });
+
+const documentRequestSchema = grantSchema.extend({ type: z.enum(documentTypes), applicationId: z.string().uuid().optional() });
+
+export const generateGrantDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => documentRequestSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { profile, evidence } = await loadEvidence(context.supabase, context.userId);
+    const { type, applicationId, ...grant } = data;
+    const intakeText = [profile.project_name, profile.funding_purpose, profile.voice_sample].filter(Boolean).join(' \n ');
+    const request = buildDocumentPrompt(type, { ...profile, voice_sample: undefined, voice_profile: undefined, industry: profile.industry || sectorName(profile.sector_code) }, evidence, grant, voiceDirective(profile.voice_profile, intakeText));
+    const sections = parseDocument(type, await generateWithGemini(request.system, request.prompt));
+    const narrative = sections.map((s, i) => `## ${i + 1}. ${s.title}\n\n${s.body}`).join('\n\n');
+    const path = `${context.userId}/${type}-${crypto.randomUUID()}.txt`;
+    const bytes = new TextEncoder().encode(narrative);
+    const { error: uploadError } = await context.supabase.storage.from('vault').upload(path, bytes, { contentType: 'text/plain' });
+    if (uploadError) throw new Error('Document generated but could not be saved in your private Vault.');
+    const fileName = documentFileName(type, profile.project_name, grant.title);
+    const { data: document, error } = await context.supabase.from('vault_documents').insert({ user_id: context.userId, file_name: fileName, storage_path: path, slot_key: `${type}-${crypto.randomUUID()}`, mime_type: 'text/plain', size_bytes: bytes.length }).select('id, file_name').single();
+    if (error) { await context.supabase.storage.from('vault').remove([path]); throw new Error('Document could not be indexed in your Vault.'); }
+    let appId = applicationId;
+    if (appId) {
+      const { error: upErr } = await context.supabase.from('applications').update({ narrative }).eq('id', appId).eq('user_id', context.userId);
+      if (upErr) throw new Error('Saved to Vault, but the tracker could not be updated.');
+    } else {
+      const { data: app, error: insErr } = await context.supabase.from('applications').insert({ user_id: context.userId, grant_id: grant.grantId || grant.title, name: grant.title, funder: grant.funder, amount: grant.amount, narrative, status: 'Drafting' }).select('id').single();
+      if (insErr || !app) throw new Error('Saved to Vault, but the tracker could not be updated.');
+      appId = app.id;
+    }
+    return { sections, fileName: document.file_name, applicationId: appId, voiceSource: profile.voice_profile ? 'calibrated' : 'intake' };
   });
