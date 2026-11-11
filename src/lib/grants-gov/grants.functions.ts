@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { daysUntil, grantUrl, isEntityEligible, entityMode, type LiveGrant } from "./rules";
+import { daysUntil, grantUrl, isEntityEligible, isInstitutionOnlyTitle, entityMode, type LiveGrant } from "./rules";
 
 const API = "https://api.grants.gov/v1/api";
 
@@ -63,7 +63,7 @@ export const searchLiveGrants = createServerFn({ method: "POST" })
       };
     }));
     const mode = entityMode(data.entityType);
-    const kept = grants.filter((g) => (g.daysLeft === null || g.daysLeft >= 0) && (!data.entityType || isEntityEligible(g.eligibility, mode)));
+    const kept = grants.filter((g) => (g.daysLeft === null || g.daysLeft >= 0) && (!data.entityType || isEntityEligible(g.eligibility, mode) && !isInstitutionOnlyTitle(g.title, mode)));
     return { total: results.reduce((n, r) => n + r.total, 0), grants: kept };
   });
 

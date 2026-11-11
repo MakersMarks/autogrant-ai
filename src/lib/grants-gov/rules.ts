@@ -110,3 +110,9 @@ export function scoutCategories(sector: string, industry: string): string {
   const set = new Set([sector, ...(TECH.test(industry) ? ["ST"] : [])].filter(Boolean));
   return [...set].join("|");
 }
+
+const INSTITUTION_ONLY = /\b(colleges?|universit(y|ies)|tribal|tribes?|hispanic[- ]serving|HBCUs?|invasive species)\b/i;
+/** Blocks university/tribal-only programs that slip into for-profit feeds via "Others". */
+export function isInstitutionOnlyTitle(title: string, mode: EntityMode): boolean {
+  return mode === "forprofit" && INSTITUTION_ONLY.test(title);
+}
