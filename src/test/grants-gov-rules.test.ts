@@ -45,3 +45,12 @@ describe("scout + entity gate", () => {
     expect(k).toContain("artificial intelligence"); expect(k).toContain("sbir");
   });
 });
+
+import { isInstitutionOnlyTitle } from "@/lib/grants-gov/rules";
+describe("Others loophole", () => {
+  it("hides tribal college grants from a small business", () => expect(isInstitutionOnlyTitle("Tribal Colleges Research Grants Program", "forprofit")).toBe(true));
+  it("keeps them for nonprofits and keeps normal business grants", () => {
+    expect(isInstitutionOnlyTitle("Tribal Colleges Research Grants Program", "nonprofit")).toBe(false);
+    expect(isInstitutionOnlyTitle("SBIR Phase I Small Business Innovation", "forprofit")).toBe(false);
+  });
+});
