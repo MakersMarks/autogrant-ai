@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   buildBudgetJustification,
   calculateBudget,
+  type BudgetInput,
+  type BudgetCalculation,
   type EquipmentBudgetItem,
   type InstitutionalBudgetItem,
 } from "@/lib/budget";
@@ -13,6 +15,7 @@ type InstitutionalDraft = { category: string; basis: string; amount: string };
 type BudgetBuilderProps = {
   awardCeiling?: number | null;
   costSharingPercentage?: number | null;
+  onChange?: (input: BudgetInput, calculation: BudgetCalculation | null) => void;
 };
 
 const newEquipment = (): EquipmentDraft => ({ vendor: "", quantity: "1", unitCost: "0", freight: "0", tax: "0" });
@@ -21,7 +24,7 @@ const numberValue = (value: string) => value.trim() === "" ? Number.NaN : Number
 const validNumber = (value: string) => value.trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0;
 const formatMoney = (value: number) => `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function BudgetBuilder({ awardCeiling, costSharingPercentage }: BudgetBuilderProps) {
+export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }: BudgetBuilderProps) {
   const [equipment, setEquipment] = useState<EquipmentDraft[]>([newEquipment()]);
   const [institutional, setInstitutional] = useState<InstitutionalDraft[]>([newInstitutional()]);
   const [ceiling, setCeiling] = useState(awardCeiling == null ? "" : String(awardCeiling));
@@ -48,6 +51,7 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage }: BudgetBui
   }), [equipment, institutional, noCeiling, ceiling, noMatch, matchPercentage]);
   const calculation = useMemo(() => termsComplete ? calculateBudget(input) : null, [input, termsComplete]);
   const justification = calculation?.valid ? buildBudgetJustification(input, calculation) : "";
+  useEffect(() => { onChange?.(input, calculation); }, [input, calculation, onChange]);
 
   const updateEquipment = (index: number, patch: Partial<EquipmentDraft>) => {
     setEquipment((items) => items.map((item, row) => row === index ? { ...item, ...patch } : item));

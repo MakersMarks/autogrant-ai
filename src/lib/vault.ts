@@ -11,6 +11,9 @@ export interface VaultDocument {
   publicUrl?: string;
   categoryTag?: "legal_tax" | "license_permit" | "vendor_quote" | "financial";
   grantId?: string;
+  slotKey?: string;
+  categoryTag?: "legal_tax" | "license_permit" | "vendor_quote" | "financial";
+  grantId?: string;
 }
 
 export const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15MB Limit
@@ -32,7 +35,14 @@ export function validateVaultFile(file: File): { valid: boolean; error?: string 
   return { valid: true };
 }
 
-export async function processDocumentUpload(file: File): Promise<VaultDocument> {
+export async function processDocumentUpload(
+  file: File,
+  options: {
+    slotKey?: string;
+    categoryTag?: VaultDocument["categoryTag"];
+    grantId?: string;
+  } = {},
+): Promise<VaultDocument> {
   const check = validateVaultFile(file);
   if (!check.valid) {
     throw new Error(check.error);
@@ -43,22 +53,42 @@ export async function processDocumentUpload(file: File): Promise<VaultDocument> 
 
   const fileExt = file.name.split('.').pop();
   const filePath = `${user.id}/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+  const slotKey = options.slotKey ?? `custom-${crypto.randomUUID()}`;
 
   const { error: storageError } = await supabase.storage.from('vault').upload(filePath, file);
   if (storageError) throw new Error(`Storage upload failed: ${storageError.message}`);
 
-  const { data: dbData, error: dbError } = await supabase
-    .from('vault_documents')
-    .insert({
+  const metadata = {
       user_id: user.id,
       file_name: file.name,
       size_bytes: file.size,
       mime_type: file.type,
       storage_path: filePath,
-      slot_key: `custom-${crypto.randomUUID()}`,
-    })
+      slot_key: slotKey,
+      ...(options.categoryTag ? { category_tag: options.categoryTag } : {}),
+      ...(options.grantId ? { grant_id: options.grantId } : {}),
+    };
+  let { data: dbData, error: dbError } = await supabase
+    .from('vault_documents')
+    .insert(metadata)
     .select()
     .single();
+  if (dbError) {
+    const fallback = await supabase
+      .from('vault_documents')
+      .insert({
+        user_id: user.id,
+        file_name: file.name,
+        size_bytes: file.size,
+        mime_type: file.type,
+        storage_path: filePath,
+        slot_key: slotKey,
+      })
+      .select()
+      .single();
+    dbData = fallback.data;
+    dbError = fallback.error;
+  }
   if (dbError || !dbData) {
     await supabase.storage.from('vault').remove([filePath]);
     throw new Error('Document metadata could not be saved. Upload was rolled back.');
@@ -70,7 +100,10 @@ export async function processDocumentUpload(file: File): Promise<VaultDocument> 
     size: file.size,
     type: file.type,
     uploadedAt: new Date().toISOString(),
-    storagePath: filePath
+    storagePath: filePath,
+    categoryTag: options.categoryTag,
+    grantId: options.grantId,
+    slotKey,
   };
 }
 

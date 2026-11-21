@@ -4,11 +4,13 @@ import { ProposalDraft } from '../lib/autopilot';
 
 interface ApplicationTrackerProps {
   proposals: ProposalDraft[];
-  onStatusChange?: (id: string, newStatus: 'draft' | 'submitted') => void;
+  onStatusChange?: (id: string, newStatus: 'draft' | 'submitted', confirmation?: string) => void;
 }
 
 export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ proposals, onStatusChange }) => {
   const [selectedProposal, setSelectedProposal] = useState<ProposalDraft | null>(null);
+  const [confirmSubmission, setConfirmSubmission] = useState(false);
+  const [confirmation, setConfirmation] = useState("");
 
   const handleExportMarkdown = (proposal: ProposalDraft) => {
     const blob = new Blob([proposal.generatedContent], { type: 'text/markdown;charset=utf-8;' });
@@ -66,18 +68,52 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ proposal
             >
               Export as Markdown (.md)
             </button>
-            <button
-              onClick={() => {
-                const updatedStatus = selectedProposal.status === 'draft' ? 'submitted' : 'draft';
-                selectedProposal.status = updatedStatus;
-                setSelectedProposal({ ...selectedProposal });
-                if (onStatusChange) onStatusChange(selectedProposal.id, updatedStatus);
-              }}
-              className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded font-medium transition"
-            >
-              Toggle Status: {selectedProposal.status === 'draft' ? 'Mark Submitted' : 'Mark Draft'}
-            </button>
+            {selectedProposal.status === 'draft' ? (
+              <button
+                onClick={() => setConfirmSubmission(true)}
+                className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded font-medium transition"
+              >
+                Confirm External Submission
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  selectedProposal.status = 'draft';
+                  setSelectedProposal({ ...selectedProposal });
+                  if (onStatusChange) onStatusChange(selectedProposal.id, 'draft');
+                }}
+                className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded font-medium transition"
+              >
+                Move to Draft
+              </button>
+            )}
           </div>
+          {confirmSubmission && (
+            <div className="p-3 border border-amber-700 bg-amber-950/30 rounded-lg space-y-3">
+              <p className="text-xs text-amber-200">Only confirm after completing the submission in the funder's official portal.</p>
+              <input
+                aria-label="Submission confirmation number"
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
+                placeholder="Confirmation / receipt number (optional)"
+                className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs"
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setConfirmSubmission(false)} className="text-xs px-3 py-1.5 rounded border border-slate-700">Cancel</button>
+                <button
+                  onClick={() => {
+                    selectedProposal.status = 'submitted';
+                    setSelectedProposal({ ...selectedProposal });
+                    if (onStatusChange) onStatusChange(selectedProposal.id, 'submitted', confirmation.trim() || undefined);
+                    setConfirmSubmission(false);
+                  }}
+                  className="text-xs px-3 py-1.5 rounded bg-emerald-600 font-semibold"
+                >
+                  Confirm Submission
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -4,17 +4,20 @@ import { createFileRoute } from '@tanstack/react-router';
 import { ApplicationTracker } from '../components/ApplicationTracker';
 import { AuthModal } from '../components/AuthModal';
 import { processDocumentUpload } from '../lib/vault';
-import { Grant, OFFICIAL_SECTORS } from '../lib/grants';
+import { Grant, OFFICIAL_SECTORS, type UnifiedGrant } from '../lib/grants';
 import { LiveGrantsFeed } from '@/components/autogrant/LiveGrantsFeed';
 import { applicationToProposal } from '../lib/autopilot';
 import { useServerFn } from '@tanstack/react-start';
-import { draftProposal, saveIntake } from '@/lib/ai/ai.functions';
+import { saveIntake } from '@/lib/ai/ai.functions';
 import { IntakeStudio } from '@/components/autogrant/IntakeStudio';
 import { DocumentViewer } from '@/components/autogrant/DocumentViewer';
 import type { Intake } from '@/lib/ai/proposal-policy';
 import { Button } from '@/components/ui/button';
 import { supabase } from '../integrations/supabase/client';
 import { VaultDocument, ProposalDraft, EntityType } from '../lib/types';
+import { ProposalStudio } from '@/components/autogrant/ProposalStudio';
+import type { LiveGrant } from '@/lib/grants-gov/rules';
+import { getIndustryDocumentRequirements } from '@/lib/compliance/industry-documents';
 
 export const Route = createFileRoute('/')({
   ssr: false,
@@ -37,7 +40,9 @@ function IndexComponent() {
   const [drafting, setDrafting] = useState(false);
   const [summary, setSummary] = useState('');
   const [viewing, setViewing] = useState<VaultDocument | null>(null);
-  const draft = useServerFn(draftProposal);
+  const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
+  const [uploadCategory, setUploadCategory] = useState<"legal_tax" | "license_permit" | "vendor_quote" | "financial">("legal_tax");
+  const [uploadSlotKey, setUploadSlotKey] = useState("");
   const persistIntake = useServerFn(saveIntake);
   const activeProject = intake?.project_name || 'No project specified';
   const [fundingGoal, setFundingGoal] = useState<number>(250000);
@@ -60,6 +65,17 @@ function IndexComponent() {
   const [vaultDocs, setVaultDocs] = useState<VaultDocument[]>([]);
   const [proposals, setProposals] = useState<ProposalDraft[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const profileMissingFields = intake
+    ? [
+      ...(!intake.project_name?.trim() ? ["Project name"] : []),
+      ...(!intake.industry?.trim() ? ["Industry"] : []),
+      ...(!intake.lifecycle_stage?.trim() ? ["Business stage"] : []),
+      ...(!intake.location?.trim() ? ["Location"] : []),
+      ...(!intake.funding_purpose?.trim() ? ["Funding purpose"] : []),
+      ...(!intake.funding_goal?.trim() ? ["Funding goal"] : []),
+    ]
+    : ["Sign in and complete your profile"];
+  const intakeComplete = profileMissingFields.length === 0;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -87,7 +103,17 @@ function IndexComponent() {
       setEntityType(profile.entity_type as EntityType);
       setFundingGoal(Number(profile.funding_goal.replace(/[^0-9.]/g, '')) || 0);
     }
-    setVaultDocs((documents ?? []).map((d) => ({ id: d.id, name: d.file_name, size: d.size_bytes, type: d.mime_type, uploadedAt: d.created_at, storagePath: d.storage_path })));
+    setVaultDocs((documents ?? []).map((d) => ({
+      id: d.id,
+      name: d.file_name,
+      size: d.size_bytes,
+      type: d.mime_type,
+      uploadedAt: d.created_at,
+      storagePath: d.storage_path,
+      slotKey: d.slot_key,
+      categoryTag: d.category_tag ?? undefined,
+      grantId: d.grant_id ?? undefined,
+    })));
     setProposals((applications ?? []).map(applicationToProposal));
   };
   useEffect(() => {
@@ -100,7 +126,11 @@ function IndexComponent() {
     if (file) {
       try {
         setStatusMessage(`Uploading ${file.name} (Max 15MB)...`);
-        const doc = await processDocumentUpload(file);
+        const doc = await processDocumentUpload(file, {
+          categoryTag: uploadCategory,
+          grantId: selectedGrant?.id,
+          slotKey: uploadSlotKey || undefined,
+        });
         setVaultDocs((prev) => [doc, ...prev]);
         setStatusMessage(`Saved successfully: ${doc.name}`);
       } catch (err: any) {
@@ -111,17 +141,17 @@ function IndexComponent() {
 
   const handleDraftProposal = async (grant: Grant) => {
     if (!userSession) { setShowAuth(true); return; }
-    if (!intake || drafting) return;
-    setDrafting(true);
+    if (!intakeComplete) {
+      setStatusMessage('Complete the mission-critical profile fields before opening Proposal Studio.');
+      return;
+    }
     try {
-      setStatusMessage(`Drafting ${grant.title} from your active intake and Vault…`);
-      await persistIntake({ data: { ...intake, sector_code: selectedSector, entity_type: entityType } });
-      const result = await draft({ data: { grantId: grant.id, title: grant.title, funder: grant.funder, amount: grant.amount, eligibilityReason: grant.eligibilityReason } });
-      setProposals((prev) => [applicationToProposal(result.application), ...prev]);
-      setStatusMessage(`Proposal saved to the tracker: ${grant.title}`);
+      await persistIntake({ data: { ...intake!, sector_code: selectedSector, entity_type: entityType } });
+      setSelectedGrant(grant);
+      setStatusMessage(`Proposal Studio opened for ${grant.title}.`);
     } catch (err) {
-      setStatusMessage(err instanceof Error ? err.message : 'Proposal generation failed.');
-    } finally { setDrafting(false); }
+      setStatusMessage(err instanceof Error ? err.message : 'Could not open Proposal Studio.');
+    }
   };
 
   const fundingProgress = fundingGoal > 0 ? Math.min(Math.round((totalAwarded / fundingGoal) * 100), 100) : 0;
@@ -187,6 +217,11 @@ function IndexComponent() {
       </section>
 
       {intake && <IntakeStudio initial={{ ...intake, sector_code: selectedSector, entity_type: entityType }} onSaved={(value) => { setIntake(value); setFundingGoal(Number(value.funding_goal.replace(/[^0-9.]/g, '')) || 0); setStatusMessage('Intake saved.'); }} onError={setStatusMessage} onSummary={(text) => { setSummary(text); setStatusMessage('Executive summary saved to your private Vault.'); void reloadWorkspace(); }} />}
+      {!intakeComplete && (
+        <section role="alert" className="border border-amber-700 bg-amber-950/40 rounded-xl p-4 text-xs text-amber-200">
+          Complete these profile fields before drafting: {profileMissingFields.join(", ")}.
+        </section>
+      )}
       {summary && <section className="border-b border-border py-4"><h2 className="text-lg font-semibold text-foreground">Executive summary</h2><pre className="whitespace-pre-wrap text-sm text-foreground">{summary}</pre></section>}
       {/* Locked Desktop Split-Screen Grid Layout */}
       <main className="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -227,6 +262,35 @@ function IndexComponent() {
               onChange={handleFileUpload}
               className="block w-full text-xs text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
             />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="text-xs text-slate-400">Evidence category
+                <select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value as typeof uploadCategory)} className="mt-1 block w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white">
+                  <option value="legal_tax">Legal / Tax</option>
+                  <option value="license_permit">License / Permit</option>
+                  <option value="vendor_quote">Vendor Quote</option>
+                  <option value="financial">Financial</option>
+                </select>
+              </label>
+              {intake && getIndustryDocumentRequirements(intake.industry, intake.entity_type).length > 0 && (
+                <label className="text-xs text-slate-400">Required document
+                  <select value={uploadSlotKey} onChange={(e) => setUploadSlotKey(e.target.value)} className="mt-1 block w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white">
+                    <option value="">General evidence</option>
+                    {getIndustryDocumentRequirements(intake.industry, intake.entity_type).map((requirement) => (
+                      <option key={requirement.key} value={requirement.key}>{requirement.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {selectedGrant && <p className="text-xs text-slate-400 self-end">Linked grant: <span className="text-emerald-400">{selectedGrant.title}</span></p>}
+            </div>
+            {intake && getIndustryDocumentRequirements(intake.industry, intake.entity_type).length > 0 && (
+              <div className="grid gap-1 sm:grid-cols-2">
+                {getIndustryDocumentRequirements(intake.industry, intake.entity_type).map((requirement) => {
+                  const ready = vaultDocs.some((doc) => doc.slotKey === requirement.key);
+                  return <p key={requirement.key} className={`text-xs ${ready ? "text-emerald-400" : "text-slate-400"}`}>{ready ? "✓" : "○"} {requirement.name}</p>;
+                })}
+              </div>
+            )}
 
             {vaultDocs.map((doc) => <Button key={doc.id} variant="ghost" size="sm" className="max-w-full whitespace-normal text-left" onClick={() => setViewing(doc)}>{doc.name}</Button>)}
             {statusMessage && (
@@ -236,7 +300,42 @@ function IndexComponent() {
             )}
           </div>
 
-          <LiveGrantsFeed key={intake?.sector_code ?? 'none'} profile={intake ? { sector: intake.sector_code, industry: intake.industry, location: intake.location, entityType: intake.entity_type, fundingPurpose: intake.funding_purpose } : undefined} signedIn={!!userSession} drafting={drafting} onDraft={(g) => handleDraftProposal({ id: g.id, title: g.title, funder: g.agency, amount: g.awardCeiling ? `Up to $${g.awardCeiling.toLocaleString('en-US')}` : 'Not listed', fit: '', tier: '', categoryCode: selectedSector, eligibilityReason: `Grants.gov ${g.number}. Eligible: ${g.eligibility.join('; ') || 'see listing'}. Closes ${g.closeDate}.`.slice(0, 500), deadline: g.closeDate })} />
+          <LiveGrantsFeed
+            key={intake?.sector_code ?? 'none'}
+            profile={intake ? { sector: intake.sector_code, industry: intake.industry, location: intake.location, entityType: intake.entity_type, fundingPurpose: intake.funding_purpose } : undefined}
+            signedIn={!!userSession}
+            enabled={intakeComplete}
+            drafting={drafting}
+            onDraft={(g) => {
+              if ("agency" in g) {
+                const federal = g as LiveGrant;
+                void handleDraftProposal({
+                  id: federal.id,
+                  title: federal.title,
+                  funder: federal.agency,
+                  amount: federal.awardCeiling ? `Up to $${federal.awardCeiling.toLocaleString("en-US")}` : "Not listed",
+                  fit: "",
+                  tier: "[Federal]",
+                  categoryCode: selectedSector,
+                  eligibilityReason: `Grants.gov ${federal.number}. Eligible: ${federal.eligibility.join("; ") || "see listing"}. Closes ${federal.closeDate}.`.slice(0, 500),
+                  deadline: federal.closeDate,
+                });
+              } else {
+                const pool = g as UnifiedGrant;
+                void handleDraftProposal({
+                  id: pool.id,
+                  title: pool.title,
+                  funder: pool.funderName,
+                  amount: pool.awardCeiling ? `$${pool.awardFloor.toLocaleString("en-US")} - $${pool.awardCeiling.toLocaleString("en-US")}` : "Not listed",
+                  fit: "",
+                  tier: `[${pool.poolTier === "state_territory" ? "State" : pool.poolTier === "corporate_diversity" ? "Corporate" : "Foundation"}]`,
+                  categoryCode: selectedSector,
+                  eligibilityReason: pool.summaryText,
+                  deadline: pool.isRolling ? "Rolling" : pool.deadline,
+                });
+              }
+            }}
+          />
 
         </div>
 
@@ -249,6 +348,15 @@ function IndexComponent() {
 
       <DocumentViewer doc={viewing} onClose={() => setViewing(null)} />
       </main>
+      {selectedGrant && (
+        <ProposalStudio
+          grant={selectedGrant}
+          voiceCalibrated={false}
+          availableEvidenceIds={vaultDocs.map((doc) => doc.slotKey).filter((slot): slot is string => !!slot)}
+          onClose={() => setSelectedGrant(null)}
+          onSaved={() => void reloadWorkspace()}
+        />
+      )}
     </div>
   );
 }

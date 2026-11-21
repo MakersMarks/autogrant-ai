@@ -6,16 +6,31 @@ import { documentSpecs, documentTypes, toCleanText, wordCount, type DocumentType
 import type { Grant } from "@/lib/grants";
 import { evaluateProposalRedTeam } from "@/lib/ai/red-team";
 import type { GrantRequirementBOM } from "@/lib/ai/rfp-parser";
+import type { BudgetInput, BudgetCalculation } from "@/lib/budget";
 import { BudgetBuilder } from "./BudgetBuilder";
 
 type Section = { title: string; body: string };
 
-export function ProposalStudio({ grant, voiceCalibrated, onClose, onSaved }: { grant: Grant; voiceCalibrated: boolean; onClose: () => void; onSaved: () => void }) {
+export function ProposalStudio({
+  grant,
+  voiceCalibrated,
+  availableEvidenceIds = [],
+  onClose,
+  onSaved,
+}: {
+  grant: Grant;
+  voiceCalibrated: boolean;
+  availableEvidenceIds?: readonly string[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const [type, setType] = useState<DocumentType>("executive_summary");
   const [view, setView] = useState<"documents" | "budget" | "audit">("documents");
   const [docs, setDocs] = useState<Partial<Record<DocumentType, { sections: Section[]; fileName: string }>>>({});
   const [appId, setAppId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [budgetInput, setBudgetInput] = useState<BudgetInput | null>(null);
+  const [budgetCalculation, setBudgetCalculation] = useState<BudgetCalculation | null>(null);
   const gen = useServerFn(generateGrantDocument);
   const current = docs[type];
 
@@ -48,7 +63,19 @@ export function ProposalStudio({ grant, voiceCalibrated, onClose, onSaved }: { g
   };
   const proposalText = Object.values(docs).flatMap((doc) => doc?.sections ?? []).map((section) => `## ${section.title}\n${section.body}`).join("\n\n");
   const audit = proposalText
-    ? evaluateProposalRedTeam({ proposalText, bom })
+    ? evaluateProposalRedTeam({
+      proposalText,
+      bom,
+      availableEvidenceIds,
+      budget: {
+        requestedAmount: budgetCalculation?.valid ? budgetCalculation.grantRequest : undefined,
+        ceiling: budgetInput?.awardCeiling ?? undefined,
+        matchRequired: budgetInput?.costSharingPercentage != null,
+        matchRate: budgetInput?.costSharingPercentage != null ? budgetInput.costSharingPercentage / 100 : undefined,
+        requiredMatchAmount: budgetCalculation?.valid ? budgetCalculation.requiredMatch : undefined,
+        committedMatchAmount: budgetCalculation?.valid ? budgetCalculation.requiredMatch : undefined,
+      },
+    })
     : null;
   const moduleLabels: Record<string, string> = {
     structure: "Format & Word Counts",
@@ -89,7 +116,12 @@ export function ProposalStudio({ grant, voiceCalibrated, onClose, onSaved }: { g
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
           {view === "budget" ? (
-            <BudgetBuilder />
+            <BudgetBuilder
+              onChange={(input, calculation) => {
+                setBudgetInput(input);
+                setBudgetCalculation(calculation);
+              }}
+            />
           ) : view === "audit" ? (
             audit ? (
               <div className="space-y-5">

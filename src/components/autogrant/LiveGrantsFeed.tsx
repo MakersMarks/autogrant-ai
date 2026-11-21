@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { searchLiveGrants, getGrantDetail, summarizeGrant, auditGrantFit } from "@/lib/grants-gov/grants.functions";
+import { searchLiveGrants, getGrantDetail, summarizeGrant, auditGrantFit, getMultiPoolRegistry } from "@/lib/grants-gov/grants.functions";
 import { ELIGIBILITY_OPTIONS, entityMode, eligibilityCodesFor, scoutKeywords, scoutCategories, formatMoney, isOtherStateOnly, stateFromLocation, isLastChance, isLowCompetition, matchesAmount, type LiveGrant } from "@/lib/grants-gov/rules";
-import { OFFICIAL_SECTORS } from "@/lib/grants";
+import { OFFICIAL_SECTORS, type UnifiedGrant } from "@/lib/grants";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -14,7 +14,19 @@ const DEADLINES = [
   { value: "90", label: "Closing within 90 days" },
 ];
 
-export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signedIn: boolean; drafting: boolean; onDraft: (g: LiveGrant) => void; profile?: { sector: string; industry: string; location: string; entityType: string; fundingPurpose?: string } | undefined }) {
+export function LiveGrantsFeed({
+  signedIn,
+  drafting,
+  onDraft,
+  enabled = true,
+  profile,
+}: {
+  signedIn: boolean;
+  drafting: boolean;
+  enabled?: boolean;
+  onDraft: (g: LiveGrant | UnifiedGrant) => void;
+  profile?: { sector: string; industry: string; location: string; entityType: string; fundingPurpose?: string } | undefined;
+}) {
   const userState = stateFromLocation(profile?.location ?? "");
   const search = useServerFn(searchLiveGrants);
   const fetchDetail = useServerFn(getGrantDetail);
@@ -49,6 +61,15 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
   const [detailErr, setDetailErr] = useState("");
   const [summary, setSummary] = useState("");
   const [summarizing, setSummarizing] = useState(false);
+  const pool = useServerFn(getMultiPoolRegistry);
+  const [poolGrants, setPoolGrants] = useState<UnifiedGrant[]>([]);
+  useEffect(() => {
+    if (!signedIn) return;
+    const stateMatch = /\b([A-Z]{2})\b/.exec((profile?.location ?? "").toUpperCase());
+    void pool({ data: { state: stateMatch?.[1] ?? "" } })
+      .then((result) => setPoolGrants([...result.pools.State, ...result.pools.Corporate, ...result.pools.Foundation]))
+      .catch(() => setPoolGrants([]));
+  }, [signedIn, profile?.location, pool]);
 
   const run = async () => {
     if (!signedIn) return;
@@ -101,7 +122,7 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
 
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); void run(); }}>
         <input aria-label="Search grants" className={`${field} flex-1`} placeholder="Search keyword (e.g. food, SBIR, rural)" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-        <Button type="submit" disabled={loading || !signedIn} className="text-xs">Search</Button>
+        <Button type="submit" disabled={loading || !signedIn || !enabled} className="text-xs">Search</Button>
       </form>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -121,6 +142,29 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
       </div>
 
       {!keyword.trim() && scout.length > 0 && <p className="text-[11px] text-slate-400">Scouting from your intake for: {scout.map((k) => <span key={k} className="inline-block mr-1 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-slate-200">{k}</span>)} · only grants open to {mode === "nonprofit" ? "nonprofits" : "for-profit / small businesses"}</p>}
+      {poolGrants.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Corporate, State & Foundation Opportunities</h3>
+          <div className="grid gap-2 md:grid-cols-2">
+            {poolGrants.map((grant) => (
+              <div key={grant.id} className="p-3 bg-slate-950 border border-slate-800 rounded-lg space-y-2">
+                <div className="flex justify-between gap-2">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-950 text-violet-300 border border-violet-800">
+                    [{grant.poolTier === "state_territory" ? "State" : grant.poolTier === "corporate_diversity" ? "Corporate" : "Foundation"}]
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-mono">${grant.awardCeiling.toLocaleString("en-US")}</span>
+                </div>
+                <p className="text-sm font-bold text-blue-400">{grant.title}</p>
+                <p className="text-xs text-slate-400">{grant.funderName} · {grant.isRolling ? "Rolling" : grant.deadline}</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" asChild className="text-xs h-8"><a href={grant.directApplyUrl} target="_blank" rel="noreferrer">View funder</a></Button>
+                  <Button disabled={drafting || !enabled} onClick={() => onDraft(grant)} className="text-xs h-8">{drafting ? "Drafting…" : "Open in Studio"}</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       {error && <p className="text-xs text-red-400">{error}</p>}
       {loading ? <p className="text-xs text-slate-400">Loading live grants from Grants.gov…</p> : (
         <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
@@ -147,7 +191,7 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
                 <span className="text-[11px] text-slate-400 font-mono">Closes {g.closeDate || "—"}{g.daysLeft !== null ? ` · ${g.daysLeft} days left` : ""}</span>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => openReader(g)} className="text-xs h-8">Read grant</Button>
-                  <Button disabled={drafting} onClick={() => onDraft(g)} className="text-xs h-8">{drafting ? "Drafting…" : "Draft with Autopilot"}</Button>
+                  <Button disabled={drafting || !enabled} onClick={() => onDraft(g)} className="text-xs h-8">{drafting ? "Drafting…" : "Open in Studio"}</Button>
                 </div>
               </div>
             </div>
@@ -171,7 +215,7 @@ export function LiveGrantsFeed({ signedIn, drafting, onDraft, profile }: { signe
                 <Button onClick={runAudit} disabled={auditing}>{auditing ? "Checking fit…" : "Go / No-Go check"}</Button>
                 <Button variant="outline" onClick={runSummary} disabled={summarizing}>{summarizing ? "Summarizing…" : "Summarize with AI"}</Button>
                 <Button variant="outline" asChild><a href={open.url} target="_blank" rel="noreferrer">Open on Grants.gov</a></Button>
-                <Button variant="outline" disabled={drafting} onClick={() => onDraft(open)}>Draft proposal</Button>
+                <Button variant="outline" disabled={drafting || !enabled} onClick={() => onDraft(open)}>Open in Studio</Button>
               </div>
               {fitErr && <p className="text-xs text-red-400">{fitErr}</p>}
               {fit && <div className={`rounded-lg border p-3 text-xs space-y-1 ${fit.verdict === "GO" ? "border-emerald-600" : fit.verdict === "NO-GO" ? "border-red-600" : "border-amber-500"}`}>
