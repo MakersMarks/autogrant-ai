@@ -23,6 +23,14 @@ describe('Institutional synthesis rules', () => {
     expect(() => validateProposalOutput(text.replace('Strategic Target Market Alignment', 'Impact'))).toThrow();
     expect(() => validateProposalOutput(text.replace('\nMarket\n', '\n\n'))).toThrow();
   });
+  it('enforces a 300-word cap on each generated section', () => {
+    const body = (words: number) => Array(words).fill('evidence').join(' ');
+    const atLimit = `## 1. Statement of Core Problem\n${body(300)}\n## 2. Proposed Solution & Operational Architecture\nSolution\n## 3. Strategic Target Market Alignment\nMarket\n## 4. Capital Allocation & Funding Goal\nCapital`;
+    const overLimit = atLimit.replace(body(300), body(301));
+
+    expect(validateProposalOutput(atLimit)).toBe(atLimit);
+    expect(() => validateProposalOutput(overLimit)).toThrow('300-word limit');
+  });
   it('enforces 300 words maximum in each executive summary input', () => {
     expect(summarySchema.safeParse({ problem: Array(300).fill('word').join(' '), solution: 'Solution' }).success).toBe(true);
     expect(summarySchema.safeParse({ problem: Array(301).fill('word').join(' '), solution: 'Solution' }).success).toBe(false);

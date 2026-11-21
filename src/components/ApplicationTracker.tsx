@@ -82,8 +82,7 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ proposal
             ) : (
               <button
                 onClick={() => {
-                  selectedProposal.status = 'draft';
-                  setSelectedProposal({ ...selectedProposal });
+                  setSelectedProposal({ ...selectedProposal, status: 'draft' });
                   if (onStatusChange) onStatusChange(selectedProposal.id, 'draft');
                 }}
                 className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded font-medium transition"
@@ -106,8 +105,7 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ proposal
                 <button onClick={() => setConfirmSubmission(false)} className="text-xs px-3 py-1.5 rounded border border-slate-700">Cancel</button>
                 <button
                   onClick={() => {
-                    selectedProposal.status = 'submitted';
-                    setSelectedProposal({ ...selectedProposal });
+                    setSelectedProposal({ ...selectedProposal, status: 'submitted' });
                     if (onStatusChange) onStatusChange(selectedProposal.id, 'submitted', confirmation.trim() || undefined);
                     setConfirmSubmission(false);
                   }}

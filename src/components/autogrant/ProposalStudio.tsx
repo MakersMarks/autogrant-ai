@@ -55,7 +55,7 @@ export function ProposalStudio({
   onSaved: () => void;
 }) {
   const [type, setType] = useState<DocumentType>("executive_summary");
-  const [view, setView] = useState<"documents" | "budget" | "audit" | "requirements" | "winners">("documents");
+  const [view, setView] = useState<"documents" | "budget" | "audit" | "requirements" | "winners" | "submit">("documents");
   const [docs, setDocs] = useState<Partial<Record<DocumentType, { sections: Section[]; fileName: string }>>>({});
   const [appId, setAppId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
@@ -291,6 +291,9 @@ export function ProposalStudio({
           <button onClick={() => setView("requirements")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "requirements" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
             Grant Requirements
           </button>
+          <button onClick={() => setView("submit")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "submit" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+            Prepare to Submit
+          </button>
           {grant.publicWinnerHistoryUrl && <button onClick={() => setView("winners")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "winners" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>Winner Research</button>}
           {view === "documents" && documentTypes.map((t) => (
             <button key={t} onClick={() => setType(t)} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${t === type ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
@@ -380,6 +383,42 @@ export function ProposalStudio({
                 {parsedBOM && <p className="text-[11px] text-amber-700">AI-extracted text is not an authoritative compliance determination. Confirm every requirement, eligibility rule, and deadline in the current official notice.</p>}
               </section>
             </div>
+          ) : view === "submit" ? (
+            <section className="space-y-4">
+              <div className="rounded-xl border border-primary/30 bg-background p-5 space-y-3">
+                <h4 className="font-bold text-sm">Submission handoff</h4>
+                <p className="text-xs text-muted-foreground">
+                  AutoGrant prepares the application, but you complete the funder portal and click Submit. This keeps your legal identity, account, signatures, fees, and final attestations under your control.
+                </p>
+              </div>
+              <ol className="space-y-3">
+                {[
+                  ["Review the official notice", "Verify the deadline, eligibility, required forms, page limits, file formats, and cost-share terms."],
+                  ["Finish every draft", "Generate and edit the required documents, complete the Budget Builder, and resolve critical Audit findings."],
+                  ["Export or copy the package", "Use the Proposal documents tab to download PDFs or the complete application ZIP, then recheck file names."],
+                  ["Open the official portal", grant.officialUrl ? "Create or sign in to the funder account, upload the package, complete portal fields, and review the final screen." : "Open the official funder site or Grants.gov opportunity, locate the application workspace, and follow the current instructions."],
+                  ["Submit and save proof", "Only you should click Submit. Save the confirmation number and receipt, then mark the application submitted in the tracker."],
+                ].map(([title, detail], index) => (
+                  <li key={title} className="flex gap-3 rounded-xl border border-border bg-background p-4">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{index + 1}</span>
+                    <div><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div>
+                  </li>
+                ))}
+              </ol>
+              {grant.officialUrl ? (
+                <a
+                  href={grant.officialUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block w-full rounded-lg bg-primary px-4 py-3 text-center text-sm font-bold text-primary-foreground"
+                >
+                  Open Official Grant / Application Portal
+                </a>
+              ) : (
+                <p className="text-xs text-amber-700">No official application URL was supplied for this draft. Confirm the source on the grant listing before proceeding.</p>
+              )}
+              <p className="text-[11px] text-muted-foreground">AutoGrant does not transmit applications, accept attestations, or confirm a portal submission. “Submit” remains the applicant’s action.</p>
+            </section>
           ) : view === "winners" ? (
             <section className="space-y-4">
               <div>

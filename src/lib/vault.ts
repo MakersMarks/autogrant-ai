@@ -116,3 +116,83 @@ export async function processDocumentUpload(
   };
 }
 
+export async function deleteVaultDocument(doc: VaultDocument): Promise<void> {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw new Error(`Could not verify the current user: ${authError.message}`);
+  if (!user) throw new Error("Please sign in before deleting Vault documents.");
+  if (doc.storagePath && !doc.storagePath.startsWith(`${user.id}/`)) {
+    throw new Error("This document is outside your private Vault and cannot be deleted from this account.");
+  }
+
+  let backup: Blob | null = null;
+  if (doc.storagePath) {
+    const download = await supabase.storage.from("vault").download(doc.storagePath);
+    if (download.error || !download.data) {
+      throw new Error(`Could not verify the stored file before deletion: ${download.error?.message ?? "file not found"}`);
+    }
+    backup = download.data;
+    const removal = await supabase.storage.from("vault").remove([doc.storagePath]);
+    if (removal.error) throw new Error(`Could not delete the stored file: ${removal.error.message}`);
+  }
+
+  const deletion = await supabase
+    .from("vault_documents")
+    .delete()
+    .eq("id", doc.id)
+    .eq("user_id", user.id)
+    .select("id")
+    .maybeSingle();
+  if (!deletion.error && deletion.data) return;
+
+  if (doc.storagePath && backup) {
+    const rollback = await supabase.storage.from("vault").upload(doc.storagePath, backup, {
+      contentType: doc.type,
+      upsert: true,
+    });
+    if (rollback.error) {
+      throw new Error(`Vault record deletion failed (${deletion.error?.message ?? "record not found"}) and file restoration failed (${rollback.error.message}). Contact support to repair this document.`);
+    }
+  }
+  throw new Error(`Vault record deletion failed: ${deletion.error?.message ?? "record not found or not owned by this user"}`);
+}
+
+export async function updateVaultTextDocument(doc: VaultDocument, content: string): Promise<number> {
+  if (!doc.type.startsWith("text/") || !doc.storagePath) {
+    throw new Error("Only stored text documents can be edited in the Vault.");
+  }
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw new Error(`Could not verify the current user: ${authError.message}`);
+  if (!user) throw new Error("Please sign in before editing Vault documents.");
+  if (!doc.storagePath.startsWith(`${user.id}/`)) {
+    throw new Error("This document is outside your private Vault and cannot be edited from this account.");
+  }
+  const current = await supabase.storage.from("vault").download(doc.storagePath);
+  if (current.error || !current.data) {
+    throw new Error(`Could not verify the current document before editing: ${current.error?.message ?? "file not found"}`);
+  }
+
+  const blob = new Blob([content], { type: doc.type });
+  const upload = await supabase.storage.from("vault").upload(doc.storagePath, blob, {
+    contentType: doc.type,
+    upsert: true,
+  });
+  if (upload.error) throw new Error(`Could not save edited document: ${upload.error.message}`);
+
+  const update = await supabase.from("vault_documents")
+    .update({ size_bytes: blob.size })
+    .eq("id", doc.id)
+    .eq("user_id", user.id)
+    .select("id")
+    .maybeSingle();
+  if (!update.error && update.data) return blob.size;
+
+  const rollback = await supabase.storage.from("vault").upload(doc.storagePath, current.data, {
+    contentType: doc.type,
+    upsert: true,
+  });
+  if (rollback.error) {
+    throw new Error(`Document metadata update failed (${update.error?.message ?? "record not found"}) and the original file could not be restored (${rollback.error.message}). Contact support to repair this document.`);
+  }
+  throw new Error(`Document metadata update failed: ${update.error?.message ?? "record not found or not owned by this user"}`);
+}
+

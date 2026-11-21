@@ -148,3 +148,85 @@
     color: var(--color-foreground);
   }
 }
+
+.operator-workspace {
+  background-color: oklch(0.985 0.003 247.858);
+  color: oklch(0.208 0.042 265.755);
+}
+
+.operator-workspace .bg-slate-950,
+.operator-workspace .bg-slate-900 {
+  background-color: oklch(1 0 0);
+}
+
+.operator-workspace .bg-slate-800,
+.operator-workspace .hover\:bg-slate-800:hover {
+  background-color: oklch(0.97 0.004 255.508);
+}
+
+.operator-workspace .text-white,
+.operator-workspace .text-slate-100,
+.operator-workspace .text-slate-200,
+.operator-workspace .text-slate-300 {
+  color: oklch(0.208 0.042 265.755);
+}
+
+.operator-workspace .text-slate-400,
+.operator-workspace .text-slate-500 {
+  color: oklch(0.45 0.03 256.788);
+}
+
+.operator-workspace .border-slate-800,
+.operator-workspace .border-slate-700,
+.operator-workspace .border-slate-600 {
+  border-color: oklch(0.9 0.01 255.508);
+}
+
+.operator-workspace .bg-blue-600 {
+  background-color: oklch(0.55 0.16 160);
+}
+
+.operator-workspace .bg-blue-600.text-white,
+.operator-workspace .bg-emerald-700.text-white,
+.operator-workspace .bg-emerald-600.text-white,
+.operator-workspace .bg-emerald-500.text-white {
+  color: oklch(0.985 0.003 247.858);
+}
+
+.operator-workspace .text-blue-300,
+.operator-workspace .text-blue-400 {
+  color: oklch(0.45 0.13 160);
+}
+
+.operator-workspace .bg-blue-950,
+.operator-workspace .bg-violet-950 {
+  background-color: oklch(0.96 0.025 160);
+}
+
+.operator-workspace .border-blue-800,
+.operator-workspace .border-violet-800 {
+  border-color: oklch(0.82 0.08 160);
+}
+
+.operator-workspace .operator-rail {
+  background-color: oklch(0.208 0.042 265.755);
+  border-color: oklch(0.3 0.035 260);
+}
+
+.operator-workspace .operator-rail .text-slate-400,
+.operator-workspace .operator-rail .text-slate-500 {
+  color: oklch(0.82 0.02 255.508);
+}
+
+.operator-workspace .operator-rail .hover\:text-white:hover {
+  color: oklch(0.985 0.003 247.858);
+}
+
+.operator-workspace .operator-rail .hover\:bg-slate-800:hover {
+  background-color: oklch(0.3 0.035 260);
+}
+
+.operator-workspace .operator-rail [aria-current="page"] {
+  background-color: oklch(0.55 0.16 160);
+  color: oklch(0.985 0.003 247.858);
+}

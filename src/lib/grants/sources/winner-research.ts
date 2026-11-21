@@ -32,6 +32,19 @@ export const publishedProgramGuidance: PublishedProgramGuidance[] = [
 
 export const publishedWinnerCaseStudies: PublishedWinnerCaseStudy[] = [
   {
+    programId: "black-ambition-prize",
+    winner: "Expert IEP",
+    awardDate: "2023",
+    awardAmount: "Not stated in the published winner story",
+    sourceUrl: "https://blackambitionprize.com/prize_winners/expert-iep/",
+    sourceName: "Black Ambition Prize winner story",
+    publishedFacts: [
+      "Expert IEP is described as a parent-facing app using predictive AI to help optimize Individualized Education Plans.",
+      "The story describes helping parents of students who think and learn differently navigate special education and advocate for their children.",
+    ],
+    interpretationLimit: "The published story describes the product and intended users, but does not state why Black Ambition selected this winner or the award amount.",
+  },
+  {
     programId: "amber-foundation-grant",
     winner: "The Data Love Co. — Jasmine Motupalli",
     awardDate: "October 2026",

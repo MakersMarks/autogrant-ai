@@ -16,6 +16,7 @@ export type Grant = {
   categoryCode: string;
   eligibilityReason: string;
   deadline: string;
+  officialUrl?: string;
   publicWinnerHistoryUrl?: string;
 };
 
@@ -23,6 +24,17 @@ export type GrantPoolTier = "federal" | "state_territory" | "corporate_diversity
 
 export interface UnifiedGrant {
   id: string;
+  grantTier?: "Federal" | "State" | "Local" | "Foundation";
+  geographicRestriction?: "national" | "state" | "county" | "city" | "rural" | "hubzone";
+  naicsCodes?: string[];
+  setAsides?: Array<"WOSB" | "HUBZone" | "Veteran" | "Tribal" | "Rural" | string>;
+  openDate?: string;
+  closeDate?: string;
+  fundingPool?: number;
+  awardCount?: number;
+  historicalApplicantCount?: number;
+  prerequisites?: string[];
+  officialApplicationUrl?: string;
   directoryOnly?: boolean;
   poolTier: GrantPoolTier;
   title: string;

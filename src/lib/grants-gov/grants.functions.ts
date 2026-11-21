@@ -10,32 +10,42 @@ import { parseSbirSolicitations } from "./sbir";
 
 const API = "https://api.grants.gov/v1/api";
 
+type JsonRecord = Record<string, unknown>;
+
+function isJsonRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 async function gov(path: string, body: unknown) {
   const res = await fetch(`${API}/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error("Grants.gov is not responding right now. Try again shortly.");
-  const json = (await res.json()) as { errorcode: number; data: any };
-  if (json.errorcode !== 0) throw new Error("Grants.gov rejected the search.");
-  return json.data;
+  const json: unknown = await res.json();
+  if (!isJsonRecord(json)) throw new Error("Grants.gov returned an invalid response.");
+  if (json["errorcode"] !== 0) throw new Error("Grants.gov rejected the search.");
+  return json["data"];
 }
 
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
 const strip = (html: string) => html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&rsquo;/g, "'").replace(/&quot;|&ldquo;|&rdquo;/g, '"').replace(/\n{3,}/g, "\n\n").trim();
 
 async function detail(id: string) {
-  const d = await gov("fetchOpportunity", { opportunityId: Number(id) });
-  const s = d?.synopsis ?? {};
+  const response = await gov("fetchOpportunity", { opportunityId: Number(id) });
+  if (!isJsonRecord(response)) throw new Error("Grants.gov returned an invalid opportunity detail.");
+  const s = isJsonRecord(response["synopsis"]) ? response["synopsis"] : {};
+  const applicantTypes = Array.isArray(s["applicantTypes"]) ? s["applicantTypes"] : [];
+  const fundingActivityCategories = Array.isArray(s["fundingActivityCategories"]) ? s["fundingActivityCategories"] : [];
   return {
-    awardCeiling: num(s.awardCeiling), awardFloor: num(s.awardFloor), numberOfAwards: num(s.numberOfAwards),
-    eligibility: (s.applicantTypes ?? []).map((t: any) => String(t.description)),
-    description: strip(String(s.synopsisDesc ?? "")),
-    eligibilityNotes: strip(String(s.applicantEligibilityDesc ?? "")),
-    estimatedFunding: num(s.estimatedFunding),
-    costSharing: s.costSharing === true || s.costSharing === "Y"
+    awardCeiling: num(s["awardCeiling"]), awardFloor: num(s["awardFloor"]), numberOfAwards: num(s["numberOfAwards"]),
+    eligibility: applicantTypes.filter(isJsonRecord).map((type) => String(type["description"] ?? "")),
+    description: strip(String(s["synopsisDesc"] ?? "")),
+    eligibilityNotes: strip(String(s["applicantEligibilityDesc"] ?? "")),
+    estimatedFunding: num(s["estimatedFunding"]),
+    costSharing: s["costSharing"] === true || s["costSharing"] === "Y"
       ? true
-      : s.costSharing === false || s.costSharing === "N" ? false : null,
-    contact: strip([s.agencyContactName, s.agencyContactEmail, s.agencyContactPhone].filter(Boolean).join(" · ")),
-    moreInfoUrl: typeof s.fundingDescLinkUrl === "string" && /^https?:\/\//.test(s.fundingDescLinkUrl) ? s.fundingDescLinkUrl : null,
-    categories: (s.fundingActivityCategories ?? []).map((c: any) => String(c.description)),
+      : s["costSharing"] === false || s["costSharing"] === "N" ? false : null,
+    contact: strip([s["agencyContactName"], s["agencyContactEmail"], s["agencyContactPhone"]].filter(Boolean).join(" · ")),
+    moreInfoUrl: typeof s["fundingDescLinkUrl"] === "string" && /^https?:\/\//.test(s["fundingDescLinkUrl"]) ? s["fundingDescLinkUrl"] : null,
+    categories: fundingActivityCategories.filter(isJsonRecord).map((category) => String(category["description"] ?? "")),
   };
 }
 
@@ -52,19 +62,29 @@ export const searchLiveGrants = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const queries = data.keywords.length ? data.keywords : [""];
     const results = await Promise.all(queries.map(async (keyword) => {
-      const res = await gov("search2", { keyword, rows: queries.length > 1 ? 15 : 40, oppStatuses: "posted", sortBy: "closeDate|asc", fundingCategories: data.category, eligibilities: data.eligibility });
-      return { keyword, hits: (res?.oppHits ?? []) as any[], total: Number(res?.hitCount ?? 0) };
-    }));
-    const seen = new Map<string, { h: any; keyword: string }>();
-    for (const r of results) for (const h of r.hits) if (!seen.has(String(h.id))) seen.set(String(h.id), { h, keyword: r.keyword });
-    const grants: LiveGrant[] = await Promise.all([...seen.values()].map(async ({ h, keyword }) => {
-      let extra = { awardCeiling: null as number | null, awardFloor: null as number | null, numberOfAwards: null as number | null, eligibility: [] as string[] };
-      try { extra = await detail(String(h.id)); } catch { /* keep listing without amounts */ }
+      const response = await gov("search2", { keyword, rows: queries.length > 1 ? 15 : 40, oppStatuses: "posted", sortBy: "closeDate|asc", fundingCategories: data.category, eligibilities: data.eligibility });
+      if (!isJsonRecord(response)) throw new Error("Grants.gov returned an invalid search response.");
       return {
-        id: String(h.id), number: String(h.number), title: String(h.title), agency: String(h.agency ?? h.agencyCode),
-        openDate: String(h.openDate ?? ""), closeDate: String(h.closeDate ?? ""), daysLeft: daysUntil(String(h.closeDate ?? "")),
+        keyword,
+        hits: (Array.isArray(response["oppHits"]) ? response["oppHits"] : []).filter(isJsonRecord),
+        total: Number(response["hitCount"] ?? 0) || 0,
+      };
+    }));
+    const seen = new Map<string, { h: JsonRecord; keyword: string }>();
+    for (const result of results) {
+      for (const hit of result.hits) {
+        if (typeof hit["id"] !== "string" && typeof hit["id"] !== "number") continue;
+        const key = String(hit["id"]);
+        if (!seen.has(key)) seen.set(key, { h: hit, keyword: result.keyword });
+      }
+    }
+    const grants: LiveGrant[] = await Promise.all([...seen.values()].map(async ({ h, keyword }) => {
+      const extra = await detail(String(h["id"]));
+      return {
+        id: String(h["id"]), number: String(h["number"]), title: String(h["title"]), agency: String(h["agency"] ?? h["agencyCode"]),
+        openDate: String(h["openDate"] ?? ""), closeDate: String(h["closeDate"] ?? ""), daysLeft: daysUntil(String(h["closeDate"] ?? "")),
         awardCeiling: extra.awardCeiling, awardFloor: extra.awardFloor, numberOfAwards: extra.numberOfAwards,
-        eligibility: extra.eligibility, url: grantUrl(String(h.id)), ...(keyword ? { matchedKeyword: keyword } : {}),
+        eligibility: extra.eligibility, categories: extra.categories, url: grantUrl(String(h["id"])), ...(keyword ? { matchedKeyword: keyword } : {}),
       };
     }));
     const mode = entityMode(data.entityType);

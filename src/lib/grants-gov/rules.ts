@@ -1,9 +1,28 @@
 // Pure, testable rules for the live Grants.gov feed.
 export type LiveGrant = {
-  id: string; number: string; title: string; agency: string;
-  openDate: string; closeDate: string; daysLeft: number | null;
-  awardCeiling: number | null; awardFloor: number | null; numberOfAwards: number | null;
-  eligibility: string[]; url: string; matchedKeyword?: string;
+  id: string;
+  number: string;
+  title: string;
+  agency: string;
+  openDate: string;
+  closeDate: string;
+  daysLeft: number | null;
+  awardCeiling: number | null;
+  awardFloor: number | null;
+  numberOfAwards: number | null;
+  eligibility: string[];
+  categories: string[];
+  url: string;
+  matchedKeyword?: string;
+  grantTier?: "Federal" | "State" | "Local" | "Foundation";
+  geographicRestriction?: "national" | "state" | "county" | "city" | "rural" | "hubzone";
+  naicsCodes?: string[];
+  setAsides?: string[];
+  openDate?: string;
+  costSharePercentage?: number | null;
+  prerequisites?: string[];
+  historicalApplicantCount?: number;
+  historicalAwards?: number;
 };
 
 export const ELIGIBILITY_OPTIONS = [
@@ -51,7 +70,11 @@ export function grantAwardScaleSignals(
   return signals;
 }
 
-export function matchesAmount(g: Pick<LiveGrant, "awardCeiling">, min: number, max: number): boolean {
+export function matchesAmount(
+  g: Pick<LiveGrant, "awardCeiling">,
+  min: number,
+  max: number,
+): boolean {
   if (!min && !max) return true;
   if (g.awardCeiling === null) return false;
   return (!min || g.awardCeiling >= min) && (!max || g.awardCeiling <= max);
@@ -65,13 +88,72 @@ export function grantUrl(id: string) {
   return `https://www.grants.gov/search-results-detail/${id}`;
 }
 
-const STATES: Record<string, string> = { AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming",PR:"Puerto Rico",GU:"Guam" };
+const STATES: Record<string, string> = {
+  AL: "Alabama",
+  AK: "Alaska",
+  AZ: "Arizona",
+  AR: "Arkansas",
+  CA: "California",
+  CO: "Colorado",
+  CT: "Connecticut",
+  DE: "Delaware",
+  FL: "Florida",
+  GA: "Georgia",
+  HI: "Hawaii",
+  ID: "Idaho",
+  IL: "Illinois",
+  IN: "Indiana",
+  IA: "Iowa",
+  KS: "Kansas",
+  KY: "Kentucky",
+  LA: "Louisiana",
+  ME: "Maine",
+  MD: "Maryland",
+  MA: "Massachusetts",
+  MI: "Michigan",
+  MN: "Minnesota",
+  MS: "Mississippi",
+  MO: "Missouri",
+  MT: "Montana",
+  NE: "Nebraska",
+  NV: "Nevada",
+  NH: "New Hampshire",
+  NJ: "New Jersey",
+  NM: "New Mexico",
+  NY: "New York",
+  NC: "North Carolina",
+  ND: "North Dakota",
+  OH: "Ohio",
+  OK: "Oklahoma",
+  OR: "Oregon",
+  PA: "Pennsylvania",
+  RI: "Rhode Island",
+  SC: "South Carolina",
+  SD: "South Dakota",
+  TN: "Tennessee",
+  TX: "Texas",
+  UT: "Utah",
+  VT: "Vermont",
+  VA: "Virginia",
+  WA: "Washington",
+  WV: "West Virginia",
+  WI: "Wisconsin",
+  WY: "Wyoming",
+  PR: "Puerto Rico",
+  GU: "Guam",
+};
 
 /** Resolve the user's state name from free-text location like "Nashville, TN". */
 export function stateFromLocation(location: string): string | null {
   const t = location.trim();
   if (!t) return null;
-  const abbr = /\b([A-Z]{2})\b/.exec(t.toUpperCase().replace(/[^A-Z ,]/g, " ").split(",").pop() ?? "")?.[1];
+  const abbr = /\b([A-Z]{2})\b/.exec(
+    t
+      .toUpperCase()
+      .replace(/[^A-Z ,]/g, " ")
+      .split(",")
+      .pop() ?? "",
+  )?.[1];
   if (abbr && STATES[abbr]) return STATES[abbr]!;
   const low = t.toLowerCase();
   return Object.values(STATES).find((s) => low.includes(s.toLowerCase())) ?? null;
@@ -79,7 +161,7 @@ export function stateFromLocation(location: string): string | null {
 
 export function stateCodeFromLocation(location: string): string {
   const state = stateFromLocation(location);
-  return state ? Object.entries(STATES).find(([, name]) => name === state)?.[0] ?? "" : "";
+  return state ? (Object.entries(STATES).find(([, name]) => name === state)?.[0] ?? "") : "";
 }
 
 /** True when a grant title is restricted to a different named state than the user's. */
@@ -99,21 +181,39 @@ export function eligibilityCodesFor(mode: EntityMode): string {
   return mode === "nonprofit" ? "12|13|99|25" : "23|22|99|25";
 }
 
-/** Hard gate: hide grants whose listed applicant types exclude the user's entity type. */
+/** Hard gate: only retain grants that explicitly include the user's entity type. */
 export function isEntityEligible(applicantTypes: string[], mode: EntityMode): boolean {
-  if (applicantTypes.length === 0) return true;
-  return applicantTypes.some((t) => /unrestricted|^others?\b/i.test(t.trim()) ||
-    (mode === "forprofit" ? /small business|for[- ]profit/i.test(t) : /non-?profit/i.test(t) && !/other than nonprofit/i.test(t)));
+  if (applicantTypes.length === 0) return false;
+  return applicantTypes.some((type) => {
+    const applicantType = type.trim();
+    if (/unrestricted/i.test(applicantType)) return true;
+    if (mode === "forprofit") return /small businesses?|for[- ]profit/i.test(applicantType);
+    return /non-?profit/i.test(applicantType) && !/other than non-?profit/i.test(applicantType);
+  });
 }
 
-const TECH = /\b(ai|a\.i\.|artificial intelligence|machine learning|software|saas|tech|data|automation|platform|app)\b/i;
+const TECH =
+  /\b(ai|a\.i\.|artificial intelligence|machine learning|software|saas|tech|data|automation|platform|app)\b/i;
 /** Derive targeted Grants.gov keywords from the intake profile (max 4). */
-export function scoutKeywords(p: { industry: string; fundingPurpose?: string; entityType: string }): string[] {
+export function scoutKeywords(p: {
+  industry: string;
+  fundingPurpose?: string;
+  entityType: string;
+}): string[] {
   const text = `${p.industry} ${p.fundingPurpose ?? ""}`;
   const out: string[] = [];
-  const ind = p.industry.trim().replace(/[^\w\s&-]/g, " ").replace(/\s+/g, " ").slice(0, 60);
+  const ind = p.industry
+    .trim()
+    .replace(/[^\w\s&-]/g, " ")
+    .replace(/\s+/g, " ")
+    .slice(0, 60);
   if (ind) out.push(ind);
-  if (TECH.test(text)) out.push("artificial intelligence", entityMode(p.entityType) === "forprofit" ? "SBIR" : "technology capacity", "software");
+  if (TECH.test(text))
+    out.push(
+      "artificial intelligence",
+      entityMode(p.entityType) === "forprofit" ? "SBIR" : "technology capacity",
+      "software",
+    );
   else if (entityMode(p.entityType) === "forprofit") out.push("small business");
   else out.push("community");
   return [...new Set(out.map((k) => k.toLowerCase()))].slice(0, 4);
@@ -125,7 +225,8 @@ export function scoutCategories(sector: string, industry: string): string {
   return [...set].join("|");
 }
 
-const INSTITUTION_ONLY = /\b(colleges?|universit(y|ies)|tribal|tribes?|hispanic[- ]serving|HBCUs?|invasive species)\b/i;
+const INSTITUTION_ONLY =
+  /\b(colleges?|universit(y|ies)|tribal|tribes?|hispanic[- ]serving|HBCUs?|invasive species)\b/i;
 /** Blocks university/tribal-only programs that slip into for-profit feeds via "Others". */
 export function isInstitutionOnlyTitle(title: string, mode: EntityMode): boolean {
   return mode === "forprofit" && INSTITUTION_ONLY.test(title);

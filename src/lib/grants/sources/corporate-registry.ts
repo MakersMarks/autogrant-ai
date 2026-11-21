@@ -17,7 +17,8 @@ export const corporateRegistry: UnifiedGrant[] = [
     deadline: "Check official program", isRolling: false, costSharingRequired: false,
     eligibleEntityTypes: ["for_profit"], demographicSetAsides: ["african_diaspora"], geographicScope: { level: "national" },
     applicationMethod: "online_portal", directApplyUrl: "https://blackambitionprize.com/", isFreeToApply: true,
-    summaryText: "Non-dilutive funding and mentorship for Black and African American founders."
+    summaryText: "Non-dilutive funding and mentorship for Black and African American founders.",
+    publicWinnerHistoryUrl: "https://blackambitionprize.com/prize_winners/expert-iep/",
   },
   {
     id: "tory-burch-fellows", directoryOnly: true, poolTier: "corporate_diversity", title: "Tory Burch Fellows",
