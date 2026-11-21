@@ -1,7 +1,8 @@
 import type { Grant } from "@/lib/grants";
 
-export function Discovery({ grants, index, setIndex, sector, submittedIds, onOpenDraft }: {
+export function Discovery({ grants, index, setIndex, sector, submittedIds, onOpenDraft, missingEvidence = [], evidenceReady = 0 }: {
   grants: Grant[]; index: number; setIndex: (n: number) => void; sector: string; submittedIds: Set<string>; onOpenDraft: (g: Grant) => void;
+  missingEvidence?: string[]; evidenceReady?: number;
 }) {
   const card = grants[index];
   const url = `https://www.grants.gov/search-grants?keywords=${encodeURIComponent(sector)}`;
@@ -23,6 +24,25 @@ export function Discovery({ grants, index, setIndex, sector, submittedIds, onOpe
             <span className="font-bold text-primary uppercase tracking-wider block text-[10px]">Why You Are Eligible:</span>
             <p>{card.eligibilityReason}</p>
           </div>
+          {missingEvidence.length > 0 && (
+            <div className="p-3 bg-background rounded-xl border border-border text-xs">
+              <span className="font-bold text-primary uppercase tracking-wider block text-[10px]">
+                {evidenceReady} of {evidenceReady + missingEvidence.length} Documents Ready
+              </span>
+              <ul className="mt-2 space-y-1">
+                {missingEvidence.slice(0, 4).map((item) => (
+                  <li key={item} className="text-destructive">○ {item} — missing</li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => document.querySelector("#industry-compliance")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="mt-3 w-full py-2 rounded-lg border border-primary/40 text-primary text-xs font-bold"
+              >
+                Upload Missing Evidence
+              </button>
+            </div>
+          )}
           <a href={url} target="_blank" rel="noreferrer" className="inline-block text-xs text-primary hover:underline font-semibold">View Official Funder Search on Grants.gov ↗</a>
           {submittedIds.has(card.id) && <p className="text-xs text-success font-semibold">✓ Already submitted</p>}
           <div className="flex gap-3 pt-2">

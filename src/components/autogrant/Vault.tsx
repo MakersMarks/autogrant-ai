@@ -4,11 +4,19 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { calibrateVoice } from "@/lib/ai/ai.functions";
 import { CUSTOM_DOC_SLOTS, coreDocSlots, validateVaultFile, type DocSlot } from "@/lib/grants";
+import { getIndustryDocumentRequirements } from "@/lib/compliance/industry-documents";
 
-export type VaultDoc = { id: string; slot_key: string; file_name: string; storage_path: string };
+export type VaultDoc = {
+  id: string;
+  slot_key: string;
+  file_name: string;
+  storage_path: string;
+  category_tag?: "legal_tax" | "license_permit" | "vendor_quote" | "financial";
+  grant_id?: string;
+};
 
-export function Vault({ userId, entityType, docs, reload, voiceSample, voiceProfile, onVoiceSaved }: {
-  userId: string; entityType: string; docs: VaultDoc[]; reload: () => Promise<void>;
+export function Vault({ userId, entityType, industry = "", docs, reload, voiceSample, voiceProfile, onVoiceSaved }: {
+  userId: string; entityType: string; industry?: string; docs: VaultDoc[]; reload: () => Promise<void>;
   voiceSample: string; voiceProfile: string; onVoiceSaved: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState<Record<string, boolean>>({});
@@ -17,6 +25,7 @@ export function Vault({ userId, entityType, docs, reload, voiceSample, voiceProf
   const [demo, setDemo] = useState("");
   const [calibrating, setCalibrating] = useState(false);
   const calibrate = useServerFn(calibrateVoice);
+  const industryRequirements = getIndustryDocumentRequirements(industry, entityType);
 
   const upload = async (slot: DocSlot, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,7 +104,7 @@ export function Vault({ userId, entityType, docs, reload, voiceSample, voiceProf
         <span className="text-xs font-bold text-success uppercase tracking-wider block">🔒 Private Encrypted Vault</span>
         <p className="text-xs mt-1">Files are stored privately, encrypted at rest, and only visible to your account.</p>
       </div>
-      <section className="bg-card p-6 rounded-xl border border-border">
+      <section id="industry-compliance" className="bg-card p-6 rounded-xl border border-border">
         <h3 className="text-lg font-display font-bold mb-1">Core Credentials ({entityType})</h3>
         <p className="text-xs text-muted-foreground mb-4">Required to verify legal status and federal compliance.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{coreDocSlots(entityType).map(slotCard)}</div>
@@ -105,6 +114,19 @@ export function Vault({ userId, entityType, docs, reload, voiceSample, voiceProf
         <p className="text-xs text-muted-foreground mb-4">Pitch decks, business plans, or market research (PDF/DOCX).</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{CUSTOM_DOC_SLOTS.map(slotCard)}</div>
       </section>
+      {industryRequirements.length > 0 && (
+        <section className="bg-card p-6 rounded-xl border border-border">
+          <h3 className="text-lg font-display font-bold mb-1">Industry Compliance Documents</h3>
+          <p className="text-xs text-muted-foreground mb-4">Required evidence generated from your industry and entity profile.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {industryRequirements.map((requirement) => slotCard({
+              key: requirement.key,
+              name: `${requirement.name} (${requirement.category.replace("_", " ")})`,
+              required: true,
+            }))}
+          </div>
+        </section>
+      )}
       <section className="bg-card p-6 rounded-xl border border-border space-y-4">
         <h3 className="text-lg font-display font-bold">Personal Writing Style & Tone Calibration</h3>
         <textarea value={sample} onChange={(e) => setSample(e.target.value)} placeholder="Paste your writing samples here..." className="w-full h-28 bg-background border border-border rounded-lg p-4 text-xs focus:outline-none focus:border-primary" />

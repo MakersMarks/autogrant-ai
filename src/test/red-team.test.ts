@@ -128,7 +128,7 @@ describe('deterministic proposal red-team rubric', () => {
     expect(writing?.score).toBeLessThan(20);
     expect(writing?.findings.map(({ code }) => code)).toEqual(expect.arrayContaining([
       'banned_terms_found',
-      'repetitive_lengths_or_sentences',
+      'varied_lengths',
       'bullet_heavy',
     ]));
   });

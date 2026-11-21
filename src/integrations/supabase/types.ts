@@ -130,8 +130,10 @@ export type Database = {
       }
       vault_documents: {
         Row: {
+          category_tag: "legal_tax" | "license_permit" | "vendor_quote" | "financial" | null
           created_at: string
           file_name: string
+          grant_id: string | null
           id: string
           mime_type: string
           size_bytes: number
@@ -140,8 +142,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          category_tag?: "legal_tax" | "license_permit" | "vendor_quote" | "financial" | null
           created_at?: string
           file_name: string
+          grant_id?: string | null
           id?: string
           mime_type: string
           size_bytes: number
@@ -150,8 +154,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          category_tag?: "legal_tax" | "license_permit" | "vendor_quote" | "financial" | null
           created_at?: string
           file_name?: string
+          grant_id?: string | null
           id?: string
           mime_type?: string
           size_bytes?: number

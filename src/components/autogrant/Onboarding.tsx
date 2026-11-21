@@ -4,6 +4,7 @@ import { OFFICIAL_SECTORS, sectorName } from "@/lib/grants";
 export type ProfileInput = {
   entity_type: string;
   sector_code: string;
+  industry?: string;
   funding_goal: string;
   demographics: string[];
   lifecycle_stage: string;
@@ -68,6 +69,7 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
   const [step, setStep] = useState(1);
   const [p, setP] = useState<ProfileInput>({
     ...initial,
+    industry: initial.industry ?? "",
     lifecycle_stage: initial.lifecycle_stage ?? "",
     location: initial.location ?? "",
     funding_purpose: initial.funding_purpose ?? "",
@@ -140,6 +142,17 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
       title: "Unique Identifiers",
       content: (
         <div className="space-y-3">
+          <label className="block space-y-1 text-xs text-muted-foreground">
+            Industry
+            <select aria-label="Industry" value={p.industry} onChange={(e) => setP({ ...p, industry: e.target.value })} className="w-full p-3 rounded-xl border border-border bg-background text-foreground">
+              <option value="">Select industry</option>
+              <option value="Food / Restaurant / Catering">Food / Restaurant / Catering</option>
+              <option value="Mining / Mineral Extraction">Mining / Mineral Extraction</option>
+              <option value="Nonprofit">Nonprofit</option>
+              <option value="Creative / Media / Arts">Creative / Media / Arts</option>
+              <option value="Technology / General Business">Technology / General Business</option>
+            </select>
+          </label>
           {UNIQUE_OPTIONS.map((option) => {
             const active = uniqueSelections.includes(option);
             return <button type="button" key={option} aria-pressed={active} onClick={() => setUniqueSelections(active ? uniqueSelections.filter((x) => x !== option) : [...uniqueSelections, option])} className={opt(active)}>{option}{active ? " ✓" : ""}</button>;

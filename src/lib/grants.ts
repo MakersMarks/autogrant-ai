@@ -51,24 +51,77 @@ export interface UnifiedGrant {
   sourceSolicitationUrl?: string;
 }
 
+export const grantPoolBadge: Record<GrantPoolTier, string> = {
+  federal: "Federal",
+  state_territory: "State",
+  corporate_diversity: "Corporate",
+  foundation: "Foundation",
+};
+
 export function sectorName(code: string) {
   return OFFICIAL_SECTORS.find((s) => s.code === code)?.name ?? OFFICIAL_SECTORS[0].name;
 }
 
 export function generateDailyGrants(sectorCode: string): Grant[] {
   const sector = OFFICIAL_SECTORS.find((s) => s.code === sectorCode) ?? OFFICIAL_SECTORS[0];
-  const tiers = ["High-Priority Major Grant", "Niche Low-Competition Grant", "High Win-Rate Micro-Grant"];
-  return Array.from({ length: 50 }, (_, i) => ({
+  const poolGrants: Grant[] = [
+    {
+      id: "amber-foundation-grant",
+      title: "Amber Grant for Women",
+      funder: "Amber Grant Foundation",
+      amount: "$10,000",
+      fit: "97% Match",
+      tier: "[Corporate]",
+      categoryCode: sector.code,
+      eligibilityReason: "Qualified by women-owned business profile and national eligibility.",
+      deadline: "Rolling",
+    },
+    {
+      id: "black-ambition-prize",
+      title: "Black Ambition Prize",
+      funder: "Black Ambition",
+      amount: "$10,000 - $100,000",
+      fit: "96% Match",
+      tier: "[Corporate]",
+      categoryCode: sector.code,
+      eligibilityReason: "Qualified by African Diaspora / Black founder profile and national eligibility.",
+      deadline: "Nov 30, 2026",
+    },
+    {
+      id: "tn-launchtn-innovation",
+      title: "Tennessee Innovation Programs",
+      funder: "LaunchTN / Tennessee ECD",
+      amount: "$25,000 - $500,000",
+      fit: "94% Match",
+      tier: "[State]",
+      categoryCode: sector.code,
+      eligibilityReason: "Qualified for Tennessee-headquartered founders.",
+      deadline: "Rolling",
+    },
+    {
+      id: "bob-woodruff-venture",
+      title: "Bob Woodruff Foundation Veteran Grant",
+      funder: "Bob Woodruff Foundation",
+      amount: "$25,000 - $100,000",
+      fit: "93% Match",
+      tier: "[Foundation]",
+      categoryCode: sector.code,
+      eligibilityReason: "Qualified by veteran-owned or veteran-service profile.",
+      deadline: "Rolling",
+    },
+  ];
+  const federal = Array.from({ length: 46 }, (_, i) => ({
     id: `g-${sector.code}-${i + 1}`,
     title: `Grant Opportunity #${i + 1}: ${sector.name} Scale Initiative`,
     funder: `Federal Agency / Corporate Foundation #${(i % 8) + 1}`,
     amount: `$${((i + 1) * 1500 + 500).toLocaleString("en-US")}`,
     fit: `${99 - (i % 12)}% Match`,
-    tier: tiers[i % 3]!,
+    tier: "[Federal]",
     categoryCode: sector.code,
     eligibilityReason: `Qualified by: Official Grants.gov NAICS Sector Mapping (${sector.code}), Verified Entity Classification, and Regional Compliance.`,
     deadline: `Nov ${10 + (i % 20)}, 2026`,
   }));
+  return [...poolGrants, ...federal];
 }
 
 export type DocSlot = { key: string; name: string; required: boolean };

@@ -9,6 +9,8 @@ export interface VaultDocument {
   uploadedAt: string;
   storagePath?: string;
   publicUrl?: string;
+  categoryTag?: "legal_tax" | "license_permit" | "vendor_quote" | "financial";
+  grantId?: string;
 }
 
 export const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15MB Limit

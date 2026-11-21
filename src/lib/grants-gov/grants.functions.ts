@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { daysUntil, grantUrl, isEntityEligible, isInstitutionOnlyTitle, entityMode, type LiveGrant } from "./rules";
+import { corporateRegistry } from "@/lib/grants/sources/corporate-registry";
+import { stateRegistry } from "@/lib/grants/sources/state-registry";
+import type { UnifiedGrant } from "@/lib/grants";
 
 const API = "https://api.grants.gov/v1/api";
 
@@ -65,6 +68,26 @@ export const searchLiveGrants = createServerFn({ method: "POST" })
     const mode = entityMode(data.entityType);
     const kept = grants.filter((g) => (g.daysLeft === null || g.daysLeft >= 0) && (!data.entityType || isEntityEligible(g.eligibility, mode) && !isInstitutionOnlyTitle(g.title, mode)));
     return { total: results.reduce((n, r) => n + r.total, 0), grants: kept };
+  });
+
+export const getMultiPoolRegistry = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({
+    state: z.string().max(2).default(""),
+  }).parse(i))
+  .handler(async ({ data }): Promise<{ pools: Record<string, UnifiedGrant[]> }> => {
+    const stateMatches = stateRegistry.filter((grant) =>
+      !data.state || !grant.geographicScope.allowedStates?.length
+      || grant.geographicScope.allowedStates.includes(data.state.toUpperCase()),
+    );
+    return {
+      pools: {
+        Federal: [],
+        State: stateMatches,
+        Corporate: corporateRegistry,
+        Foundation: corporateRegistry.filter((grant) => grant.poolTier === "foundation"),
+      },
+    };
   });
 
 export const getGrantDetail = createServerFn({ method: "POST" })

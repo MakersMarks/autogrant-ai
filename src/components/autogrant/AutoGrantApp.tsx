@@ -13,6 +13,7 @@ import { Vault, type VaultDoc } from "./Vault";
 import { Tracker, type AppRow } from "./Tracker";
 import { Logo } from "./Logo";
 import { ProposalStudio } from "./ProposalStudio";
+import { getIndustryDocumentRequirements } from "@/lib/compliance/industry-documents";
 
 type Tab = "dashboard" | "discovery" | "vault" | "tracker";
 
@@ -94,6 +95,7 @@ function Platform({ userId }: { userId: string }) {
       const { data, error } = await supabase.from("profiles").update({
         entity_type: p.entity_type,
         sector_code: p.sector_code,
+        industry: p.industry,
         funding_goal: p.funding_goal,
         demographics: p.demographics,
         lifecycle_stage: p.lifecycle_stage,
@@ -112,9 +114,10 @@ function Platform({ userId }: { userId: string }) {
 
   const slots = coreDocSlots(profile.entity_type);
   const verified = slots.filter((s) => docs.some((d) => d.slot_key === s.key)).length;
+  const industryRequirements = getIndustryDocumentRequirements(profile.industry ?? "", profile.entity_type);
+  const industryReady = industryRequirements.filter((requirement) => docs.some((doc) => doc.slot_key === requirement.key)).length;
   const tabs: { id: Tab; label: string }[] = [
-    { id: "dashboard", label: "Dashboard" }, { id: "discovery", label: "Grant Discovery (50 Cards)" },
-    { id: "vault", label: "Document Vault" }, { id: "tracker", label: "Application Tracker" },
+    { id: "dashboard", label: "Inn-Flo Command Center" },
   ];
 
   return (
@@ -132,7 +135,7 @@ function Platform({ userId }: { userId: string }) {
         </div>
       </aside>
 
-      <main className="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-4 lg:p-6 max-w-[1800px] mx-auto w-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-card p-6 rounded-2xl border border-border mb-8 gap-4">
           <div>
             <h1 className="text-2xl font-display font-bold">Autopilot Engine Switch</h1>
@@ -147,16 +150,52 @@ function Platform({ userId }: { userId: string }) {
           </div>
         </div>
 
-        {tab === "dashboard" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Stat label="Verified Credentials" value={`${verified} / ${slots.length}`} tone="text-primary" />
-            <Stat label="Active Sector Matches" value={`${grants.length} Grants`} tone="text-success" />
-            <Stat label="Applications Queued" value={String(apps.length)} tone="" />
-          </div>
-        )}
-        {tab === "discovery" && <Discovery grants={grants} index={deckIndex} setIndex={setDeckIndex} sector={sectorName(profile.sector_code)} submittedIds={submittedIds} onOpenDraft={openDraft} />}
-        {tab === "vault" && <Vault userId={userId} entityType={profile.entity_type} docs={docs} reload={loadDocs} voiceSample={profile.voice_sample} voiceProfile={profile.voice_profile} onVoiceSaved={loadProfile} />}
-        {tab === "tracker" && <Tracker applications={apps} />}
+        <div className="grid grid-cols-1 xl:grid-cols-[260px_minmax(420px,1fr)_340px] gap-5">
+          <aside className="space-y-4">
+            <div className="bg-card p-5 rounded-xl border border-border">
+              <h2 className="text-sm font-display font-bold">Profile &amp; Readiness</h2>
+              <div className="mt-4 space-y-3">
+                <Stat label="Verified Credentials" value={`${verified} / ${slots.length}`} tone="text-primary" />
+                <Stat label="Industry Documents" value={`${industryReady} / ${industryRequirements.length}`} tone="text-success" />
+                <Stat label="Applications Queued" value={String(apps.length)} tone="" />
+              </div>
+              {industryRequirements.length > 0 && (
+                <div className="mt-4 border-t border-border pt-4 space-y-2">
+                  {industryRequirements.map((requirement) => {
+                    const ready = docs.some((doc) => doc.slot_key === requirement.key);
+                    return (
+                      <div key={requirement.key} className="flex items-center justify-between gap-2 text-xs">
+                        <span>{requirement.name}</span>
+                        <span className={ready ? "text-success font-bold" : "text-destructive"}>{ready ? "✓ Ready" : "○ Missing"}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+          <section className="min-w-0">
+            <Discovery
+              grants={grants}
+              index={deckIndex}
+              setIndex={setDeckIndex}
+              sector={sectorName(profile.sector_code)}
+              submittedIds={submittedIds}
+              onOpenDraft={openDraft}
+              evidenceReady={industryReady}
+              missingEvidence={industryRequirements.filter((requirement) => !docs.some((doc) => doc.slot_key === requirement.key)).map((requirement) => requirement.name)}
+            />
+          </section>
+          <aside className="space-y-4">
+            <div className="bg-card p-4 rounded-xl border border-border max-h-[55vh] overflow-y-auto">
+              <Vault userId={userId} entityType={profile.entity_type} industry={profile.industry} docs={docs} reload={loadDocs} voiceSample={profile.voice_sample} voiceProfile={profile.voice_profile} onVoiceSaved={loadProfile} />
+            </div>
+            <div className="bg-card p-4 rounded-xl border border-border max-h-[35vh] overflow-y-auto">
+              <h2 className="text-sm font-display font-bold mb-3">Application Tracker</h2>
+              <Tracker applications={apps} />
+            </div>
+          </aside>
+        </div>
       </main>
 
       {selected && <ProposalStudio grant={selected} voiceCalibrated={!!profile.voice_profile} onClose={() => { setSelected(null); setDeckIndex(deckIndex + 1); }} onSaved={() => { loadApps(); loadDocs(); }} />}

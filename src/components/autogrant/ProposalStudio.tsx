@@ -4,13 +4,15 @@ import { toast } from "sonner";
 import { generateGrantDocument } from "@/lib/ai/ai.functions";
 import { documentSpecs, documentTypes, toCleanText, wordCount, type DocumentType } from "@/lib/ai/proposal-policy";
 import type { Grant } from "@/lib/grants";
+import { evaluateProposalRedTeam } from "@/lib/ai/red-team";
+import type { GrantRequirementBOM } from "@/lib/ai/rfp-parser";
 import { BudgetBuilder } from "./BudgetBuilder";
 
 type Section = { title: string; body: string };
 
 export function ProposalStudio({ grant, voiceCalibrated, onClose, onSaved }: { grant: Grant; voiceCalibrated: boolean; onClose: () => void; onSaved: () => void }) {
   const [type, setType] = useState<DocumentType>("executive_summary");
-  const [view, setView] = useState<"documents" | "budget">("documents");
+  const [view, setView] = useState<"documents" | "budget" | "audit">("documents");
   const [docs, setDocs] = useState<Partial<Record<DocumentType, { sections: Section[]; fileName: string }>>>({});
   const [appId, setAppId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
@@ -37,6 +39,24 @@ export function ProposalStudio({ grant, voiceCalibrated, onClose, onSaved }: { g
     const a = document.createElement("a"); a.href = url; a.download = current.fileName; a.click(); URL.revokeObjectURL(url);
   };
   const updateBody = (i: number, body: string) => current && setDocs((d) => ({ ...d, [type]: { ...current, sections: current.sections.map((s, j) => (j === i ? { ...s, body } : s)) } }));
+  const bom: GrantRequirementBOM = {
+    grantId: grant.id,
+    grantTitle: grant.title,
+    formatting: { wordCountLimit: type === "executive_summary" ? 1500 : 5000, submissionMedium: "portal_text_fields" },
+    aiDraftableDocuments: [{ documentType: type, requiredHeadings: documentSpecs[type].sections.map((section) => section.title) }],
+    userRequiredEvidence: [],
+  };
+  const proposalText = Object.values(docs).flatMap((doc) => doc?.sections ?? []).map((section) => `## ${section.title}\n${section.body}`).join("\n\n");
+  const audit = proposalText
+    ? evaluateProposalRedTeam({ proposalText, bom })
+    : null;
+  const moduleLabels: Record<string, string> = {
+    structure: "Format & Word Counts",
+    evidence: "Vault Evidence",
+    writing: "Anti-AI Diction",
+    budgetCeiling: "Budget Math",
+    matchConsistency: "Mandatory Headings",
+  };
 
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -58,6 +78,9 @@ export function ProposalStudio({ grant, voiceCalibrated, onClose, onSaved }: { g
           <button onClick={() => setView("budget")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "budget" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
             Budget Builder
           </button>
+          <button onClick={() => setView("audit")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "audit" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+            Audit &amp; Score (0–100)
+          </button>
           {view === "documents" && documentTypes.map((t) => (
             <button key={t} onClick={() => setType(t)} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${t === type ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
               {documentSpecs[t].label}{docs[t] ? " ✓" : ""}
@@ -67,6 +90,44 @@ export function ProposalStudio({ grant, voiceCalibrated, onClose, onSaved }: { g
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
           {view === "budget" ? (
             <BudgetBuilder />
+          ) : view === "audit" ? (
+            audit ? (
+              <div className="space-y-5">
+                <div className="flex items-end justify-between p-5 bg-background border border-border rounded-xl">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-muted-foreground">Red-Team Score</p>
+                    <p className="text-4xl font-display font-bold text-primary">{audit.score}<span className="text-lg text-muted-foreground">/{audit.maxScore}</span></p>
+                  </div>
+                  <p className="text-xs text-muted-foreground max-w-xs text-right">{audit.assessment}</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {audit.modules.map((module) => (
+                    <div key={module.id} className="p-4 bg-background border border-border rounded-xl space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold">{moduleLabels[module.id] ?? module.id}</span>
+                        <span className="text-muted-foreground">{module.score}/{module.weight}</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${module.weight ? (module.score / module.weight) * 100 : 0}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-5 bg-background border border-border rounded-xl">
+                  <h4 className="text-sm font-bold mb-3">Fixes Needed Before Submitting</h4>
+                  <ul className="space-y-2">
+                    {audit.modules.flatMap((module) => module.findings.filter((finding) => !/present|met|available|no_|unspecified|within|not_required/.test(finding.code))).map((finding) => (
+                      <li key={finding.code} className="text-xs text-destructive">• {finding.message}</li>
+                    ))}
+                  </ul>
+                  {!audit.modules.some((module) => module.findings.some((finding) => !/present|met|available|no_|unspecified|within|not_required/.test(finding.code))) && (
+                    <p className="text-xs text-success">No critical fixes detected by the deterministic audit.</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="h-60 flex items-center justify-center text-sm text-muted-foreground">Generate or edit proposal documents to run the audit.</div>
+            )
           ) : busy ? (
             <div className="h-60 flex items-center justify-center gap-2 text-sm text-primary"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />Writing your {documentSpecs[type].label} in your voice…</div>
           ) : current ? (
