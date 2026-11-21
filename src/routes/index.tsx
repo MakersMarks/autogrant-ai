@@ -65,6 +65,8 @@ function IndexComponent() {
   const [vaultDocs, setVaultDocs] = useState<VaultDocument[]>([]);
   const [proposals, setProposals] = useState<ProposalDraft[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [cockpitView, setCockpitView] = useState<'Dashboard' | 'Vault' | 'Feed' | 'Tracker'>('Dashboard');
+  const [autopilot, setAutopilot] = useState(false);
   const profileMissingFields = intake
     ? [
       ...(!intake.project_name?.trim() ? ["Project name"] : []),
@@ -102,6 +104,7 @@ function IndexComponent() {
       setSelectedSector(profile.sector_code);
       setEntityType(profile.entity_type as EntityType);
       setFundingGoal(Number(profile.funding_goal.replace(/[^0-9.]/g, '')) || 0);
+      setAutopilot(!!profile.autopilot);
     }
     setVaultDocs((documents ?? []).map((d) => ({
       id: d.id,
@@ -176,6 +179,30 @@ function IndexComponent() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg p-1">
+            <button
+              type="button"
+              aria-pressed={!autopilot}
+              onClick={async () => {
+                setAutopilot(false);
+                if (userSession) await supabase.from("profiles").update({ autopilot: false }).eq("id", userSession.user.id);
+              }}
+              className={`px-2.5 py-1.5 rounded text-xs font-bold ${!autopilot ? "bg-slate-700 text-white" : "text-slate-400"}`}
+            >
+              Manual
+            </button>
+            <button
+              type="button"
+              aria-pressed={autopilot}
+              onClick={async () => {
+                setAutopilot(true);
+                if (userSession) await supabase.from("profiles").update({ autopilot: true }).eq("id", userSession.user.id);
+              }}
+              className={`px-2.5 py-1.5 rounded text-xs font-bold ${autopilot ? "bg-emerald-600 text-white" : "text-slate-400"}`}
+            >
+              Auto
+            </button>
+          </div>
           <select
             value={entityType}
             onChange={(e) => setEntityType(e.target.value as EntityType)}
@@ -229,46 +256,131 @@ function IndexComponent() {
         </section>
       )}
       {summary && <section className="border-b border-border py-4"><h2 className="text-lg font-semibold text-foreground">Executive summary</h2><pre className="whitespace-pre-wrap text-sm text-foreground">{summary}</pre></section>}
-      {/* Locked Desktop Split-Screen Grid Layout */}
-      <main className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        
-        {/* Left Column: Sector Feeds & Document Vault (7 Cols) */}
-        <div className="md:col-span-7 space-y-6">
-          
-          {/* Sector Navigation Tabs */}
-          <div className="bg-slate-900 p-2 rounded-xl border border-slate-800 flex gap-2 overflow-x-auto">
-            {OFFICIAL_SECTORS.map((sec) => (
-              <button
-                key={sec.code}
-                onClick={() => setSelectedSector(sec.code)}
-                className={`text-xs px-3 py-2 rounded-lg font-medium whitespace-nowrap transition ${
-                  selectedSector === sec.code ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-              >
-                {sec.name}
-              </button>
-            ))}
-          </div>
+      <main id="cockpit" className="grid grid-cols-1 md:grid-cols-[92px_minmax(240px,0.7fr)_minmax(420px,1.35fr)_minmax(300px,0.85fr)] gap-4 items-start">
+        <aside className="md:sticky md:top-4 bg-slate-900 border border-slate-800 rounded-xl p-2 space-y-2">
+          {(["Dashboard", "Vault", "Feed", "Tracker"] as const).map((view) => (
+            <button
+              key={view}
+              type="button"
+              aria-pressed={cockpitView === view}
+              onClick={() => {
+                setCockpitView(view);
+                const target = view === "Vault" ? "cockpit-vault" : view === "Feed" ? "cockpit-feed" : view === "Tracker" ? "cockpit-tracker" : "cockpit";
+                document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className={`w-full px-2 py-3 rounded-lg text-[11px] font-bold transition ${cockpitView === view ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+            >
+              {view}
+            </button>
+          ))}
+        </aside>
 
-          {/* Secure AI Document Vault (15MB Limit) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
+        <aside id="cockpit-readiness" className="md:sticky md:top-4 space-y-4">
+          <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
+            <div>
+              <p className="text-[10px] font-mono uppercase text-slate-500">Column 1</p>
+              <h2 className="text-base font-bold">Grant Readiness</h2>
+            </div>
+            <div className="space-y-2">
+              <ReadinessItem label="Profile complete" ready={intakeComplete} />
+              <ReadinessItem label="Legal / tax evidence" ready={vaultDocs.some((doc) => doc.categoryTag === "legal_tax")} />
+              <ReadinessItem label="Vendor quotes" ready={vaultDocs.some((doc) => doc.categoryTag === "vendor_quote")} />
+              <ReadinessItem label="Budget grid" ready={false} />
+            </div>
+            {intake && (
+              <div className="border-t border-slate-800 pt-3 space-y-2 text-xs">
+                <p className="text-slate-400">Funder checklist</p>
+                {getIndustryDocumentRequirements(intake.industry, intake.entity_type).map((requirement) => (
+                  <ReadinessItem
+                    key={requirement.key}
+                    label={requirement.name}
+                    ready={vaultDocs.some((doc) => doc.slotKey === requirement.key)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+          <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Sector</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {OFFICIAL_SECTORS.map((sec) => (
+                <button
+                  key={sec.code}
+                  type="button"
+                  onClick={() => setSelectedSector(sec.code)}
+                  className={`text-[10px] px-2 py-1.5 rounded border ${selectedSector === sec.code ? "border-blue-500 bg-blue-950 text-blue-300" : "border-slate-700 text-slate-400"}`}
+                >
+                  {sec.code}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => document.querySelector('[aria-label="State of headquarters"]')?.scrollIntoView({ behavior: "smooth" })} className="w-full py-2 rounded-lg border border-slate-700 text-xs text-slate-300">
+              Edit profile
+            </button>
+          </section>
+        </aside>
+
+        <section id="cockpit-feed" className="space-y-4 min-w-0">
+          <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-mono uppercase text-slate-500">Column 2</p>
+                <h2 className="text-base font-bold">Active Proposal Studio</h2>
+              </div>
+              {selectedGrant && (
+                <button type="button" onClick={() => setSelectedGrant(selectedGrant)} className="px-3 py-2 rounded-lg bg-blue-600 text-xs font-bold">
+                  Open Editor
+                </button>
+              )}
+            </div>
+            {selectedGrant ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[["Section 1", "Need"], ["Section 2", "Plan"], ["Section 3", "Evaluation"]].map(([section, label]) => (
+                  <button key={section} type="button" onClick={() => setSelectedGrant(selectedGrant)} className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-left">
+                    <span className="block text-[10px] text-slate-500">{section}</span>
+                    <span className="text-xs font-semibold">{label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">Choose a matched grant to open the proposal editor.</p>
+            )}
+          </section>
+          <LiveGrantsFeed
+            key={intake?.sector_code ?? "none"}
+            profile={intake ? { sector: intake.sector_code, industry: intake.industry, location: intake.location, entityType: intake.entity_type, fundingPurpose: intake.funding_purpose } : undefined}
+            signedIn={!!userSession}
+            enabled={intakeComplete}
+            drafting={drafting}
+            onDraft={(g) => {
+              if ("agency" in g) {
+                const federal = g as LiveGrant;
+                void handleDraftProposal({ id: federal.id, title: federal.title, funder: federal.agency, amount: federal.awardCeiling ? `Up to $${federal.awardCeiling.toLocaleString("en-US")}` : "Not listed", fit: "", tier: "[Federal]", categoryCode: selectedSector, eligibilityReason: `Grants.gov ${federal.number}. Eligible: ${federal.eligibility.join("; ") || "see listing"}. Closes ${federal.closeDate}.`.slice(0, 500), deadline: federal.closeDate });
+              } else {
+                const pool = g as UnifiedGrant;
+                void handleDraftProposal({ id: pool.id, title: pool.title, funder: pool.funderName, amount: pool.awardCeiling ? `$${pool.awardFloor.toLocaleString("en-US")} - $${pool.awardCeiling.toLocaleString("en-US")}` : "Not listed", fit: "", tier: `[${pool.poolTier === "state_territory" ? "State" : pool.poolTier === "corporate_diversity" ? "Corporate" : "Foundation"}]`, categoryCode: selectedSector, eligibilityReason: pool.summaryText, deadline: pool.isRolling ? "Rolling" : pool.deadline });
+              }
+            }}
+          />
+        </section>
+
+        <aside id="cockpit-tracker" className="space-y-4 min-w-0">
+          <section id="cockpit-vault" className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-base font-semibold text-white">AI Document Vault</h2>
-                <p className="text-xs text-slate-400">Drag or upload business plans, pitch decks, or financial filings (15MB Max)</p>
+                <p className="text-[10px] font-mono uppercase text-slate-500">Column 3</p>
+                <h2 className="text-base font-bold">Evidence Vault</h2>
               </div>
-              <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-2.5 py-1 rounded border border-blue-800">
-                {vaultDocs.length} Saved
-              </span>
+              <span className="text-[10px] font-mono text-blue-300">{vaultDocs.length} saved</span>
             </div>
-
             <input
               type="file"
+              aria-label="Upload evidence"
               accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               onChange={handleFileUpload}
-              className="block w-full text-xs text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
+              className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white"
             />
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2">
               <label className="text-xs text-slate-400">Evidence category
                 <select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value as typeof uploadCategory)} className="mt-1 block w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white">
                   <option value="legal_tax">Legal / Tax</option>
@@ -277,88 +389,15 @@ function IndexComponent() {
                   <option value="financial">Financial</option>
                 </select>
               </label>
-              {intake && getIndustryDocumentRequirements(intake.industry, intake.entity_type).length > 0 && (
-                <label className="text-xs text-slate-400">Required document
-                  <select value={uploadSlotKey} onChange={(e) => setUploadSlotKey(e.target.value)} className="mt-1 block w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white">
-                    <option value="">General evidence</option>
-                    {getIndustryDocumentRequirements(intake.industry, intake.entity_type).map((requirement) => (
-                      <option key={requirement.key} value={requirement.key}>{requirement.name}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {selectedGrant && <p className="text-xs text-slate-400 self-end">Linked grant: <span className="text-emerald-400">{selectedGrant.title}</span></p>}
             </div>
-            {intake && getIndustryDocumentRequirements(intake.industry, intake.entity_type).length > 0 && (
-              <div className="grid gap-1 sm:grid-cols-2">
-                {getIndustryDocumentRequirements(intake.industry, intake.entity_type).map((requirement) => {
-                  const ready = vaultDocs.some((doc) => doc.slotKey === requirement.key);
-                  return <p key={requirement.key} className={`text-xs ${ready ? "text-emerald-400" : "text-slate-400"}`}>{ready ? "✓" : "○"} {requirement.name}</p>;
-                })}
-              </div>
-            )}
-
             {vaultDocs.map((doc) => <Button key={doc.id} variant="ghost" size="sm" className="max-w-full whitespace-normal text-left" onClick={() => setViewing(doc)}>{doc.name}</Button>)}
             {statusMessage && (
-              <p
-                role={/error|could not|failed|complete/i.test(statusMessage) ? "alert" : "status"}
-                className={`text-xs font-mono bg-slate-950 p-2.5 rounded-lg border ${
-                  /error|could not|failed|complete/i.test(statusMessage)
-                    ? "text-red-400 border-red-800"
-                    : "text-emerald-400 border-slate-800"
-                }`}
-              >
-                {statusMessage}
-              </p>
+              <p role={/error|could not|failed|complete/i.test(statusMessage) ? "alert" : "status"} className={`text-xs p-2.5 rounded-lg border ${/error|could not|failed|complete/i.test(statusMessage) ? "text-red-400 border-red-800" : "text-emerald-400 border-slate-800"}`}>{statusMessage}</p>
             )}
-          </div>
-
-          <LiveGrantsFeed
-            key={intake?.sector_code ?? 'none'}
-            profile={intake ? { sector: intake.sector_code, industry: intake.industry, location: intake.location, entityType: intake.entity_type, fundingPurpose: intake.funding_purpose } : undefined}
-            signedIn={!!userSession}
-            enabled={intakeComplete}
-            drafting={drafting}
-            onDraft={(g) => {
-              if ("agency" in g) {
-                const federal = g as LiveGrant;
-                void handleDraftProposal({
-                  id: federal.id,
-                  title: federal.title,
-                  funder: federal.agency,
-                  amount: federal.awardCeiling ? `Up to $${federal.awardCeiling.toLocaleString("en-US")}` : "Not listed",
-                  fit: "",
-                  tier: "[Federal]",
-                  categoryCode: selectedSector,
-                  eligibilityReason: `Grants.gov ${federal.number}. Eligible: ${federal.eligibility.join("; ") || "see listing"}. Closes ${federal.closeDate}.`.slice(0, 500),
-                  deadline: federal.closeDate,
-                });
-              } else {
-                const pool = g as UnifiedGrant;
-                void handleDraftProposal({
-                  id: pool.id,
-                  title: pool.title,
-                  funder: pool.funderName,
-                  amount: pool.awardCeiling ? `$${pool.awardFloor.toLocaleString("en-US")} - $${pool.awardCeiling.toLocaleString("en-US")}` : "Not listed",
-                  fit: "",
-                  tier: `[${pool.poolTier === "state_territory" ? "State" : pool.poolTier === "corporate_diversity" ? "Corporate" : "Foundation"}]`,
-                  categoryCode: selectedSector,
-                  eligibilityReason: pool.summaryText,
-                  deadline: pool.isRolling ? "Rolling" : pool.deadline,
-                });
-              }
-            }}
-          />
-
-        </div>
-
-        {/* Right Column: Application Tracker Drawer (5 Cols - Pinned) */}
-        <div className="md:col-span-5">
-          <div className="sticky top-6">
+          </section>
+          <section className="md:max-h-[520px] overflow-y-auto">
             <ApplicationTracker proposals={proposals} onStatusChange={async (id, status, confirmation) => {
-              const persistedStatus = status === "submitted"
-                ? `submitted${confirmation ? `::${confirmation}` : ""}`
-                : "draft";
+              const persistedStatus = status === "submitted" ? `submitted${confirmation ? `::${confirmation}` : ""}` : "draft";
               const { error } = await supabase.from("applications").update({ status: persistedStatus }).eq("id", id);
               if (error) setStatusMessage("Status could not be saved.");
               else {
@@ -366,10 +405,9 @@ function IndexComponent() {
                 await reloadWorkspace();
               }
             }} />
-          </div>
-        </div>
-
-      <DocumentViewer doc={viewing} onClose={() => setViewing(null)} />
+          </section>
+        </aside>
+        <DocumentViewer doc={viewing} onClose={() => setViewing(null)} />
       </main>
       {selectedGrant && (
         <ProposalStudio
@@ -380,6 +418,15 @@ function IndexComponent() {
           onSaved={() => void reloadWorkspace()}
         />
       )}
+    </div>
+  );
+}
+
+function ReadinessItem({ label, ready }: { label: string; ready: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs">
+      <span className="text-slate-300">{label}</span>
+      <span className={ready ? "text-emerald-400" : "text-amber-400"}>{ready ? "✓" : "!"}</span>
     </div>
   );
 }
