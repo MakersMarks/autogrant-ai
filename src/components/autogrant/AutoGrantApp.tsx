@@ -79,8 +79,8 @@ function Platform({ userId }: { userId: string }) {
     setAutoRunning(true);
     try {
       for (const g of targets) {
-        const r = await draft({ data: { title: g.title, funder: g.funder, amount: g.amount, eligibilityReason: g.eligibilityReason } });
-        await saveApplication(g, r.narrative, "Auto-Drafted by Autopilot");
+        const r = await draft({ data: { title: g.title, funder: g.funder, amount: g.amount, eligibilityReason: g.eligibilityReason, grantId: g.id } });
+        if (!r.application?.id) throw new Error("Autopilot draft was generated but could not be tracked.");
       }
       toast.success(`Autopilot drafted ${targets.length} proposals`);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Autopilot stopped"); }

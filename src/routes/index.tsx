@@ -115,6 +115,12 @@ function IndexComponent() {
       grantId: d.grant_id ?? undefined,
     })));
     setProposals((applications ?? []).map(applicationToProposal));
+    const awarded = (applications ?? []).reduce((sum, application) => {
+      if (!String(application.status).toLowerCase().startsWith("submitted")) return sum;
+      const match = /\$[\d,]+(?:\.\d+)?/.exec(application.amount);
+      return sum + (match ? Number(match[0].replace(/[$,]/g, "")) : 0);
+    }, 0);
+    setTotalAwarded(awarded);
   };
   useEffect(() => {
     setIntake(null); setVaultDocs([]); setProposals([]); setSummary('');
@@ -294,7 +300,14 @@ function IndexComponent() {
 
             {vaultDocs.map((doc) => <Button key={doc.id} variant="ghost" size="sm" className="max-w-full whitespace-normal text-left" onClick={() => setViewing(doc)}>{doc.name}</Button>)}
             {statusMessage && (
-              <p className="text-xs text-emerald-400 font-mono bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+              <p
+                role={/error|could not|failed|complete/i.test(statusMessage) ? "alert" : "status"}
+                className={`text-xs font-mono bg-slate-950 p-2.5 rounded-lg border ${
+                  /error|could not|failed|complete/i.test(statusMessage)
+                    ? "text-red-400 border-red-800"
+                    : "text-emerald-400 border-slate-800"
+                }`}
+              >
                 {statusMessage}
               </p>
             )}
@@ -342,7 +355,17 @@ function IndexComponent() {
         {/* Right Column: Application Tracker Drawer (5 Cols - Pinned) */}
         <div className="md:col-span-5">
           <div className="sticky top-6">
-            <ApplicationTracker proposals={proposals} onStatusChange={async (id, status) => { const { error } = await supabase.from('applications').update({ status }).eq('id', id); if (error) setStatusMessage('Status could not be saved.'); else await reloadWorkspace(); }} />
+            <ApplicationTracker proposals={proposals} onStatusChange={async (id, status, confirmation) => {
+              const persistedStatus = status === "submitted"
+                ? `submitted${confirmation ? `::${confirmation}` : ""}`
+                : "draft";
+              const { error } = await supabase.from("applications").update({ status: persistedStatus }).eq("id", id);
+              if (error) setStatusMessage("Status could not be saved.");
+              else {
+                setStatusMessage(status === "submitted" ? "Submission confirmation saved." : "Application moved back to draft.");
+                await reloadWorkspace();
+              }
+            }} />
           </div>
         </div>
 

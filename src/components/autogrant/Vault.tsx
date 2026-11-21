@@ -46,8 +46,12 @@ export function Vault({ userId, entityType, industry = "", docs, reload, voiceSa
         { user_id: userId, slot_key: slot.key, file_name: file.name, storage_path: path, mime_type: file.type || "application/octet-stream", size_bytes: file.size },
         { onConflict: "user_id,slot_key" },
       );
-      if (error) setErrors((p) => ({ ...p, [slot.key]: error.message }));
-      else if (old) await supabase.storage.from("vault").remove([old.storage_path]);
+      if (error) {
+        await supabase.storage.from("vault").remove([path]);
+        setErrors((p) => ({ ...p, [slot.key]: `Could not save document metadata: ${error.message}` }));
+      } else {
+        if (old?.storage_path && old.storage_path !== path) await supabase.storage.from("vault").remove([old.storage_path]);
+      }
       await reload();
     }
     setBusy((p) => ({ ...p, [slot.key]: false }));
@@ -55,8 +59,13 @@ export function Vault({ userId, entityType, industry = "", docs, reload, voiceSa
 
   const remove = async (doc: VaultDoc) => {
     setBusy((p) => ({ ...p, [doc.slot_key]: true }));
-    await supabase.storage.from("vault").remove([doc.storage_path]);
-    await supabase.from("vault_documents").delete().eq("id", doc.id);
+    const { error } = await supabase.from("vault_documents").delete().eq("id", doc.id);
+    if (error) {
+      setErrors((p) => ({ ...p, [doc.slot_key]: `Could not remove document: ${error.message}` }));
+    } else {
+      const { error: storageError } = await supabase.storage.from("vault").remove([doc.storage_path]);
+      if (storageError) setErrors((p) => ({ ...p, [doc.slot_key]: `Metadata removed, but storage cleanup failed: ${storageError.message}` }));
+    }
     await reload();
     setBusy((p) => ({ ...p, [doc.slot_key]: false }));
   };
@@ -91,7 +100,13 @@ export function Vault({ userId, entityType, industry = "", docs, reload, voiceSa
           <label className="border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-4 flex flex-col items-center cursor-pointer bg-card/50">
             <span className="text-xs font-semibold">📁 Browse for a PDF or DOCX</span>
             <span className="text-[10px] text-muted-foreground mt-1">Max size: 15MB</span>
-            <input type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => upload(slot, e)} className="hidden" />
+            <input
+              type="file"
+              aria-label={`Upload ${slot.name}`}
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(e) => upload(slot, e)}
+              className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-xs file:font-semibold file:text-primary-foreground"
+            />
           </label>
         )}
       </div>

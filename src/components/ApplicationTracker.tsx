@@ -30,10 +30,11 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ proposal
       ) : (
         <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
           {proposals.map((prop) => (
-            <div 
+            <button
+              type="button"
               key={prop.id}
               onClick={() => setSelectedProposal(prop)}
-              className="p-3 bg-slate-800 hover:bg-slate-700 cursor-pointer rounded flex justify-between items-center transition"
+              className="w-full text-left p-3 bg-slate-800 hover:bg-slate-700 cursor-pointer rounded flex justify-between items-center transition"
             >
               <div>
                 <p className="font-semibold text-sm">{prop.grantTitle}</p>
@@ -42,7 +43,7 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ proposal
               <span className={`px-2 py-1 text-xs rounded uppercase font-medium ${prop.status === 'submitted' ? 'bg-emerald-600' : 'bg-blue-600'}`}>
                 {prop.status}
               </span>
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -58,6 +59,9 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ proposal
               Close
             </button>
           </div>
+          {selectedProposal.confirmation && (
+            <p className="text-xs text-emerald-400">Submission confirmation: <span className="font-mono">{selectedProposal.confirmation}</span></p>
+          )}
           <pre className="text-sm whitespace-pre-wrap text-slate-300 font-sans max-h-60 overflow-y-auto p-2 bg-slate-900 rounded border border-slate-800">
             {selectedProposal.generatedContent}
           </pre>

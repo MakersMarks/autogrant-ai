@@ -121,3 +121,69 @@ export const generateGrantDocument = createServerFn({ method: "POST" })
     }
     return { sections, fileName: document.file_name, applicationId: appId, voiceSource: profile.voice_profile ? 'calibrated' : 'intake' };
   });
+
+const saveProposalDraftSchema = z.object({
+  applicationId: z.string().uuid().optional(),
+  grantId: z.string().max(200),
+  title: z.string().min(1).max(500),
+  funder: z.string().max(500),
+  amount: z.string().max(500),
+  narrative: z.string().min(1).max(500000),
+  budgetJustification: z.string().max(50000).optional(),
+});
+
+export const saveProposalDraft = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => saveProposalDraftSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    let applicationId = data.applicationId;
+    if (applicationId) {
+      const { error } = await context.supabase
+        .from("applications")
+        .update({ narrative: data.narrative, grant_id: data.grantId, name: data.title, funder: data.funder, amount: data.amount })
+        .eq("id", applicationId)
+        .eq("user_id", context.userId);
+      if (error) throw new Error("The edited proposal could not be saved.");
+    } else {
+      const { data: application, error } = await context.supabase
+        .from("applications")
+        .insert({ user_id: context.userId, grant_id: data.grantId, name: data.title, funder: data.funder, amount: data.amount, narrative: data.narrative, status: "Drafting" })
+        .select("id")
+        .single();
+      if (error || !application) throw new Error("The edited proposal could not be saved.");
+      applicationId = application.id;
+    }
+    if (data.budgetJustification?.trim()) {
+      const path = `${context.userId}/budget-${crypto.randomUUID()}.txt`;
+      const bytes = new TextEncoder().encode(data.budgetJustification);
+      const { error: uploadError } = await context.supabase.storage.from("vault").upload(path, bytes, { contentType: "text/plain" });
+      if (uploadError) throw new Error("Proposal saved, but the budget justification could not be saved to the Vault.");
+      const indexResult = await context.supabase.from("vault_documents").insert({
+        user_id: context.userId,
+        file_name: `Budget Justification - ${data.title}.txt`,
+        storage_path: path,
+        slot_key: `budget-${crypto.randomUUID()}`,
+        mime_type: "text/plain",
+        size_bytes: bytes.length,
+        ...(data.grantId ? { grant_id: data.grantId } : {}),
+        category_tag: "financial",
+      });
+      let indexError = indexResult.error;
+      if (indexError) {
+        const fallback = await context.supabase.from("vault_documents").insert({
+          user_id: context.userId,
+          file_name: `Budget Justification - ${data.title}.txt`,
+          storage_path: path,
+          slot_key: `budget-${crypto.randomUUID()}`,
+          mime_type: "text/plain",
+          size_bytes: bytes.length,
+        });
+        indexError = fallback.error;
+      }
+      if (indexError) {
+        await context.supabase.storage.from("vault").remove([path]);
+        throw new Error("Proposal saved, but the budget justification could not be indexed.");
+      }
+    }
+    return { applicationId };
+  });

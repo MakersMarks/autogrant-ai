@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { generateGrantDocument } from "@/lib/ai/ai.functions";
+import { generateGrantDocument, saveProposalDraft } from "@/lib/ai/ai.functions";
 import { documentSpecs, documentTypes, toCleanText, wordCount, type DocumentType } from "@/lib/ai/proposal-policy";
 import type { Grant } from "@/lib/grants";
 import { evaluateProposalRedTeam } from "@/lib/ai/red-team";
 import type { GrantRequirementBOM } from "@/lib/ai/rfp-parser";
-import type { BudgetInput, BudgetCalculation } from "@/lib/budget";
+import { buildBudgetJustification, type BudgetInput, BudgetCalculation } from "@/lib/budget";
 import { BudgetBuilder } from "./BudgetBuilder";
 
 type Section = { title: string; body: string };
@@ -32,6 +32,8 @@ export function ProposalStudio({
   const [budgetInput, setBudgetInput] = useState<BudgetInput | null>(null);
   const [budgetCalculation, setBudgetCalculation] = useState<BudgetCalculation | null>(null);
   const gen = useServerFn(generateGrantDocument);
+  const saveDraft = useServerFn(saveProposalDraft);
+  const [dirty, setDirty] = useState(false);
   const current = docs[type];
 
   const run = async () => {
@@ -40,6 +42,7 @@ export function ProposalStudio({
       const r = await gen({ data: { type, title: grant.title, funder: grant.funder, amount: grant.amount, eligibilityReason: grant.eligibilityReason, grantId: grant.id, applicationId: appId } });
       setDocs((d) => ({ ...d, [type]: { sections: r.sections, fileName: r.fileName } }));
       setAppId(r.applicationId);
+      setDirty(false);
       toast.success(`Saved to Vault: ${r.fileName}`);
       onSaved();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Generation failed"); }
@@ -53,7 +56,35 @@ export function ProposalStudio({
     const url = URL.createObjectURL(new Blob([plain(current.sections)], { type: "text/plain" }));
     const a = document.createElement("a"); a.href = url; a.download = current.fileName; a.click(); URL.revokeObjectURL(url);
   };
-  const updateBody = (i: number, body: string) => current && setDocs((d) => ({ ...d, [type]: { ...current, sections: current.sections.map((s, j) => (j === i ? { ...s, body } : s)) } }));
+  const updateBody = (i: number, body: string) => {
+    if (!current) return;
+    setDirty(true);
+    setDocs((d) => ({ ...d, [type]: { ...current, sections: current.sections.map((s, j) => (j === i ? { ...s, body } : s)) } }));
+  };
+  const saveEdits = async () => {
+    const text = Object.values(docs).flatMap((doc) => doc?.sections ?? []).map((section) => `## ${section.title}\n\n${toCleanText(section.body)}`).join("\n\n");
+    if (!text.trim()) { toast.error("Generate at least one proposal document before saving."); return; }
+    setBusy(true);
+    try {
+      const budgetJustification = budgetInput && budgetCalculation?.valid
+        ? buildBudgetJustification(budgetInput, budgetCalculation)
+        : undefined;
+      const r = await saveDraft({ data: {
+        applicationId: appId,
+        grantId: grant.id,
+        title: grant.title,
+        funder: grant.funder,
+        amount: grant.amount,
+        narrative: text,
+        budgetJustification,
+      } });
+      setAppId(r.applicationId);
+      setDirty(false);
+      toast.success("Proposal edits saved");
+      onSaved();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not save edits"); }
+    setBusy(false);
+  };
   const bom: GrantRequirementBOM = {
     grantId: grant.id,
     grantTitle: grant.title,
@@ -73,7 +104,7 @@ export function ProposalStudio({
         matchRequired: budgetInput?.costSharingPercentage != null,
         matchRate: budgetInput?.costSharingPercentage != null ? budgetInput.costSharingPercentage / 100 : undefined,
         requiredMatchAmount: budgetCalculation?.valid ? budgetCalculation.requiredMatch : undefined,
-        committedMatchAmount: budgetCalculation?.valid ? budgetCalculation.requiredMatch : undefined,
+        committedMatchAmount: undefined,
       },
     })
     : null;
@@ -96,7 +127,10 @@ export function ProposalStudio({
               {voiceCalibrated ? "Voice: calibrated from your writing sample" : "Voice: mirrored from your intake answers (calibrate in Vault for better match)"}
             </span>
           </div>
-          <button aria-label="Close" onClick={onClose} className="text-muted-foreground">✕</button>
+          <button aria-label="Close" onClick={() => {
+            if (dirty && !window.confirm("Discard unsaved proposal edits?")) return;
+            onClose();
+          }} className="text-muted-foreground">✕</button>
         </div>
         <div className="flex gap-2 px-5 pt-4 flex-wrap">
           <button onClick={() => setView("documents")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "documents" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
@@ -188,6 +222,7 @@ export function ProposalStudio({
         </div>
         {view === "documents" && <div className="flex gap-3 border-t border-border p-5 flex-wrap">
           <button disabled={busy} onClick={run} className="flex-1 py-2.5 bg-primary text-primary-foreground font-bold rounded-lg text-sm disabled:opacity-40">{current ? "Regenerate" : "Generate"} {documentSpecs[type].label}</button>
+          <button disabled={!current || busy} onClick={saveEdits} className="px-4 py-2.5 border border-primary/50 text-primary rounded-lg text-sm font-semibold disabled:opacity-40">{dirty ? "Save Edits" : "Save"}</button>
           <button disabled={!current || busy} onClick={copy} className="px-4 py-2.5 border border-border rounded-lg text-sm font-semibold disabled:opacity-40">Copy Clean Text</button>
           <button disabled={!current || busy} onClick={download} className="px-4 py-2.5 border border-border rounded-lg text-sm font-semibold disabled:opacity-40">Download</button>
         </div>}

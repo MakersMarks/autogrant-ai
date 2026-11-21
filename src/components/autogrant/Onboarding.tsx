@@ -170,7 +170,26 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
         </div>
         {step === 1 && list("What is your business entity type?", s(["Idea / Pre-Launch Founder", "Sole Proprietorship", "LLC / Corporation", "Non-Profit Organization"]), "entity_type")}
         {step === 2 && list("Select official Grants.gov sector", OFFICIAL_SECTORS.map((x) => ({ v: x.code, label: x.name })), "sector_code")}
-        {step === 3 && list("What is your funding objective?", s(["Tech Development & Scaling", "Equipment & Assets", "R&D / Product Innovation", "General Working Capital"]), "funding_goal")}
+        {step === 3 && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-display font-bold">What is your funding objective?</h2>
+            {s(["Tech Development & Scaling", "Equipment & Assets", "R&D / Product Innovation", "General Working Capital"]).map((item) => (
+              <button key={item.v} type="button" onClick={() => setP({ ...p, funding_purpose: item.v })} className={opt(p.funding_purpose === item.v)}>{item.label}</button>
+            ))}
+            <label className="block space-y-1 text-xs text-muted-foreground">
+              Funding goal amount
+              <input
+                aria-label="Funding goal amount"
+                type="number"
+                min="1"
+                value={p.funding_goal.replace(/[^\d]/g, "")}
+                onChange={(e) => setP({ ...p, funding_goal: e.target.value })}
+                placeholder="e.g., 250000"
+                className="w-full p-3 rounded-xl border border-border bg-background text-foreground"
+              />
+            </label>
+          </div>
+        )}
         {step === 4 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
