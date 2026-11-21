@@ -65,7 +65,7 @@ function IndexComponent() {
   const [vaultDocs, setVaultDocs] = useState<VaultDocument[]>([]);
   const [proposals, setProposals] = useState<ProposalDraft[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>('');
-  const [cockpitView, setCockpitView] = useState<'Dashboard' | 'Vault' | 'Feed' | 'Tracker'>('Dashboard');
+  const [cockpitView, setCockpitView] = useState<'Dashboard' | 'Profile' | 'Grants' | 'Vault' | 'Tracker'>('Dashboard');
   const [autopilot, setAutopilot] = useState(false);
   const profileMissingFields = intake
     ? [
@@ -114,8 +114,8 @@ function IndexComponent() {
       uploadedAt: d.created_at,
       storagePath: d.storage_path,
       slotKey: d.slot_key,
-      categoryTag: d.category_tag ?? undefined,
-      grantId: d.grant_id ?? undefined,
+      ...(d.category_tag ? { categoryTag: d.category_tag } : {}),
+      ...(d.grant_id ? { grantId: d.grant_id } : {}),
     })));
     setProposals((applications ?? []).map(applicationToProposal));
     const awarded = (applications ?? []).reduce((sum, application) => {
@@ -137,11 +137,11 @@ function IndexComponent() {
         setStatusMessage(`Uploading ${file.name} (Max 15MB)...`);
         const doc = await processDocumentUpload(file, {
           categoryTag: uploadCategory,
-          grantId: selectedGrant?.id,
-          slotKey: uploadSlotKey || undefined,
+          ...(selectedGrant?.id ? { grantId: selectedGrant.id } : {}),
+          ...(uploadSlotKey ? { slotKey: uploadSlotKey } : {}),
         });
         setVaultDocs((prev) => [doc, ...prev]);
-        setStatusMessage(`Saved successfully: ${doc.name}`);
+        setStatusMessage(doc.metadataWarning ? `${doc.metadataWarning} Saved: ${doc.name}` : `Saved successfully: ${doc.name}`);
       } catch (err: any) {
         setStatusMessage(`Upload error: ${err.message}`);
       }
@@ -221,181 +221,161 @@ function IndexComponent() {
         </div>
       </header>
 
-      {/* Personal Dashboard Metrics Overview */}
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-1">
-          <p className="text-[11px] font-mono text-slate-400 uppercase">Active Funding Project</p>
-          <p className="text-sm font-bold text-blue-400 truncate">{activeProject}</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-1">
-          <p className="text-[11px] font-mono text-slate-400 uppercase">Total Awarded Funds</p>
-          <p className="text-lg font-mono font-bold text-emerald-400">${totalAwarded.toLocaleString()}</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-1">
-          <p className="text-[11px] font-mono text-slate-400 uppercase">Funding Goal</p>
-          {editingGoal ? (
-            <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); void saveGoal(); }}>
-              <input autoFocus aria-label="Funding goal" inputMode="numeric" className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm font-mono text-white" value={goalDraft} onChange={(e) => setGoalDraft(e.target.value.replace(/\D/g, ''))} onBlur={() => void saveGoal()} />
-            </form>
-          ) : (
-            <button type="button" title="Click to edit" onClick={() => { setGoalDraft(String(fundingGoal || '')); setEditingGoal(true); }} className="text-lg font-mono font-bold text-white hover:underline decoration-dotted">${fundingGoal.toLocaleString()} <span className="text-[10px] text-slate-400 font-sans">edit</span></button>
-          )}
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-1">
-          <p className="text-[11px] font-mono text-slate-400 uppercase">Goal Progress ({fundingProgress}%)</p>
-          <div className="w-full bg-slate-950 rounded-full h-2 mt-2 border border-slate-800 overflow-hidden">
-            <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${fundingProgress}%` }}></div>
-          </div>
-        </div>
-      </section>
-
-      {intake && <IntakeStudio initial={{ ...intake, sector_code: selectedSector, entity_type: entityType }} onSaved={(value) => { setIntake(value); setFundingGoal(Number(value.funding_goal.replace(/[^0-9.]/g, '')) || 0); setStatusMessage('Intake saved.'); }} onError={setStatusMessage} onSummary={(text) => { setSummary(text); setStatusMessage('Executive summary saved to your private Vault.'); void reloadWorkspace(); }} />}
-      {!intakeComplete && (
-        <section role="alert" className="border border-amber-700 bg-amber-950/40 rounded-xl p-4 text-xs text-amber-200">
-          Complete these profile fields before drafting: {profileMissingFields.join(", ")}.
-        </section>
-      )}
-      {summary && <section className="border-b border-border py-4"><h2 className="text-lg font-semibold text-foreground">Executive summary</h2><pre className="whitespace-pre-wrap text-sm text-foreground">{summary}</pre></section>}
-      <main id="cockpit" className="grid grid-cols-1 md:grid-cols-[92px_minmax(240px,0.7fr)_minmax(420px,1.35fr)_minmax(300px,0.85fr)] gap-4 items-start">
-        <aside className="md:sticky md:top-4 bg-slate-900 border border-slate-800 rounded-xl p-2 space-y-2">
-          {(["Dashboard", "Vault", "Feed", "Tracker"] as const).map((view) => (
+      <main className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-4 items-start">
+        <nav aria-label="Workspace pages" className="md:sticky md:top-4 flex md:flex-col gap-2 overflow-x-auto bg-slate-900 border border-slate-800 rounded-xl p-2">
+          {(["Dashboard", "Profile", "Grants", "Vault", "Tracker"] as const).map((view) => (
             <button
               key={view}
               type="button"
-              aria-pressed={cockpitView === view}
-              onClick={() => {
-                setCockpitView(view);
-                const target = view === "Vault" ? "cockpit-vault" : view === "Feed" ? "cockpit-feed" : view === "Tracker" ? "cockpit-tracker" : "cockpit";
-                document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-              className={`w-full px-2 py-3 rounded-lg text-[11px] font-bold transition ${cockpitView === view ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+              aria-current={cockpitView === view ? "page" : undefined}
+              onClick={() => setCockpitView(view)}
+              className={`shrink-0 md:w-full px-3 py-3 rounded-lg text-left text-xs font-bold transition ${cockpitView === view ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
             >
               {view}
             </button>
           ))}
-        </aside>
+        </nav>
 
-        <aside id="cockpit-readiness" className="md:sticky md:top-4 space-y-4">
-          <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
-            <div>
-              <p className="text-[10px] font-mono uppercase text-slate-500">Column 1</p>
-              <h2 className="text-base font-bold">Grant Readiness</h2>
-            </div>
-            <div className="space-y-2">
-              <ReadinessItem label="Profile complete" ready={intakeComplete} />
-              <ReadinessItem label="Legal / tax evidence" ready={vaultDocs.some((doc) => doc.categoryTag === "legal_tax")} />
-              <ReadinessItem label="Vendor quotes" ready={vaultDocs.some((doc) => doc.categoryTag === "vendor_quote")} />
-              <ReadinessItem label="Budget grid" ready={false} />
-            </div>
-            {intake && (
-              <div className="border-t border-slate-800 pt-3 space-y-2 text-xs">
-                <p className="text-slate-400">Funder checklist</p>
-                {getIndustryDocumentRequirements(intake.industry, intake.entity_type).map((requirement) => (
-                  <ReadinessItem
-                    key={requirement.key}
-                    label={requirement.name}
-                    ready={vaultDocs.some((doc) => doc.slotKey === requirement.key)}
-                  />
-                ))}
+        <div className="min-w-0 space-y-4">
+          {statusMessage && (
+            <p role={/error|could not|failed/i.test(statusMessage) ? "alert" : "status"} className={`text-xs p-3 rounded-lg border ${/error|could not|failed/i.test(statusMessage) ? "text-red-400 border-red-800" : "text-emerald-400 border-slate-800"}`}>
+              {statusMessage}
+            </p>
+          )}
+
+          <section className={cockpitView === "Dashboard" ? "space-y-4" : "hidden"}>
+            <h2 className="text-lg font-bold">Dashboard</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
+                <p className="text-[11px] font-mono text-slate-400 uppercase">Active funding project</p>
+                <p className="text-sm font-bold text-blue-400 truncate">{activeProject}</p>
               </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
+                <p className="text-[11px] font-mono text-slate-400 uppercase">Total awarded funds</p>
+                <p className="text-lg font-mono font-bold text-emerald-400">${totalAwarded.toLocaleString()}</p>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
+                <p className="text-[11px] font-mono text-slate-400 uppercase">Funding goal</p>
+                {editingGoal ? (
+                  <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); void saveGoal(); }}>
+                    <input autoFocus aria-label="Funding goal" inputMode="numeric" className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm font-mono text-white" value={goalDraft} onChange={(e) => setGoalDraft(e.target.value.replace(/\D/g, ""))} onBlur={() => void saveGoal()} />
+                  </form>
+                ) : (
+                  <button type="button" title="Click to edit" onClick={() => { setGoalDraft(String(fundingGoal || "")); setEditingGoal(true); }} className="text-lg font-mono font-bold text-white hover:underline decoration-dotted">${fundingGoal.toLocaleString()} <span className="text-[10px] text-slate-400 font-sans">edit</span></button>
+                )}
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
+                <p className="text-[11px] font-mono text-slate-400 uppercase">Goal progress ({fundingProgress}%)</p>
+                <div className="w-full bg-slate-950 rounded-full h-2 mt-2 border border-slate-800 overflow-hidden">
+                  <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${fundingProgress}%` }} />
+                </div>
+              </div>
+            </div>
+            {!intakeComplete && (
+              <section role="alert" className="border border-amber-700 bg-amber-950/40 rounded-xl p-4 text-xs text-amber-200">
+                Complete these profile fields before drafting: {profileMissingFields.join(", ")}.
+                <button type="button" onClick={() => setCockpitView("Profile")} className="ml-2 underline">Open profile</button>
+              </section>
             )}
-          </section>
-          <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Sector</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {OFFICIAL_SECTORS.map((sec) => (
-                <button
-                  key={sec.code}
-                  type="button"
-                  onClick={() => setSelectedSector(sec.code)}
-                  className={`text-[10px] px-2 py-1.5 rounded border ${selectedSector === sec.code ? "border-blue-500 bg-blue-950 text-blue-300" : "border-slate-700 text-slate-400"}`}
-                >
-                  {sec.code}
-                </button>
-              ))}
-            </div>
-            <button type="button" onClick={() => document.querySelector('[aria-label="State of headquarters"]')?.scrollIntoView({ behavior: "smooth" })} className="w-full py-2 rounded-lg border border-slate-700 text-xs text-slate-300">
-              Edit profile
-            </button>
-          </section>
-        </aside>
-
-        <section id="cockpit-feed" className="space-y-4 min-w-0">
-          <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
               <div>
-                <p className="text-[10px] font-mono uppercase text-slate-500">Column 2</p>
-                <h2 className="text-base font-bold">Active Proposal Studio</h2>
+                <h3 className="font-bold">Grant readiness</h3>
+                <p className="text-xs text-slate-400">Profile and evidence currently in your workspace.</p>
               </div>
-              {selectedGrant && (
-                <button type="button" onClick={() => setSelectedGrant(selectedGrant)} className="px-3 py-2 rounded-lg bg-blue-600 text-xs font-bold">
-                  Open Editor
-                </button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ReadinessItem label="Profile complete" ready={intakeComplete} />
+                <ReadinessItem label="Legal / tax evidence" ready={vaultDocs.some((doc) => doc.categoryTag === "legal_tax")} />
+                <ReadinessItem label="Vendor quotes" ready={vaultDocs.some((doc) => doc.categoryTag === "vendor_quote")} />
+                <ReadinessItem label="Active proposal" ready={!!selectedGrant} />
+              </div>
+              {intake && getIndustryDocumentRequirements(intake.industry, intake.entity_type).length > 0 && (
+                <div className="border-t border-slate-800 pt-3 space-y-2 text-xs">
+                  <p className="text-slate-400">Industry evidence checklist</p>
+                  {getIndustryDocumentRequirements(intake.industry, intake.entity_type).map((requirement) => (
+                    <ReadinessItem key={requirement.key} label={requirement.name} ready={vaultDocs.some((doc) => doc.slotKey === requirement.key)} />
+                  ))}
+                </div>
               )}
-            </div>
-            {selectedGrant ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {[["Section 1", "Need"], ["Section 2", "Plan"], ["Section 3", "Evaluation"]].map(([section, label]) => (
-                  <button key={section} type="button" onClick={() => setSelectedGrant(selectedGrant)} className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-left">
-                    <span className="block text-[10px] text-slate-500">{section}</span>
-                    <span className="text-xs font-semibold">{label}</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400">Choose a matched grant to open the proposal editor.</p>
-            )}
+              <button type="button" onClick={() => setCockpitView("Grants")} className="px-4 py-2 rounded-lg bg-blue-600 text-xs font-bold">Find grants</button>
+            </section>
           </section>
-          <LiveGrantsFeed
-            key={intake?.sector_code ?? "none"}
-            profile={intake ? { sector: intake.sector_code, industry: intake.industry, location: intake.location, entityType: intake.entity_type, fundingPurpose: intake.funding_purpose } : undefined}
-            signedIn={!!userSession}
-            enabled={intakeComplete}
-            drafting={drafting}
-            onDraft={(g) => {
-              if ("agency" in g) {
-                const federal = g as LiveGrant;
-                void handleDraftProposal({ id: federal.id, title: federal.title, funder: federal.agency, amount: federal.awardCeiling ? `Up to $${federal.awardCeiling.toLocaleString("en-US")}` : "Not listed", fit: "", tier: "[Federal]", categoryCode: selectedSector, eligibilityReason: `Grants.gov ${federal.number}. Eligible: ${federal.eligibility.join("; ") || "see listing"}. Closes ${federal.closeDate}.`.slice(0, 500), deadline: federal.closeDate });
-              } else {
-                const pool = g as UnifiedGrant;
-                void handleDraftProposal({ id: pool.id, title: pool.title, funder: pool.funderName, amount: pool.awardCeiling ? `$${pool.awardFloor.toLocaleString("en-US")} - $${pool.awardCeiling.toLocaleString("en-US")}` : "Not listed", fit: "", tier: `[${pool.poolTier === "state_territory" ? "State" : pool.poolTier === "corporate_diversity" ? "Corporate" : "Foundation"}]`, categoryCode: selectedSector, eligibilityReason: pool.summaryText, deadline: pool.isRolling ? "Rolling" : pool.deadline });
-              }
-            }}
-          />
-        </section>
 
-        <aside id="cockpit-tracker" className="space-y-4 min-w-0">
-          <section id="cockpit-vault" className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-[10px] font-mono uppercase text-slate-500">Column 3</p>
-                <h2 className="text-base font-bold">Evidence Vault</h2>
-              </div>
-              <span className="text-[10px] font-mono text-blue-300">{vaultDocs.length} saved</span>
+          <section className={cockpitView === "Profile" ? "space-y-4" : "hidden"}>
+            <div>
+              <h2 className="text-lg font-bold">Profile &amp; intake</h2>
+              <p className="text-xs text-slate-400">Update your applicant details; these guide grant matching and AI drafts.</p>
             </div>
-            <input
-              type="file"
-              aria-label="Upload evidence"
-              accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              onChange={handleFileUpload}
-              className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white"
+            {!intakeComplete && (
+              <section role="alert" className="border border-amber-700 bg-amber-950/40 rounded-xl p-4 text-xs text-amber-200">
+                Complete these profile fields before drafting: {profileMissingFields.join(", ")}.
+              </section>
+            )}
+            {intake && <IntakeStudio initial={{ ...intake, sector_code: selectedSector, entity_type: entityType }} onSaved={(value) => { setIntake(value); setFundingGoal(Number(value.funding_goal.replace(/[^0-9.]/g, "")) || 0); setStatusMessage("Intake saved."); }} onError={setStatusMessage} onSummary={(text) => { setSummary(text); setStatusMessage("Executive summary saved to your private Vault."); void reloadWorkspace(); }} />}
+            {summary && <section className="bg-slate-900 border border-slate-800 rounded-xl p-4"><h3 className="text-sm font-semibold mb-2">Executive summary</h3><pre className="whitespace-pre-wrap text-sm text-slate-200">{summary}</pre></section>}
+          </section>
+
+          <section className={cockpitView === "Grants" ? "space-y-4 min-w-0" : "hidden"}>
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div><h2 className="text-base font-bold">Proposal workspace</h2><p className="text-xs text-slate-400">{selectedGrant ? selectedGrant.title : "Choose a grant below to start a draft."}</p></div>
+                {selectedGrant && <button type="button" onClick={() => setSelectedGrant(selectedGrant)} className="px-3 py-2 rounded-lg bg-blue-600 text-xs font-bold">Open editor</button>}
+              </div>
+            </div>
+            <LiveGrantsFeed
+              key={intake?.sector_code ?? "none"}
+              profile={intake ? { sector: intake.sector_code, industry: intake.industry, location: intake.location, entityType: intake.entity_type, fundingPurpose: intake.funding_purpose } : undefined}
+              signedIn={!!userSession}
+              enabled={intakeComplete}
+              drafting={drafting}
+              onDraft={(g) => {
+                if ("agency" in g) {
+                  const federal = g as LiveGrant;
+                  void handleDraftProposal({ id: federal.id, title: federal.title, funder: federal.agency, amount: federal.awardCeiling ? `Up to $${federal.awardCeiling.toLocaleString("en-US")}` : "Not listed", fit: "", tier: "[Federal]", categoryCode: selectedSector, eligibilityReason: `Grants.gov ${federal.number}. Eligible: ${federal.eligibility.join("; ") || "see listing"}. Closes ${federal.closeDate}.`.slice(0, 500), deadline: federal.closeDate });
+                } else {
+                  const pool = g as UnifiedGrant;
+                  void handleDraftProposal({
+                    id: pool.id,
+                    title: pool.title,
+                    funder: pool.funderName,
+                    amount: pool.directoryOnly ? "Check the official program for current award details" : pool.awardCeiling ? `$${pool.awardFloor.toLocaleString("en-US")} - $${pool.awardCeiling.toLocaleString("en-US")}` : "Not listed",
+                    fit: "",
+                    tier: `[${pool.poolTier === "state_territory" ? "State" : pool.poolTier === "corporate_diversity" ? "Corporate" : "Foundation"}]`,
+                    categoryCode: selectedSector,
+                    eligibilityReason: `${pool.summaryText} Confirm current eligibility and open funding cycle on the official funder site.`,
+                    deadline: pool.directoryOnly ? "Check current cycle" : pool.isRolling ? "Rolling" : pool.deadline,
+                    ...(pool.publicWinnerHistoryUrl ? { publicWinnerHistoryUrl: pool.publicWinnerHistoryUrl } : {}),
+                  });
+                }
+              }}
             />
-            <div className="grid grid-cols-1 gap-2">
-              <label className="text-xs text-slate-400">Evidence category
-                <select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value as typeof uploadCategory)} className="mt-1 block w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white">
+          </section>
+
+          <section className={cockpitView === "Vault" ? "space-y-4" : "hidden"}>
+            <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <div><h2 className="text-base font-bold">Evidence Vault</h2><p className="text-xs text-slate-400">Upload and categorize supporting documents.</p></div>
+                <span className="text-[10px] font-mono text-blue-300">{vaultDocs.length} saved</span>
+              </div>
+              <label className="block text-xs text-slate-400">Evidence category
+                <select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value as typeof uploadCategory)} className="mt-1 block w-full bg-slate-950 border border-slate-700 rounded px-2 py-2 text-xs text-white">
                   <option value="legal_tax">Legal / Tax</option>
                   <option value="license_permit">License / Permit</option>
                   <option value="vendor_quote">Vendor Quote</option>
                   <option value="financial">Financial</option>
                 </select>
               </label>
-            </div>
-            {vaultDocs.map((doc) => <Button key={doc.id} variant="ghost" size="sm" className="max-w-full whitespace-normal text-left" onClick={() => setViewing(doc)}>{doc.name}</Button>)}
-            {statusMessage && (
-              <p role={/error|could not|failed|complete/i.test(statusMessage) ? "alert" : "status"} className={`text-xs p-2.5 rounded-lg border ${/error|could not|failed|complete/i.test(statusMessage) ? "text-red-400 border-red-800" : "text-emerald-400 border-slate-800"}`}>{statusMessage}</p>
-            )}
+              <label className="block text-xs text-slate-400">Upload file
+                <input type="file" aria-label="Upload evidence" accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileUpload} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white" />
+              </label>
+              {vaultDocs.length === 0 && <p className="text-xs text-slate-400">No evidence uploaded yet.</p>}
+              <div className="grid gap-2 sm:grid-cols-2">
+                {vaultDocs.map((doc) => <Button key={doc.id} variant="ghost" size="sm" className="max-w-full whitespace-normal text-left justify-start" onClick={() => setViewing(doc)}>{doc.name}</Button>)}
+              </div>
+            </section>
           </section>
-          <section className="md:max-h-[520px] overflow-y-auto">
+
+          <section className={cockpitView === "Tracker" ? "space-y-4 min-w-0" : "hidden"}>
+            <div><h2 className="text-lg font-bold">Application tracker</h2><p className="text-xs text-slate-400">Track drafts and record external submissions; AutoGrant does not submit to funder portals.</p></div>
             <ApplicationTracker proposals={proposals} onStatusChange={async (id, status, confirmation) => {
               const persistedStatus = status === "submitted" ? `submitted${confirmation ? `::${confirmation}` : ""}` : "draft";
               const { error } = await supabase.from("applications").update({ status: persistedStatus }).eq("id", id);
@@ -406,14 +386,16 @@ function IndexComponent() {
               }
             }} />
           </section>
-        </aside>
-        <DocumentViewer doc={viewing} onClose={() => setViewing(null)} />
+
+          <DocumentViewer doc={viewing} onClose={() => setViewing(null)} />
+        </div>
       </main>
       {selectedGrant && (
         <ProposalStudio
           grant={selectedGrant}
           voiceCalibrated={false}
-          availableEvidenceIds={vaultDocs.map((doc) => doc.slotKey).filter((slot): slot is string => !!slot)}
+          availableEvidenceIds={vaultDocs.flatMap((doc) => [doc.slotKey, doc.categoryTag].filter((value): value is string => !!value))}
+          vaultAttachments={vaultDocs.flatMap((doc) => doc.storagePath ? [{ fileName: doc.name, storagePath: doc.storagePath }] : [])}
           onClose={() => setSelectedGrant(null)}
           onSaved={() => void reloadWorkspace()}
         />

@@ -190,7 +190,9 @@ function evaluateStructure(text: string, bom: GrantRequirementBOM) {
 function evaluateEvidence(input: RedTeamInput) {
   const mandatory = input.bom.userRequiredEvidence.filter((evidence) => evidence.isMandatory);
   const available = new Set(input.availableEvidenceIds ?? []);
-  const missing = mandatory.filter((evidence) => !available.has(evidence.evidenceId));
+  const missing = mandatory.filter((evidence) =>
+    !available.has(evidence.evidenceId) && !available.has(evidence.autoMatchVaultTag),
+  );
   const findings: RedTeamFinding[] = mandatory.length
     ? missing.length
       ? [{

@@ -1,12 +1,15 @@
 # AutoGrant AI
 
-I have successfully pasted our modular single-file React prototype for AutoGrant.ai. It features clean functional sections for authentication, a 5-step onboarding wizard, a 50-card Grant Discovery feed with live Grants.gov search links and back-navigation, an encrypted Document Vault with strict PDF/DOCX MIME validation and file removal controls, and an Application Tracker with clickable proposal detail views. Please review the codebase and prepare it for connecting our Supabase backend and live AI endpoints.
+AutoGrant helps applicants find funding opportunities, review grant requirements, draft proposal materials, organize Vault evidence, and track applications. AI requests use authenticated server functions and Lovable's AI Gateway.
 
-yeah create the project and add the backendtings to it this is my api key byw from gemeni [REDACTED: user pasted an API key in chat; do not use or repeat it]. put that in your secretes as well to help build it
+## Current coverage and limitations
 
-yes do it
-
-Use Lovable Cloud for auth, database, and private document storage. Use Lovable AI's built-in Gemini capability for the live AI endpoints when possible. If an external Gemini API key is necessary, request a newly rotated key through the secure project secret form; do not use the pasted key.
+- Federal opportunities are searched through Grants.gov. An SBIR/STTR topic search uses the public SBIR.gov API; SBIR.gov currently reports API maintenance, so use its official Topics page if the live request is unavailable.
+- State routing links to economic-development agencies in all 50 states. These links are not a live or exhaustive state-grant database.
+- Amber Grant application advice and two winner interviews are source-linked for the AI and visible in Proposal Studio. Other programs have no connected winner case studies yet; public stories do not establish why a funder selected a winner.
+- Proposal narratives export as PDF, DOCX, and TXT. Budget exports include PDF, CSV, and a text justification; Vault attachments can be included in the ZIP.
+- Exported materials are drafts, not official SF-424/SF-424A forms. The app does not submit applications to grant portals.
+- Automated SAM.gov status checks require the server-side `SAM_GOV_API_KEY` Lovable secret. UEI/CAGE values entered for a check are not saved.
 
 This project was built with [Lovable](https://lovable.dev).
 

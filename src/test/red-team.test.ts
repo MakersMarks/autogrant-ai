@@ -86,6 +86,17 @@ describe('deterministic proposal red-team rubric', () => {
       .toBe('match_shortfall');
   });
 
+  it('matches required evidence against the Vault slot tag extracted from the solicitation', () => {
+    const result = evaluateProposalRedTeam({
+      proposalText: completeProposal,
+      bom,
+      availableEvidenceIds: ['quote'],
+    });
+
+    expect(result.modules.find(({ id }) => id === 'evidence')?.findings[0]?.code)
+      .toBe('required_evidence_available');
+  });
+
   it('handles empty text, unconfigured limits, and optional match information deterministically', () => {
     const result = evaluateProposalRedTeam({
       proposalText: '',

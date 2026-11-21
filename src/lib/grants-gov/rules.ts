@@ -37,9 +37,18 @@ export function isLastChance(days: number | null): boolean {
   return days !== null && days >= 2 && days <= 7;
 }
 
-/** Low-competition signal: small award ceiling (≤ $100k) or many awards (≥ 10). */
-export function isLowCompetition(g: Pick<LiveGrant, "awardCeiling" | "numberOfAwards">): boolean {
-  return (g.awardCeiling !== null && g.awardCeiling > 0 && g.awardCeiling <= 100_000) || (g.numberOfAwards ?? 0) >= 10;
+export type GrantAwardScaleSignal = "award_ceiling_at_most_100k" | "at_least_10_awards_listed";
+
+/** Funding-scale indicators only; Grants.gov listings here do not report applicant counts or win rates. */
+export function grantAwardScaleSignals(
+  g: Pick<LiveGrant, "awardCeiling" | "numberOfAwards">,
+): GrantAwardScaleSignal[] {
+  const signals: GrantAwardScaleSignal[] = [];
+  if (g.awardCeiling !== null && g.awardCeiling > 0 && g.awardCeiling <= 100_000) {
+    signals.push("award_ceiling_at_most_100k");
+  }
+  if ((g.numberOfAwards ?? 0) >= 10) signals.push("at_least_10_awards_listed");
+  return signals;
 }
 
 export function matchesAmount(g: Pick<LiveGrant, "awardCeiling">, min: number, max: number): boolean {
@@ -66,6 +75,11 @@ export function stateFromLocation(location: string): string | null {
   if (abbr && STATES[abbr]) return STATES[abbr]!;
   const low = t.toLowerCase();
   return Object.values(STATES).find((s) => low.includes(s.toLowerCase())) ?? null;
+}
+
+export function stateCodeFromLocation(location: string): string {
+  const state = stateFromLocation(location);
+  return state ? Object.entries(STATES).find(([, name]) => name === state)?.[0] ?? "" : "";
 }
 
 /** True when a grant title is restricted to a different named state than the user's. */

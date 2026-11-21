@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBudgetJustification, calculateBudget, type BudgetInput } from "@/lib/budget";
+import { buildBudgetJustification, calculateBudget, federalBudgetCategoryNames, type BudgetInput, type FederalBudgetCosts } from "@/lib/budget";
 
 const budget = (overrides: Partial<BudgetInput> = {}): BudgetInput => ({
   equipment: [{ vendor: "Lab Supply Co.", quantity: 2, unitCost: 100, freight: 15, tax: 5 }],
@@ -54,5 +54,27 @@ describe("budget calculations", () => {
     expect(result.errors).toContain("Equipment item 1: vendor is required for a nonzero cost.");
     expect(result.errors).toContain("Institutional item 1: category is required for a nonzero cost.");
     expect(result.errors).toContain("Institutional item 1: basis is required for a nonzero cost.");
+  });
+
+  it("calculates federal category totals separately from small-business quote rows", () => {
+    const federalCosts = Object.fromEntries(federalBudgetCategoryNames.map((category) => [category, 0])) as FederalBudgetCosts;
+    federalCosts.Personnel = 1200;
+    federalCosts.Equipment = 800;
+    const input = budget({
+      track: "federal",
+      federalCosts,
+      equipment: [{ vendor: "", quantity: Number.NaN, unitCost: 0, freight: 0, tax: 0 }],
+      institutional: [{ category: "", basis: "", amount: Number.NaN }],
+    });
+
+    const result = calculateBudget(input);
+    expect(result).toMatchObject({
+      valid: true,
+      equipmentTotal: 0,
+      institutionalTotal: 2000,
+      totalProjectCost: 2000,
+    });
+    expect(buildBudgetJustification(input, result)).toContain("Personnel $1,200.00");
+    expect(buildBudgetJustification(input, result)).toContain("not the official SF-424A form");
   });
 });

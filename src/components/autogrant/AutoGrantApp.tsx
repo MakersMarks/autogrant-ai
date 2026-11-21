@@ -95,7 +95,7 @@ function Platform({ userId }: { userId: string }) {
       const { data, error } = await supabase.from("profiles").update({
         entity_type: p.entity_type,
         sector_code: p.sector_code,
-        industry: p.industry,
+        ...(p.industry ? { industry: p.industry } : {}),
         funding_goal: p.funding_goal,
         demographics: p.demographics,
         lifecycle_stage: p.lifecycle_stage,

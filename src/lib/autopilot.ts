@@ -21,6 +21,6 @@ export function applicationToProposal(row: { id: string; grant_id: string; name:
     generatedContent: row.narrative,
     status: submitted ? 'submitted' : 'draft',
     createdAt: row.created_at,
-    confirmation,
+    ...(confirmation === undefined ? {} : { confirmation }),
   };
 }

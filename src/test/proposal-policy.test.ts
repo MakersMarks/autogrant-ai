@@ -46,7 +46,37 @@ describe('Day 2 document engine', () => {
     expect(parseDocument('institutional', doc('institutional'))).toHaveLength(8);
     expect(() => parseDocument('institutional', doc('executive_summary'))).toThrow();
   });
+  it('uses explicit solicitation headings and word limits for generated documents', () => {
+    const requiredSections = [{ title: 'Technical Approach', maxWords: 3 }];
+    const request = buildDocumentPrompt('institutional', {}, [], {}, 'VOICE', requiredSections);
+    expect(request.system).toContain('## 1. Technical Approach');
+    expect(parseDocument('institutional', '## 1. Technical Approach\none two three four', requiredSections)[0]?.body)
+      .toBe('one two three…');
+  });
+  it('uses sourced winner stories only as non-causal structural examples', () => {
+    const request = buildDocumentPrompt('executive_summary', {}, [], {}, 'VOICE', undefined, [{
+      winner: 'Example Co.',
+      awardDate: 'June 2023',
+      awardAmount: '$10,000',
+      sourceUrl: 'https://funder.gov/winner',
+      sourceName: 'Official winner interview',
+      publishedFacts: ['The founder described a specific use of funds.'],
+      interpretationLimit: 'The funder did not publish its selection rationale.',
+    }], [{
+      sourceUrl: 'https://funder.gov/advice',
+      sourceName: 'Official application guidance',
+      publishedGuidance: ['Tell a clear founder story.'],
+      interpretationLimit: 'This is not a guarantee of selection.',
+    }]);
+    expect(request.system).toContain('not evidence of why a funder selected a winner');
+    expect(JSON.parse(request.prompt).publicWinnerResearch[0].publishedFacts[0]).toContain('specific use of funds');
+    expect(JSON.parse(request.prompt).publicFunderGuidance[0].publishedGuidance[0]).toContain('founder story');
+  });
   it('executive summary has 5 sections', () => { expect(parseDocument('executive_summary', doc('executive_summary'))).toHaveLength(5); });
+  it('can draft a funder-specific Letter of Inquiry', () => {
+    expect(parseDocument('letter_of_inquiry', doc('letter_of_inquiry'))).toHaveLength(4);
+    expect(documentSpecs.letter_of_inquiry.guidance).toContain('tailored to the funder');
+  });
   it('clamps portal elevator pitch to 100 words', () => {
     const out = parseDocument('portal_answers', doc('portal_answers', Array(300).fill('word').join(' ')));
     expect(out[0]!.body.split(/\s+/).length).toBe(100);

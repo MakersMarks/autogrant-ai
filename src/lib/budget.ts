@@ -12,7 +12,24 @@ export type InstitutionalBudgetItem = {
   amount: number;
 };
 
+export const federalBudgetCategoryNames = [
+  "Personnel",
+  "Fringe benefits",
+  "Travel",
+  "Equipment",
+  "Supplies",
+  "Contractual",
+  "Construction",
+  "Other direct costs",
+  "Indirect costs",
+] as const;
+
+export type FederalBudgetCategory = (typeof federalBudgetCategoryNames)[number];
+export type FederalBudgetCosts = Record<FederalBudgetCategory, number>;
+
 export type BudgetInput = {
+  track?: "small_business" | "federal";
+  federalCosts?: FederalBudgetCosts;
   equipment: EquipmentBudgetItem[];
   institutional: InstitutionalBudgetItem[];
   awardCeiling: number | null;
@@ -37,7 +54,7 @@ export function calculateBudget(input: BudgetInput): BudgetCalculation {
   let equipmentTotal = 0;
   let institutionalTotal = 0;
 
-  input.equipment.forEach((item, index) => {
+  if ((input.track ?? "small_business") === "small_business") input.equipment.forEach((item, index) => {
     const row = index + 1;
     if (!isNonnegativeFinite(item.quantity)) errors.push(`Equipment item ${row}: quantity must be a nonnegative finite number.`);
     if (!isNonnegativeFinite(item.unitCost)) errors.push(`Equipment item ${row}: unit cost must be a nonnegative finite number.`);
@@ -54,7 +71,7 @@ export function calculateBudget(input: BudgetInput): BudgetCalculation {
     equipmentTotal += money(lineTotal);
   });
 
-  input.institutional.forEach((item, index) => {
+  if ((input.track ?? "small_business") === "small_business") input.institutional.forEach((item, index) => {
     const row = index + 1;
     if (!isNonnegativeFinite(item.amount)) {
       errors.push(`Institutional item ${row}: amount must be a nonnegative finite number.`);
@@ -64,6 +81,12 @@ export function calculateBudget(input: BudgetInput): BudgetCalculation {
     if (item.amount > 0 && !item.basis.trim()) errors.push(`Institutional item ${row}: basis is required for a nonzero cost.`);
     institutionalTotal += money(item.amount);
   });
+  if (input.track === "federal" && input.federalCosts) {
+    for (const [category, amount] of Object.entries(input.federalCosts)) {
+      if (!isNonnegativeFinite(amount)) errors.push(`${category} must be a nonnegative finite number.`);
+      else institutionalTotal += money(amount);
+    }
+  }
 
   if (!Number.isFinite(equipmentTotal) || !Number.isFinite(institutionalTotal)) {
     errors.push("Budget totals must be finite numbers.");
@@ -114,7 +137,9 @@ export function buildBudgetJustification(input: BudgetInput, calculation: Budget
   const lines = [
     `The total project budget is ${formatMoney(calculation.totalProjectCost)}.`,
     equipment ? `Equipment costs total ${formatMoney(calculation.equipmentTotal)} and cover ${equipment}.` : "",
-    institutional ? `Institutional costs total ${formatMoney(calculation.institutionalTotal)} and cover ${institutional}.` : "",
+    input.track === "federal" && input.federalCosts
+      ? `Federal SF-424A planning categories: ${Object.entries(input.federalCosts).filter(([, amount]) => amount > 0).map(([category, amount]) => `${category} ${formatMoney(amount)}`).join("; ") || "no amounts entered"}. This is a planning worksheet, not the official SF-424A form.`
+      : institutional ? `Institutional costs total ${formatMoney(calculation.institutionalTotal)} and cover ${institutional}.` : "",
     `The grant request is ${formatMoney(calculation.grantRequest)}.`,
     input.costSharingPercentage === null
       ? "No cost-sharing percentage was entered because none was stated in the terms provided; no match is included in this estimate."

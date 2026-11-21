@@ -1,45 +1,132 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { generateGrantDocument, saveProposalDraft } from "@/lib/ai/ai.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { buildApplicationPackage, createPdf } from "@/lib/application-package";
+import { analyzeGrantRequirements, generateGrantDocument, saveProposalDraft } from "@/lib/ai/ai.functions";
 import { documentSpecs, documentTypes, toCleanText, wordCount, type DocumentType } from "@/lib/ai/proposal-policy";
 import type { Grant } from "@/lib/grants";
 import { evaluateProposalRedTeam } from "@/lib/ai/red-team";
 import type { GrantRequirementBOM } from "@/lib/ai/rfp-parser";
 import { buildBudgetJustification, type BudgetInput, BudgetCalculation } from "@/lib/budget";
+import { programGuidanceForProgram, winnerResearchForProgram } from "@/lib/grants/sources/winner-research";
 import { BudgetBuilder } from "./BudgetBuilder";
 
 type Section = { title: string; body: string };
+const REQUIREMENT_DOCUMENT_LABELS: Record<GrantRequirementBOM["aiDraftableDocuments"][number]["documentType"], string> = {
+  executive_summary: "Executive Summary",
+  institutional: "Institutional Proposal",
+  portal_answers: "Portal Answers",
+  project_narrative: "Project Narrative",
+  letter_of_inquiry: "Letter of Inquiry",
+  budget_justification: "Budget Justification",
+  short_answers: "Short Answers",
+  federal_biosketch: "Federal Biosketch",
+  facilities_resources: "Facilities and Resources",
+  letter_commitment_template: "Letter of Commitment",
+  data_management_plan: "Data Management Plan",
+  commercialization_roadmap: "Commercialization Roadmap",
+  financial_projections: "Financial Projections",
+  video_pitch_script: "Video Pitch Script",
+};
+const GENERATED_NARRATIVE_FORMATS = new Set(["pdf", "docx", "txt"]);
+const findRequirementsForType = (bom: GrantRequirementBOM, type: DocumentType) => {
+  const parsedTypes: string[] = [type];
+  if (type === "institutional") parsedTypes.push("project_narrative");
+  if (type === "portal_answers") parsedTypes.push("short_answers");
+  return bom.aiDraftableDocuments.find((item) => parsedTypes.includes(item.documentType));
+};
+const isDocumentType = (value: string): value is DocumentType =>
+  (documentTypes as readonly string[]).includes(value);
 
 export function ProposalStudio({
   grant,
   voiceCalibrated,
   availableEvidenceIds = [],
+  vaultAttachments = [],
   onClose,
   onSaved,
 }: {
   grant: Grant;
   voiceCalibrated: boolean;
   availableEvidenceIds?: readonly string[];
+  vaultAttachments?: readonly { fileName: string; storagePath: string }[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [type, setType] = useState<DocumentType>("executive_summary");
-  const [view, setView] = useState<"documents" | "budget" | "audit">("documents");
+  const [view, setView] = useState<"documents" | "budget" | "audit" | "requirements" | "winners">("documents");
   const [docs, setDocs] = useState<Partial<Record<DocumentType, { sections: Section[]; fileName: string }>>>({});
   const [appId, setAppId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [budgetInput, setBudgetInput] = useState<BudgetInput | null>(null);
   const [budgetCalculation, setBudgetCalculation] = useState<BudgetCalculation | null>(null);
+  const [solicitationText, setSolicitationText] = useState("");
+  const [parsedBOM, setParsedBOM] = useState<GrantRequirementBOM | null>(null);
+  const [parseBusy, setParseBusy] = useState(false);
+  const [parseError, setParseError] = useState("");
+  const [includeVaultEvidence, setIncludeVaultEvidence] = useState(false);
+  const [packageBusy, setPackageBusy] = useState(false);
   const gen = useServerFn(generateGrantDocument);
+  const parseRequirements = useServerFn(analyzeGrantRequirements);
   const saveDraft = useServerFn(saveProposalDraft);
   const [dirty, setDirty] = useState(false);
   const current = docs[type];
+  const winnerResearch = winnerResearchForProgram(grant.id);
+  const publicProgramGuidance = programGuidanceForProgram(grant.id);
+  const chooseRequirementDocument = (documentType: string) => {
+    if (documentType === "budget_justification") {
+      setView("budget");
+      return;
+    }
+    const mappedType = documentType === "project_narrative"
+      ? "institutional"
+      : documentType === "short_answers" ? "portal_answers" : documentType;
+    if (!isDocumentType(mappedType)) return;
+    setType(mappedType);
+    setView("documents");
+  };
+  const defaultBOM: GrantRequirementBOM = {
+    grantId: grant.id,
+    grantTitle: grant.title,
+    formatting: { submissionMedium: "not_stated" },
+    aiDraftableDocuments: [{ documentType: type, requiredHeadings: documentSpecs[type].sections.map((section) => section.title) }],
+    userRequiredEvidence: [],
+  };
+  const bom = parsedBOM ?? defaultBOM;
+  const solicitationWordLimits = parsedBOM ? findRequirementsForType(parsedBOM, type)?.wordLimitsPerSection : undefined;
+
+  const parseSolicitation = async () => {
+    setParseBusy(true);
+    setParseError("");
+    try {
+      const result = await parseRequirements({
+        data: { grantId: grant.id, grantTitle: grant.title, solicitationText },
+      });
+      setParsedBOM(result);
+      toast.success("Grant-specific requirements extracted; review them against the official notice.");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not analyze the solicitation.";
+      setParseError(message);
+      toast.error(message);
+    } finally {
+      setParseBusy(false);
+    }
+  };
 
   const run = async () => {
     setBusy(true);
     try {
-      const r = await gen({ data: { type, title: grant.title, funder: grant.funder, amount: grant.amount, eligibilityReason: grant.eligibilityReason, grantId: grant.id, applicationId: appId } });
+      const r = await gen({ data: {
+        type,
+        title: grant.title,
+        funder: grant.funder,
+        amount: grant.amount,
+        eligibilityReason: grant.eligibilityReason,
+        grantId: grant.id,
+        applicationId: appId,
+        requirements: parsedBOM ?? undefined,
+      } });
       setDocs((d) => ({ ...d, [type]: { sections: r.sections, fileName: r.fileName } }));
       setAppId(r.applicationId);
       setDirty(false);
@@ -55,6 +142,71 @@ export function ProposalStudio({
     if (!current) return;
     const url = URL.createObjectURL(new Blob([plain(current.sections)], { type: "text/plain" }));
     const a = document.createElement("a"); a.href = url; a.download = current.fileName; a.click(); URL.revokeObjectURL(url);
+  };
+  const downloadPdf = () => {
+    if (!current) return;
+    try {
+      const bytes = createPdf({ fileName: current.fileName, sections: current.sections.map((section) => ({ ...section, body: toCleanText(section.body) })) });
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = current.fileName.replace(/\.[^.]+$/u, "") + ".pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create the PDF.");
+    }
+  };
+  const exportPackage = async () => {
+    const documents = Object.values(docs).flatMap((doc) => doc ? [doc] : []);
+    const budget = budgetInput && budgetCalculation?.valid
+      ? { input: budgetInput, calculation: budgetCalculation }
+      : undefined;
+    if (!documents.length && !budget) {
+      toast.error("Generate a proposal document or a valid budget before exporting.");
+      return;
+    }
+
+    setPackageBusy(true);
+    try {
+      const attachments: { fileName: string; bytes: Uint8Array }[] = [];
+      if (includeVaultEvidence) {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) throw new Error("Sign in again before exporting private Vault evidence.");
+        let totalBytes = 0;
+        if (vaultAttachments.length > 50) throw new Error("The Vault has too many files for one export. Select fewer evidence files first.");
+        for (const attachment of vaultAttachments) {
+          if (!attachment.storagePath.startsWith(`${user.id}/`)) throw new Error("A Vault file did not pass the ownership check; export stopped.");
+          const { data, error } = await supabase.storage.from("vault").download(attachment.storagePath);
+          if (error || !data) throw new Error(`Could not download Vault evidence: ${attachment.fileName}`);
+          const bytes = new Uint8Array(await data.arrayBuffer());
+          totalBytes += bytes.byteLength;
+          if (totalBytes > 50 * 1024 * 1024) throw new Error("Vault evidence exceeds the 50MB package limit. Uncheck evidence or select fewer files.");
+          attachments.push({ fileName: attachment.fileName, bytes });
+        }
+      }
+
+      const bytes = buildApplicationPackage({
+        grantTitle: grant.title,
+        funder: grant.funder,
+        amount: grant.amount,
+        documents,
+        ...(parsedBOM ? { requirements: parsedBOM } : {}),
+        ...(budget ? { budget } : {}),
+        attachments,
+      });
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/zip" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${grant.title.replace(/[^a-z0-9-]+/gi, "-").replace(/^-|-$/gu, "").slice(0, 60) || "grant"}-application-package.zip`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Application package downloaded. Review all drafts before submission.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not export the application package.");
+    } finally {
+      setPackageBusy(false);
+    }
   };
   const updateBody = (i: number, body: string) => {
     if (!current) return;
@@ -85,13 +237,6 @@ export function ProposalStudio({
     } catch (e) { toast.error(e instanceof Error ? e.message : "Could not save edits"); }
     setBusy(false);
   };
-  const bom: GrantRequirementBOM = {
-    grantId: grant.id,
-    grantTitle: grant.title,
-    formatting: { wordCountLimit: type === "executive_summary" ? 1500 : 5000, submissionMedium: "portal_text_fields" },
-    aiDraftableDocuments: [{ documentType: type, requiredHeadings: documentSpecs[type].sections.map((section) => section.title) }],
-    userRequiredEvidence: [],
-  };
   const proposalText = Object.values(docs).flatMap((doc) => doc?.sections ?? []).map((section) => `## ${section.title}\n${section.body}`).join("\n\n");
   const audit = proposalText
     ? evaluateProposalRedTeam({
@@ -99,12 +244,13 @@ export function ProposalStudio({
       bom,
       availableEvidenceIds,
       budget: {
-        requestedAmount: budgetCalculation?.valid ? budgetCalculation.grantRequest : undefined,
-        ceiling: budgetInput?.awardCeiling ?? undefined,
         matchRequired: budgetInput?.costSharingPercentage != null,
-        matchRate: budgetInput?.costSharingPercentage != null ? budgetInput.costSharingPercentage / 100 : undefined,
-        requiredMatchAmount: budgetCalculation?.valid ? budgetCalculation.requiredMatch : undefined,
-        committedMatchAmount: undefined,
+        ...(budgetCalculation?.valid ? {
+          requestedAmount: budgetCalculation.grantRequest,
+          requiredMatchAmount: budgetCalculation.requiredMatch,
+        } : {}),
+        ...(budgetInput?.awardCeiling != null ? { ceiling: budgetInput.awardCeiling } : {}),
+        ...(budgetInput?.costSharingPercentage != null ? { matchRate: budgetInput.costSharingPercentage / 100 } : {}),
       },
     })
     : null;
@@ -142,6 +288,10 @@ export function ProposalStudio({
           <button onClick={() => setView("audit")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "audit" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
             Audit &amp; Score (0–100)
           </button>
+          <button onClick={() => setView("requirements")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "requirements" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+            Grant Requirements
+          </button>
+          {grant.publicWinnerHistoryUrl && <button onClick={() => setView("winners")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "winners" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>Winner Research</button>}
           {view === "documents" && documentTypes.map((t) => (
             <button key={t} onClick={() => setType(t)} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${t === type ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
               {documentSpecs[t].label}{docs[t] ? " ✓" : ""}
@@ -149,13 +299,117 @@ export function ProposalStudio({
           ))}
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
-          {view === "budget" ? (
+          <div className={view === "budget" ? "" : "hidden"}>
             <BudgetBuilder
               onChange={(input, calculation) => {
                 setBudgetInput(input);
                 setBudgetCalculation(calculation);
               }}
             />
+          </div>
+          {view === "requirements" ? (
+            <div className="space-y-5">
+              <section className="space-y-3">
+                <h4 className="font-bold text-sm">Extract this funder’s checklist</h4>
+                <p className="text-xs text-muted-foreground">Paste the official notice or application instructions. Only explicitly stated requirements are extracted. This checklist is session-only; verify it against the funder’s current instructions.</p>
+                <textarea
+                  aria-label="Grant solicitation text"
+                  value={solicitationText}
+                  onChange={(event) => setSolicitationText(event.target.value)}
+                  rows={9}
+                  maxLength={30000}
+                  placeholder="Paste the official solicitation or application instructions here (100–30,000 characters)…"
+                  className="w-full rounded-xl border border-border bg-background p-3 text-sm"
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">{solicitationText.length}/30,000 characters</span>
+                  <button type="button" disabled={parseBusy || solicitationText.trim().length < 100} onClick={parseSolicitation}
+                    className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-40">
+                    {parseBusy ? "Analyzing…" : parsedBOM ? "Re-analyze solicitation" : "Extract requirements"}
+                  </button>
+                </div>
+                {parseError && <p role="alert" className="text-xs text-destructive">{parseError}</p>}
+              </section>
+              <section className="space-y-3">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <h4 className="font-bold text-sm">Requirement checklist</h4>
+                  <span className="text-xs text-muted-foreground">Submission format: {bom.formatting.submissionMedium.replaceAll("_", " ")}</span>
+                </div>
+                {bom.formatting.pageLimit && <p className="text-xs">Page limit: {bom.formatting.pageLimit}</p>}
+                {bom.formatting.wordCountLimit && <p className="text-xs">Word limit: {bom.formatting.wordCountLimit}</p>}
+                {bom.formatting.fontFamilyRequired && <p className="text-xs">Required font: {bom.formatting.fontFamilyRequired}</p>}
+                {bom.aiDraftableDocuments.map((item) => (
+                  <div key={item.documentType}>
+                    <p className="text-xs">
+                      {REQUIREMENT_DOCUMENT_LABELS[item.documentType]} file format: {item.fileFormats?.join(", ") || "Not stated"}
+                    </p>
+                    {item.fileFormats?.some((format) => !GENERATED_NARRATIVE_FORMATS.has(format.toLowerCase().replace(/^\./u, ""))) && (
+                      <p role="alert" className="text-xs text-amber-700">AutoGrant exports PDF, DOCX, and TXT narratives only. Create the required format in the funder’s official system or with an approved tool.</p>
+                    )}
+                  </div>
+                ))}
+                {bom.userRequiredEvidence.length ? bom.userRequiredEvidence.map((item) => {
+                  const available = availableEvidenceIds.includes(item.evidenceId) || availableEvidenceIds.includes(item.autoMatchVaultTag);
+                  return (
+                    <div key={item.evidenceId} className="p-3 rounded-lg border border-border bg-background">
+                      <p className="text-sm font-semibold"><span className={available ? "text-success" : "text-amber-600"}>{available ? "✓" : "!"}</span> {item.name} {item.isMandatory ? "(mandatory)" : "(requested)"}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{item.reason} · {item.category.replaceAll("_", " ")}</p>
+                      <p className="text-xs mt-1">Required file format: {item.fileFormats?.join(", ") || "Not stated"}</p>
+                      <p className="text-xs mt-1">{available ? "Matching Vault slot or category tag found; confirm the file is the requested evidence." : "Not found in the matching Vault slot or category; upload or confirm the required evidence."}</p>
+                    </div>
+                  );
+                }) : <p className="text-xs text-muted-foreground">{parsedBOM ? "The parser found no explicit evidence attachments. Check the original notice." : "Paste the solicitation above to extract required forms, attachments, and evidence."}</p>}
+                <div className="space-y-2">
+                  {bom.aiDraftableDocuments.map((item) => {
+                    const documentType = item.documentType;
+                    return (
+                      <div key={`${documentType}-${item.requiredHeadings.join("|")}`} className="p-3 rounded-lg border border-border bg-background">
+                        <div className="flex flex-wrap justify-between gap-2">
+                          <p className="text-sm font-semibold">{documentType.replaceAll("_", " ")}</p>
+                          {(isDocumentType(documentType) || documentType === "project_narrative" || documentType === "short_answers" || documentType === "budget_justification") && (
+                            <button type="button" onClick={() => chooseRequirementDocument(documentType)} className="text-xs text-primary underline">
+                              {documentType === "budget_justification" ? "Open Budget Builder" : "Draft this document"}
+                            </button>
+                          )}
+                        </div>
+                        {item.requiredHeadings.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Required headings: {item.requiredHeadings.join(" · ")}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+                {parsedBOM && <p className="text-[11px] text-amber-700">AI-extracted text is not an authoritative compliance determination. Confirm every requirement, eligibility rule, and deadline in the current official notice.</p>}
+              </section>
+            </div>
+          ) : view === "winners" ? (
+            <section className="space-y-4">
+              <div>
+                <h4 className="font-bold text-sm">Public winner research</h4>
+                <p className="text-xs text-muted-foreground mt-1">These public stories show what the funder chose to publish, not why a winner was selected. AutoGrant uses documented examples only as structural inspiration; it does not treat them as a success formula.</p>
+                <a className="mt-2 inline-block text-xs text-primary underline" href={grant.publicWinnerHistoryUrl} target="_blank" rel="noreferrer">Open the funder’s winner archive</a>
+              </div>
+              {publicProgramGuidance.map((guidance) => (
+                <article key={guidance.sourceUrl} className="p-4 rounded-xl border border-primary/30 bg-background space-y-2">
+                  <h5 className="text-sm font-semibold">Published application guidance</h5>
+                  {guidance.publishedGuidance.map((item) => <p key={item} className="text-xs">{item}</p>)}
+                  <p className="text-xs text-amber-700">{guidance.interpretationLimit}</p>
+                  <a className="text-xs text-primary underline" href={guidance.sourceUrl} target="_blank" rel="noreferrer">Read original guidance · {guidance.sourceName}</a>
+                </article>
+              ))}
+              {winnerResearch.length ? winnerResearch.map((caseStudy) => (
+                <article key={caseStudy.sourceUrl} className="p-4 rounded-xl border border-border bg-background space-y-2">
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <h5 className="text-sm font-semibold">{caseStudy.winner}</h5>
+                    <span className="text-xs text-muted-foreground">{caseStudy.awardDate} · {caseStudy.awardAmount}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{caseStudy.sourceName}</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {caseStudy.publishedFacts.map((fact) => <li key={fact} className="text-xs">{fact}</li>)}
+                  </ul>
+                  <p className="text-xs text-amber-700">{caseStudy.interpretationLimit}</p>
+                  <a className="text-xs text-primary underline" href={caseStudy.sourceUrl} target="_blank" rel="noreferrer">Read original winner interview</a>
+                </article>
+              )) : <p className="text-xs text-muted-foreground">No case studies have been verified for this program yet. The archive is linked above; no winner insights will be invented.</p>}
+            </section>
           ) : view === "audit" ? (
             audit ? (
               <div className="space-y-5">
@@ -194,13 +448,13 @@ export function ProposalStudio({
             ) : (
               <div className="h-60 flex items-center justify-center text-sm text-muted-foreground">Generate or edit proposal documents to run the audit.</div>
             )
-          ) : busy ? (
+          ) : view === "documents" && busy ? (
             <div className="h-60 flex items-center justify-center gap-2 text-sm text-primary"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />Writing your {documentSpecs[type].label} in your voice…</div>
-          ) : current ? (
+          ) : view === "documents" && current ? (
             <>
               <p className="text-xs text-muted-foreground">Saved to Vault as <span className="text-foreground font-medium">{current.fileName}</span></p>
               {current.sections.map((s, i) => {
-                const max = documentSpecs[type].sections[i]?.maxWords;
+                const max = solicitationWordLimits?.[s.title] ?? documentSpecs[type].sections.find((section) => section.title === s.title)?.maxWords;
                 const wc = wordCount(s.body);
                 return (
                   <details key={s.title} open className="bg-background border border-border rounded-xl">
@@ -213,18 +467,26 @@ export function ProposalStudio({
                 );
               })}
             </>
-          ) : (
+          ) : view === "documents" ? (
             <div className="h-60 flex flex-col items-center justify-center text-center gap-2 text-sm text-muted-foreground">
               <p>{documentSpecs[type].sections.length} sections: {documentSpecs[type].sections.map((s) => s.title).join(" · ")}</p>
               <p className="text-xs">Built from your intake and Vault documents.</p>
             </div>
-          )}
+          ) : null}
         </div>
         {view === "documents" && <div className="flex gap-3 border-t border-border p-5 flex-wrap">
           <button disabled={busy} onClick={run} className="flex-1 py-2.5 bg-primary text-primary-foreground font-bold rounded-lg text-sm disabled:opacity-40">{current ? "Regenerate" : "Generate"} {documentSpecs[type].label}</button>
           <button disabled={!current || busy} onClick={saveEdits} className="px-4 py-2.5 border border-primary/50 text-primary rounded-lg text-sm font-semibold disabled:opacity-40">{dirty ? "Save Edits" : "Save"}</button>
           <button disabled={!current || busy} onClick={copy} className="px-4 py-2.5 border border-border rounded-lg text-sm font-semibold disabled:opacity-40">Copy Clean Text</button>
           <button disabled={!current || busy} onClick={download} className="px-4 py-2.5 border border-border rounded-lg text-sm font-semibold disabled:opacity-40">Download</button>
+          <button disabled={!current || busy} onClick={downloadPdf} className="px-4 py-2.5 border border-border rounded-lg text-sm font-semibold disabled:opacity-40">Download PDF</button>
+          <label className="w-full flex items-center gap-2 text-xs text-muted-foreground">
+            <input type="checkbox" checked={includeVaultEvidence} onChange={(event) => setIncludeVaultEvidence(event.target.checked)} />
+            Include all Vault files in the ZIP (may include sensitive tax/financial records)
+          </label>
+          <button disabled={packageBusy || busy} onClick={exportPackage} className="w-full px-4 py-2.5 border border-primary/50 text-primary rounded-lg text-sm font-semibold disabled:opacity-40">
+            {packageBusy ? "Preparing package…" : "Export Application Package (.zip)"}
+          </button>
         </div>}
       </div>
     </div>

@@ -16,12 +16,14 @@ export type Grant = {
   categoryCode: string;
   eligibilityReason: string;
   deadline: string;
+  publicWinnerHistoryUrl?: string;
 };
 
 export type GrantPoolTier = "federal" | "state_territory" | "corporate_diversity" | "foundation";
 
 export interface UnifiedGrant {
   id: string;
+  directoryOnly?: boolean;
   poolTier: GrantPoolTier;
   title: string;
   funderName: string;
@@ -49,6 +51,7 @@ export interface UnifiedGrant {
   isFreeToApply: boolean;
   summaryText: string;
   sourceSolicitationUrl?: string;
+  publicWinnerHistoryUrl?: string;
 }
 
 export const grantPoolBadge: Record<GrantPoolTier, string> = {
@@ -145,6 +148,8 @@ export function coreDocSlots(entityType: string): DocSlot[] {
 export const CUSTOM_DOC_SLOTS: DocSlot[] = [
   { key: "pitch_deck", name: "Pitch Deck / Executive Summary", required: false },
   { key: "market_research", name: "Customer Discovery & Market Research Data", required: false },
+  { key: "sam_registration_record", name: "SAM.gov Entity Registration / UEI / CAGE record (if required; not externally verified)", required: false },
+  { key: "w9", name: "W-9 (if requested by the funder; sensitive tax details)", required: false },
 ];
 
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;

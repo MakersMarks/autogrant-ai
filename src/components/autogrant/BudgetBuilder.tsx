@@ -5,6 +5,8 @@ import {
   calculateBudget,
   type BudgetInput,
   type BudgetCalculation,
+  federalBudgetCategoryNames,
+  type FederalBudgetCosts,
   type EquipmentBudgetItem,
   type InstitutionalBudgetItem,
 } from "@/lib/budget";
@@ -25,6 +27,10 @@ const validNumber = (value: string) => value.trim() !== "" && Number.isFinite(Nu
 const formatMoney = (value: number) => `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }: BudgetBuilderProps) {
+  const [track, setTrack] = useState<"small_business" | "federal">("small_business");
+  const [federalCosts, setFederalCosts] = useState<FederalBudgetCosts>(() =>
+    Object.fromEntries(federalBudgetCategoryNames.map((name) => [name, 0])) as FederalBudgetCosts,
+  );
   const [equipment, setEquipment] = useState<EquipmentDraft[]>([newEquipment()]);
   const [institutional, setInstitutional] = useState<InstitutionalDraft[]>([newInstitutional()]);
   const [ceiling, setCeiling] = useState(awardCeiling == null ? "" : String(awardCeiling));
@@ -34,6 +40,8 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
 
   const termsComplete = (noCeiling || validNumber(ceiling)) && (noMatch || validNumber(matchPercentage));
   const input = useMemo(() => ({
+    track,
+    federalCosts,
     equipment: equipment.map((item): EquipmentBudgetItem => ({
       vendor: item.vendor,
       quantity: numberValue(item.quantity),
@@ -48,7 +56,7 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
     })),
     awardCeiling: noCeiling ? null : numberValue(ceiling),
     costSharingPercentage: noMatch ? null : numberValue(matchPercentage),
-  }), [equipment, institutional, noCeiling, ceiling, noMatch, matchPercentage]);
+  }), [track, federalCosts, equipment, institutional, noCeiling, ceiling, noMatch, matchPercentage]);
   const calculation = useMemo(() => termsComplete ? calculateBudget(input) : null, [input, termsComplete]);
   const justification = calculation?.valid ? buildBudgetJustification(input, calculation) : "";
   useEffect(() => { onChange?.(input, calculation); }, [input, calculation, onChange]);
@@ -76,6 +84,23 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
           Enter costs and the terms stated by the funder. Match is calculated as a percentage of total project costs.
         </p>
       </div>
+
+      <section className="bg-background border border-border rounded-xl p-4 space-y-4">
+        <h5 className="font-semibold text-sm">Budget track</h5>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" aria-pressed={track === "small_business"} onClick={() => setTrack("small_business")}
+            className={`px-3 py-2 rounded-lg border text-xs font-semibold ${track === "small_business" ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>
+            Small Business — Itemized Quotes
+          </button>
+          <button type="button" aria-pressed={track === "federal"} onClick={() => setTrack("federal")}
+            className={`px-3 py-2 rounded-lg border text-xs font-semibold ${track === "federal" ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>
+            Federal — SF-424A Planning Worksheet
+          </button>
+        </div>
+        {track === "federal" && (
+          <p className="text-xs text-amber-700">Planning aid only. This does not create or submit the official SF-424A; verify categories and amounts against the agency solicitation and current federal form.</p>
+        )}
+      </section>
 
       <section className="bg-background border border-border rounded-xl p-4 space-y-4">
         <h5 className="font-semibold text-sm">Grant terms</h5>
@@ -106,6 +131,7 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
         {!termsComplete && <p className="text-xs text-amber-600">Enter each term or confirm it is not stated before calculating.</p>}
       </section>
 
+      {track === "small_business" ? <>
       <section className="bg-background border border-border rounded-xl p-4 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div><h5 className="font-semibold text-sm">Equipment</h5><p className="text-xs text-muted-foreground">Vendor, quantity, unit cost, freight, and tax.</p></div>
@@ -124,7 +150,6 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
           </div>
         ))}
       </section>
-
       <section className="bg-background border border-border rounded-xl p-4 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div><h5 className="font-semibold text-sm">Institutional costs</h5><p className="text-xs text-muted-foreground">Category, basis, and amount.</p></div>
@@ -141,6 +166,22 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
           </div>
         ))}
       </section>
+      </> : (
+        <section className="bg-background border border-border rounded-xl p-4 space-y-3">
+          <h5 className="font-semibold text-sm">Federal cost categories</h5>
+          <p className="text-xs text-muted-foreground">Enter the costs requested in each category. Confirm allowability in the specific notice of funding opportunity.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {federalBudgetCategoryNames.map((category) => (
+              <NumberField
+                key={category}
+                label={`${category} ($)`}
+                value={Number.isFinite(federalCosts[category]) ? String(federalCosts[category]) : ""}
+                onChange={(value) => setFederalCosts((costs) => ({ ...costs, [category]: numberValue(value) }))}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {!termsComplete ? null : calculation && !calculation.valid ? (
         <section role="alert" className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 space-y-1">
@@ -151,8 +192,12 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
         <section className="bg-primary/5 border border-primary/30 rounded-xl p-4 space-y-3">
           <h5 className="font-semibold text-sm">Budget totals</h5>
           <div className="grid gap-2 sm:grid-cols-2 text-sm">
-            <p>Equipment: <strong>{formatMoney(calculation.equipmentTotal)}</strong></p>
-            <p>Institutional: <strong>{formatMoney(calculation.institutionalTotal)}</strong></p>
+            {track === "federal" ? (
+              <p>Federal category total: <strong>{formatMoney(calculation.totalProjectCost)}</strong></p>
+            ) : <>
+              <p>Equipment: <strong>{formatMoney(calculation.equipmentTotal)}</strong></p>
+              <p>Institutional: <strong>{formatMoney(calculation.institutionalTotal)}</strong></p>
+            </>}
             <p>Total project cost: <strong>{formatMoney(calculation.totalProjectCost)}</strong></p>
             <p>Grant request: <strong>{formatMoney(calculation.grantRequest)}</strong></p>
             <p>Required match: <strong>{formatMoney(calculation.requiredMatch)}</strong></p>

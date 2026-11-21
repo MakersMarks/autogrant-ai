@@ -11,9 +11,8 @@ export interface VaultDocument {
   publicUrl?: string;
   categoryTag?: "legal_tax" | "license_permit" | "vendor_quote" | "financial";
   grantId?: string;
+  metadataWarning?: string;
   slotKey?: string;
-  categoryTag?: "legal_tax" | "license_permit" | "vendor_quote" | "financial";
-  grantId?: string;
 }
 
 export const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15MB Limit
@@ -73,7 +72,15 @@ export async function processDocumentUpload(
     .insert(metadata)
     .select()
     .single();
+  let metadataWarning: string | undefined;
   if (dbError) {
+    const optionalMetadataUnavailable = dbError.code === "PGRST204"
+      || dbError.code === "42703"
+      || /category_tag|grant_id/i.test(dbError.message);
+    if (!optionalMetadataUnavailable) {
+      await supabase.storage.from("vault").remove([filePath]);
+      throw new Error(`Document metadata could not be saved: ${dbError.message}`);
+    }
     const fallback = await supabase
       .from('vault_documents')
       .insert({
@@ -88,6 +95,7 @@ export async function processDocumentUpload(
       .single();
     dbData = fallback.data;
     dbError = fallback.error;
+    metadataWarning = "This Vault database does not support grant/category tags yet. File saved without those links; ask Lovable to update the schema.";
   }
   if (dbError || !dbData) {
     await supabase.storage.from('vault').remove([filePath]);
@@ -101,8 +109,9 @@ export async function processDocumentUpload(
     type: file.type,
     uploadedAt: new Date().toISOString(),
     storagePath: filePath,
-    categoryTag: options.categoryTag,
-    grantId: options.grantId,
+    ...(options.categoryTag ? { categoryTag: options.categoryTag } : {}),
+    ...(options.grantId ? { grantId: options.grantId } : {}),
+    ...(metadataWarning ? { metadataWarning } : {}),
     slotKey,
   };
 }

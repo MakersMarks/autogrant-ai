@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { daysUntil, isLastChance, isLowCompetition, matchesAmount } from "@/lib/grants-gov/rules";
+import { daysUntil, isLastChance, grantAwardScaleSignals, matchesAmount } from "@/lib/grants-gov/rules";
 
 describe("live grant rules", () => {
   const now = new Date(Date.UTC(2026, 10, 8));
@@ -8,10 +8,13 @@ describe("live grant rules", () => {
     expect(isLastChance(1)).toBe(false); expect(isLastChance(2)).toBe(true);
     expect(isLastChance(7)).toBe(true); expect(isLastChance(8)).toBe(false);
   });
-  it("low competition = ceiling up to $100k or 10+ awards", () => {
-    expect(isLowCompetition({ awardCeiling: 100000, numberOfAwards: 1 })).toBe(true);
-    expect(isLowCompetition({ awardCeiling: 500000, numberOfAwards: 10 })).toBe(true);
-    expect(isLowCompetition({ awardCeiling: 500000, numberOfAwards: 2 })).toBe(false);
+  it("reports award-scale signals without treating them as competition statistics", () => {
+    expect(grantAwardScaleSignals({ awardCeiling: 100000, numberOfAwards: 1 }))
+      .toEqual(["award_ceiling_at_most_100k"]);
+    expect(grantAwardScaleSignals({ awardCeiling: 500000, numberOfAwards: 10 }))
+      .toEqual(["at_least_10_awards_listed"]);
+    expect(grantAwardScaleSignals({ awardCeiling: 500000, numberOfAwards: 2 })).toEqual([]);
+    expect(grantAwardScaleSignals({ awardCeiling: null, numberOfAwards: null })).toEqual([]);
   });
   it("amount filter uses award ceiling", () => {
     expect(matchesAmount({ awardCeiling: 50000 }, 10000, 60000)).toBe(true);
