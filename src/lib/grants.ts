@@ -18,6 +18,39 @@ export type Grant = {
   deadline: string;
 };
 
+export type GrantPoolTier = "federal" | "state_territory" | "corporate_diversity" | "foundation";
+
+export interface UnifiedGrant {
+  id: string;
+  poolTier: GrantPoolTier;
+  title: string;
+  funderName: string;
+  funderType: "government" | "corporate" | "private_foundation" | "nonprofit";
+  awardFloor: number;
+  awardCeiling: number;
+  deadline: string;
+  isRolling: boolean;
+  costSharingRequired: boolean;
+  costSharingPercentage?: number;
+
+  eligibleEntityTypes: Array<
+    "for_profit" | "nonprofit_501c3" | "fiscal_sponsor" | "church" | "individual"
+  >;
+  demographicSetAsides: Array<
+    "women_owned" | "minority_owned" | "veteran_owned" | "rural" | "african_diaspora" | "lgbtq"
+  >;
+  geographicScope: {
+    level: "national" | "state_specific" | "local_county" | "international";
+    allowedStates?: string[];
+  };
+
+  applicationMethod: "online_portal" | "grants_gov_workspace" | "email_package" | "physical_mail";
+  directApplyUrl: string;
+  isFreeToApply: boolean;
+  summaryText: string;
+  sourceSolicitationUrl?: string;
+}
+
 export function sectorName(code: string) {
   return OFFICIAL_SECTORS.find((s) => s.code === code)?.name ?? OFFICIAL_SECTORS[0].name;
 }

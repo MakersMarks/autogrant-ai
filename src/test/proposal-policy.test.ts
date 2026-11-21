@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildProposalPrompt, summarySchema, validateProposalOutput } from '@/lib/ai/proposal-policy';
+import { buildProposalPrompt, summarySchema, validateProposalOutput, buildDocumentPrompt, parseDocument, documentSpecs, voiceDirective, documentFileName, toCleanText, bannedPhrases, calibrateFounderVoiceSample } from '@/lib/ai/proposal-policy';
 import { extractDocumentText } from '@/lib/ai/documents.server';
 import { zipSync, strToU8 } from 'fflate';
 
@@ -39,7 +39,6 @@ describe('Private document contents', () => {
     expect(await extractDocumentText(strToU8('Verified pilot: 17 clinics'), 'text/plain')).toBe('Verified pilot: 17 clinics');
   });
 });
-import { buildDocumentPrompt, parseDocument, documentSpecs, voiceDirective, documentFileName, toCleanText } from '@/lib/ai/proposal-policy';
 describe('Day 2 document engine', () => {
   const doc = (t: keyof typeof documentSpecs, body = 'Body text') => documentSpecs[t].sections.map((s, i) => `## ${i + 1}. ${s.title}\n${body}`).join('\n');
   it('institutional proposal requires all 8 Kiritz sections', () => {
@@ -57,7 +56,36 @@ describe('Day 2 document engine', () => {
     const v = voiceDirective('Short punchy sentences.', 'x');
     expect(v).toContain('Short punchy sentences.');
     expect(v).toContain('delve');
+    expect(v).toContain('9th-grade reader');
+    expect(v).toContain('active voice');
+    expect(v).toContain('do not add subheadings, bold or italic emphasis, tables');
+    expect(bannedPhrases).toContain('cutting-edge');
     expect(buildDocumentPrompt('executive_summary', {}, [], {}, v).system).toContain('Short punchy sentences.');
+  });
+  it('applies plain-language and concrete-writing rules to proposals', () => {
+    const request = buildProposalPrompt({}, [], {});
+    expect(request.system).toContain('9th-grade reader');
+    expect(request.system).toContain('active voice, concrete nouns and verbs');
+  });
+  it('calibrates reproducible, explicitly approximate signals from a 2–3 sentence sample', () => {
+    const metrics = calibrateFounderVoiceSample('We build tools for local families. Our platform uses data to help rural communities.');
+    expect(metrics).toEqual({
+      sentenceCount: 2,
+      averageSentenceLengthWords: 7,
+      passiveCueSentences: 0,
+      voiceSignal: 'no passive cues detected',
+      dictionCueCounts: { plainLanguage: 2, technical: 2, community: 3 },
+    });
+
+    const withPassive = calibrateFounderVoiceSample('The program was funded by local partners. We serve families.');
+    expect(withPassive.passiveCueSentences).toBe(1);
+    expect(withPassive.voiceSignal).toBe('some passive cues detected');
+    expect(voiceDirective('Founder profile.', '', 'The program was funded by local partners. We serve families.'))
+      .toContain('not a precise style or grammar assessment');
+  });
+  it('requires two or three sentences for a voice sample', () => {
+    expect(() => calibrateFounderVoiceSample('We serve families.')).toThrow('2 or 3 sentences');
+    expect(() => calibrateFounderVoiceSample('One. Two. Three. Four.')).toThrow('2 or 3 sentences');
   });
   it('falls back to intake wording when no voice calibration exists', () => {
     expect(voiceDirective(null, 'we cook soul food')).toContain('we cook soul food');

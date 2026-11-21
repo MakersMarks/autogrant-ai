@@ -91,8 +91,21 @@ function Platform({ userId }: { userId: string }) {
 
   if (!profile.onboarded) {
     return <Onboarding initial={profile} onComplete={async (p: ProfileInput) => {
-      const { data, error } = await supabase.from("profiles").update({ ...p, onboarded: true, updated_at: new Date().toISOString() }).eq("id", userId).select().single();
-      if (error) return void toast.error(error.message);
+      const { data, error } = await supabase.from("profiles").update({
+        entity_type: p.entity_type,
+        sector_code: p.sector_code,
+        funding_goal: p.funding_goal,
+        demographics: p.demographics,
+        lifecycle_stage: p.lifecycle_stage,
+        location: p.location,
+        funding_purpose: p.funding_purpose,
+        onboarded: true,
+        updated_at: new Date().toISOString(),
+      }).eq("id", userId).select().single();
+      if (error) {
+        toast.error(error.message);
+        throw new Error(error.message);
+      }
       setProfile(data);
     }} />;
   }

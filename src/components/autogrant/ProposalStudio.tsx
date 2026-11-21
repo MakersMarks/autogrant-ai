@@ -4,11 +4,13 @@ import { toast } from "sonner";
 import { generateGrantDocument } from "@/lib/ai/ai.functions";
 import { documentSpecs, documentTypes, toCleanText, wordCount, type DocumentType } from "@/lib/ai/proposal-policy";
 import type { Grant } from "@/lib/grants";
+import { BudgetBuilder } from "./BudgetBuilder";
 
 type Section = { title: string; body: string };
 
 export function ProposalStudio({ grant, voiceCalibrated, onClose, onSaved }: { grant: Grant; voiceCalibrated: boolean; onClose: () => void; onSaved: () => void }) {
   const [type, setType] = useState<DocumentType>("executive_summary");
+  const [view, setView] = useState<"documents" | "budget">("documents");
   const [docs, setDocs] = useState<Partial<Record<DocumentType, { sections: Section[]; fileName: string }>>>({});
   const [appId, setAppId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
@@ -50,14 +52,22 @@ export function ProposalStudio({ grant, voiceCalibrated, onClose, onSaved }: { g
           <button aria-label="Close" onClick={onClose} className="text-muted-foreground">✕</button>
         </div>
         <div className="flex gap-2 px-5 pt-4 flex-wrap">
-          {documentTypes.map((t) => (
+          <button onClick={() => setView("documents")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "documents" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+            Proposal documents
+          </button>
+          <button onClick={() => setView("budget")} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${view === "budget" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+            Budget Builder
+          </button>
+          {view === "documents" && documentTypes.map((t) => (
             <button key={t} onClick={() => setType(t)} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${t === type ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
               {documentSpecs[t].label}{docs[t] ? " ✓" : ""}
             </button>
           ))}
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
-          {busy ? (
+          {view === "budget" ? (
+            <BudgetBuilder />
+          ) : busy ? (
             <div className="h-60 flex items-center justify-center gap-2 text-sm text-primary"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />Writing your {documentSpecs[type].label} in your voice…</div>
           ) : current ? (
             <>
@@ -83,11 +93,11 @@ export function ProposalStudio({ grant, voiceCalibrated, onClose, onSaved }: { g
             </div>
           )}
         </div>
-        <div className="flex gap-3 border-t border-border p-5 flex-wrap">
+        {view === "documents" && <div className="flex gap-3 border-t border-border p-5 flex-wrap">
           <button disabled={busy} onClick={run} className="flex-1 py-2.5 bg-primary text-primary-foreground font-bold rounded-lg text-sm disabled:opacity-40">{current ? "Regenerate" : "Generate"} {documentSpecs[type].label}</button>
           <button disabled={!current || busy} onClick={copy} className="px-4 py-2.5 border border-border rounded-lg text-sm font-semibold disabled:opacity-40">Copy Clean Text</button>
           <button disabled={!current || busy} onClick={download} className="px-4 py-2.5 border border-border rounded-lg text-sm font-semibold disabled:opacity-40">Download</button>
-        </div>
+        </div>}
       </div>
     </div>
   );
