@@ -13,7 +13,7 @@ export const grantRequirementBOMSchema = z.object({
     documentType: z.enum([
       "executive_summary", "institutional", "portal_answers", "project_narrative",
       "letter_of_inquiry", "budget_justification", "short_answers", "federal_biosketch",
-      "facilities_resources", "letter_commitment_template", "data_management_plan",
+      "facilities_resources", "letter_commitment_template", "ai_use_disclosure", "data_management_plan",
       "commercialization_roadmap", "financial_projections", "video_pitch_script",
     ]),
     requiredHeadings: z.array(z.string().min(1).max(300)).max(30),

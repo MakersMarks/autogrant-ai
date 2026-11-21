@@ -1,16 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { draftProposal } from "@/lib/ai/ai.functions";
-import { coreDocSlots, generateDailyGrants, sectorName, type Grant } from "@/lib/grants";
+import { coreDocSlots, type Grant, type UnifiedGrant } from "@/lib/grants";
 import { AuthScreen } from "./AuthScreen";
 import { Onboarding, type ProfileInput } from "./Onboarding";
-import { Discovery } from "./Discovery";
+import { LiveGrantsFeed } from "./LiveGrantsFeed";
+import type { LiveGrant } from "@/lib/grants-gov/rules";
 import { Vault, type VaultDoc } from "./Vault";
-import { Tracker, type AppRow } from "./Tracker";
+import { Tracker } from "./Tracker";
 import { Logo } from "./Logo";
 import { ProposalStudio } from "./ProposalStudio";
 import { getIndustryDocumentRequirements } from "@/lib/compliance/industry-documents";
@@ -35,57 +34,95 @@ export function AutoGrantApp() {
 function Platform({ userId }: { userId: string }) {
   const [profile, setProfile] = useState<Tables<"profiles"> | null>(null);
   const [docs, setDocs] = useState<VaultDoc[]>([]);
-  const [apps, setApps] = useState<AppRow[]>([]);
+  const [apps, setApps] = useState<Tables<"applications">[]>([]);
   const [tab, setTab] = useState<Tab>("dashboard");
-  const [deckIndex, setDeckIndex] = useState(0);
   const [selected, setSelected] = useState<Grant | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
-  const draft = useServerFn(draftProposal);
 
   const loadProfile = useCallback(async () => {
-    const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+    const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+    if (error) {
+      toast.error(`Could not load your profile: ${error.message}`);
+      return;
+    }
     if (data) return setProfile(data);
-    const { data: created } = await supabase.from("profiles").insert({ id: userId }).select().single();
+    const { data: created, error: createError } = await supabase.from("profiles").insert({ id: userId }).select().single();
+    if (createError) {
+      toast.error(`Could not create your profile: ${createError.message}`);
+      return;
+    }
     setProfile(created);
   }, [userId]);
   const loadDocs = useCallback(async () => {
-    const { data } = await supabase.from("vault_documents").select("id, slot_key, file_name, storage_path");
+    const { data, error } = await supabase.from("vault_documents").select("id, slot_key, file_name, storage_path").eq("user_id", userId);
+    if (error) {
+      toast.error(`Could not load your Vault: ${error.message}`);
+      return;
+    }
     setDocs(data ?? []);
-  }, []);
+  }, [userId]);
   const loadApps = useCallback(async () => {
-    const { data } = await supabase.from("applications").select("*").order("created_at", { ascending: false });
-    setApps((data ?? []) as AppRow[] & Tables<"applications">[]);
-  }, []);
+    const { data, error } = await supabase.from("applications").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+    if (error) {
+      toast.error(`Could not load your application tracker: ${error.message}`);
+      return;
+    }
+    setApps(data ?? []);
+  }, [userId]);
 
   useEffect(() => { loadProfile(); loadDocs(); loadApps(); }, [loadProfile, loadDocs, loadApps]);
 
-  const grants = useMemo(() => generateDailyGrants(profile?.sector_code ?? "BC"), [profile?.sector_code]);
-  const submittedIds = useMemo(() => new Set((apps as (AppRow & { grant_id?: string })[]).map((a) => a.grant_id ?? "")), [apps]);
-
-  const saveApplication = async (g: Grant, text: string, status: string) => {
-    const { error } = await supabase.from("applications").insert({ user_id: userId, grant_id: g.id, name: g.title, funder: g.funder, amount: g.amount, narrative: text, status });
-    if (error) throw new Error(error.message);
+  const openOpportunity = (opportunity: LiveGrant | UnifiedGrant) => {
+    if ("agency" in opportunity) {
+      setSelected({
+        id: opportunity.id,
+        title: opportunity.title,
+        funder: opportunity.agency,
+        amount: opportunity.awardCeiling ? `Up to $${opportunity.awardCeiling.toLocaleString("en-US")}` : "Not listed",
+        fit: "",
+        tier: "[Federal]",
+        categoryCode: profile?.sector_code ?? "",
+        eligibilityReason: `Grants.gov ${opportunity.number}. Eligible applicants: ${opportunity.eligibility.join("; ") || "see the official listing"}. Closing date: ${opportunity.closeDate || "not stated"}.`,
+        deadline: opportunity.closeDate,
+        officialUrl: opportunity.url,
+      });
+      return;
+    }
+    const tier = opportunity.grantTier ??
+      (opportunity.poolTier === "state_territory" ? "State" : opportunity.poolTier === "corporate_diversity" ? "Corporate" : "Foundation");
+    setSelected({
+      id: opportunity.id,
+      title: opportunity.title,
+      funder: opportunity.funderName,
+      amount: opportunity.directoryOnly
+        ? "Check the official program for current award details"
+        : opportunity.awardCeiling
+          ? `$${opportunity.awardFloor.toLocaleString("en-US")} - $${opportunity.awardCeiling.toLocaleString("en-US")}`
+          : "Not listed",
+      fit: "",
+      tier: `[${tier}]`,
+      categoryCode: profile?.sector_code ?? "",
+      eligibilityReason: `${opportunity.summaryText} Confirm current eligibility and open funding cycle on the official funder site.`,
+      deadline: opportunity.directoryOnly ? "Check current cycle" : opportunity.isRolling ? "Rolling" : opportunity.deadline,
+      officialUrl: opportunity.directApplyUrl,
+      ...(opportunity.publicWinnerHistoryUrl ? { publicWinnerHistoryUrl: opportunity.publicWinnerHistoryUrl } : {}),
+    });
   };
-
-  const openDraft = (g: Grant) => setSelected(g);
 
   const toggleAutopilot = async () => {
     if (!profile || autoRunning) return;
     const next = !profile.autopilot;
-    setProfile({ ...profile, autopilot: next });
-    await supabase.from("profiles").update({ autopilot: next }).eq("id", userId);
-    if (!next) return;
-    const targets = grants.filter((g) => !submittedIds.has(g.id)).slice(0, 3);
     setAutoRunning(true);
     try {
-      for (const g of targets) {
-        const r = await draft({ data: { title: g.title, funder: g.funder, amount: g.amount, eligibilityReason: g.eligibilityReason, grantId: g.id } });
-        if (!r.application?.id) throw new Error("Autopilot draft was generated but could not be tracked.");
-      }
-      toast.success(`Autopilot drafted ${targets.length} proposals`);
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Autopilot stopped"); }
-    await loadApps();
-    setAutoRunning(false);
+      const { error } = await supabase.from("profiles").update({ autopilot: next }).eq("id", userId);
+      if (error) throw new Error(error.message);
+      setProfile({ ...profile, autopilot: next });
+      toast.success(next ? "Autopilot preference enabled. Review and start every draft yourself." : "Autopilot preference disabled.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save the Autopilot preference.");
+    } finally {
+      setAutoRunning(false);
+    }
   };
 
   if (!profile) return <div className="min-h-screen bg-background" />;
@@ -139,7 +176,7 @@ function Platform({ userId }: { userId: string }) {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-card p-6 rounded-2xl border border-border mb-8 gap-4">
           <div>
             <h1 className="text-2xl font-display font-bold">Autopilot Engine Switch</h1>
-            <p className="text-sm text-muted-foreground">{autoRunning ? "Autopilot is drafting proposals with AI…" : "Automate matching and AI narrative drafting for your top 3 matches."}</p>
+            <p className="text-sm text-muted-foreground">{autoRunning ? "Saving preference…" : "Saved preference only. Review opportunities and start each AI draft yourself."}</p>
           </div>
           <div className="flex items-center gap-4 bg-background px-5 py-3 rounded-xl border border-border">
             <span className={`text-sm font-semibold ${!profile.autopilot ? "" : "text-muted-foreground"}`}>Manual Review</span>
@@ -155,9 +192,9 @@ function Platform({ userId }: { userId: string }) {
             <div className="bg-card p-5 rounded-xl border border-border">
               <h2 className="text-sm font-display font-bold">Profile &amp; Readiness</h2>
               <div className="mt-4 space-y-3">
-                <Stat label="Verified Credentials" value={`${verified} / ${slots.length}`} tone="text-primary" />
-                <Stat label="Industry Documents" value={`${industryReady} / ${industryRequirements.length}`} tone="text-success" />
-                <Stat label="Applications Queued" value={String(apps.length)} tone="" />
+                <Stat label="Core Documents Uploaded" value={`${verified} / ${slots.length}`} tone="text-primary" />
+                <Stat label="Industry Documents Uploaded" value={`${industryReady} / ${industryRequirements.length}`} tone="text-success" />
+                <Stat label="Applications Tracked" value={String(apps.length)} tone="" />
               </div>
               {industryRequirements.length > 0 && (
                 <div className="mt-4 border-t border-border pt-4 space-y-2">
@@ -175,15 +212,23 @@ function Platform({ userId }: { userId: string }) {
             </div>
           </aside>
           <section className="min-w-0">
-            <Discovery
-              grants={grants}
-              index={deckIndex}
-              setIndex={setDeckIndex}
-              sector={sectorName(profile.sector_code)}
-              submittedIds={submittedIds}
-              onOpenDraft={openDraft}
-              evidenceReady={industryReady}
-              missingEvidence={industryRequirements.filter((requirement) => !docs.some((doc) => doc.slot_key === requirement.key)).map((requirement) => requirement.name)}
+            <LiveGrantsFeed
+            signedIn
+            drafting={autoRunning}
+            enabled={profile.onboarded}
+            profile={{
+              sector: profile.sector_code,
+              projectName: profile.project_name,
+              industry: profile.industry,
+              lifecycleStage: profile.lifecycle_stage,
+              location: profile.location,
+              entityType: profile.entity_type,
+              fundingPurpose: profile.funding_purpose,
+              fundingGoal: profile.funding_goal,
+              demographics: profile.demographics,
+            }}
+            evidence={docs.map((doc) => ({ slotKey: doc.slot_key }))}
+            onDraft={openOpportunity}
             />
           </section>
           <aside className="space-y-4">
@@ -198,7 +243,7 @@ function Platform({ userId }: { userId: string }) {
         </div>
       </main>
 
-      {selected && <ProposalStudio grant={selected} voiceCalibrated={!!profile.voice_profile} onClose={() => { setSelected(null); setDeckIndex(deckIndex + 1); }} onSaved={() => { loadApps(); loadDocs(); }} />}
+      {selected && <ProposalStudio grant={selected} voiceCalibrated={!!profile.voice_profile} onClose={() => setSelected(null)} onSaved={() => { loadApps(); loadDocs(); }} />}
     </div>
   );
 }

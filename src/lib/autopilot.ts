@@ -5,21 +5,22 @@ export interface ProposalDraft {
   grantId: string;
   grantTitle: string;
   generatedContent: string;
-  status: 'draft' | 'submitted';
+  status: 'draft' | 'submission_ready' | 'submitted';
   createdAt: string;
   confirmation?: string;
 }
 
 /** Adapter for persisted application rows; AI generation is server-only in ai.functions.ts. */
 export function applicationToProposal(row: { id: string; grant_id: string; name: string; narrative: string; status: string; created_at: string }): ProposalDraft {
-  const submitted = row.status.trim().toLowerCase().startsWith("submitted");
+  const persistedStatus = row.status.trim().toLowerCase();
+  const submitted = persistedStatus.startsWith("submitted");
   const confirmation = submitted && row.status.includes("::") ? row.status.slice(row.status.indexOf("::") + 2) : undefined;
   return {
     id: row.id,
     grantId: row.grant_id,
     grantTitle: row.name,
     generatedContent: row.narrative,
-    status: submitted ? 'submitted' : 'draft',
+    status: submitted ? 'submitted' : persistedStatus === "submission_ready" ? "submission_ready" : "draft",
     createdAt: row.created_at,
     ...(confirmation === undefined ? {} : { confirmation }),
   };

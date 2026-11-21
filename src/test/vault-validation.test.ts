@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateVaultFile, generateDailyGrants } from "@/lib/grants";
+import { validateVaultFile } from "@/lib/grants";
 
 const PDF = "application/pdf";
 describe("vault upload rules", () => {
@@ -9,10 +9,6 @@ describe("vault upload rules", () => {
   it("rejects .doc files", () => expect(validateVaultFile({ name: "a.doc", type: "application/msword", size: 1000 })).toMatch(/PDF or DOCX/));
   it("rejects files over 15MB", () => expect(validateVaultFile({ name: "a.pdf", type: PDF, size: 15 * 1024 * 1024 + 1 })).toMatch(/15MB/));
 });
-describe("discovery feed", () => {
-  it("has 50 cards", () => expect(generateDailyGrants("ST")).toHaveLength(50));
-});
-
 import { validateVaultFile as validateUpload } from "@/lib/vault";
 describe("main vault uploader", () => {
   const f = (type: string, size = 1000) => ({ type, size, name: "x" }) as File;

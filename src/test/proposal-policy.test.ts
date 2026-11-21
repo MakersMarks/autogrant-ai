@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildProposalPrompt, summarySchema, validateProposalOutput, buildDocumentPrompt, parseDocument, documentSpecs, voiceDirective, documentFileName, toCleanText, bannedPhrases, calibrateFounderVoiceSample } from '@/lib/ai/proposal-policy';
+import { buildProposalPrompt, summarySchema, validateProposalOutput, buildDocumentPrompt, parseDocument, documentSpecs, voiceDirective, documentFileName, toCleanText, bannedPhrases, calibrateFounderVoiceSample, isRestrictedDocumentRequest } from '@/lib/ai/proposal-policy';
 import { extractDocumentText } from '@/lib/ai/documents.server';
 import { zipSync, strToU8 } from 'fflate';
 
@@ -85,10 +85,26 @@ describe('Day 2 document engine', () => {
     expect(parseDocument('letter_of_inquiry', doc('letter_of_inquiry'))).toHaveLength(4);
     expect(documentSpecs.letter_of_inquiry.guidance).toContain('tailored to the funder');
   });
+  it('can draft an AI-use disclosure without inventing funder policy', () => {
+    expect(documentSpecs.ai_use_disclosure.guidance).toContain('Do not claim a funder requires or permits');
+    expect(parseDocument('ai_use_disclosure', doc('ai_use_disclosure'))).toHaveLength(3);
+  });
   it('clamps portal elevator pitch to 100 words', () => {
     const out = parseDocument('portal_answers', doc('portal_answers', Array(300).fill('word').join(' ')));
     expect(out[0]!.body.split(/\s+/).length).toBe(100);
     expect(out[3]!.body.split(/\s+/).length).toBe(300);
+  });
+
+  describe('restricted document gate', () => {
+    it('blocks drafting certifications and official financial or legal documents', () => {
+      expect(isRestrictedDocumentRequest('Please complete the SF-424 certifications.')).toBe(true);
+      expect(isRestrictedDocumentRequest('Draft an MOU with our partner.')).toBe(true);
+      expect(isRestrictedDocumentRequest('Prepare an audited financial statement.')).toBe(true);
+    });
+    it('allows ordinary proposal and budget drafts and informational questions', () => {
+      expect(isRestrictedDocumentRequest('Draft a project narrative and budget justification.')).toBe(false);
+      expect(isRestrictedDocumentRequest('What is an SF-424?')).toBe(false);
+    });
   });
   it('injects the calibrated voice and banned words', () => {
     const v = voiceDirective('Short punchy sentences.', 'x');

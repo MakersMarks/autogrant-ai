@@ -24,6 +24,7 @@ const REQUIREMENT_DOCUMENT_LABELS: Record<GrantRequirementBOM["aiDraftableDocume
   federal_biosketch: "Federal Biosketch",
   facilities_resources: "Facilities and Resources",
   letter_commitment_template: "Letter of Commitment",
+  ai_use_disclosure: "AI Use Disclosure",
   data_management_plan: "Data Management Plan",
   commercialization_roadmap: "Commercialization Roadmap",
   financial_projections: "Financial Projections",
@@ -44,6 +45,7 @@ export function ProposalStudio({
   voiceCalibrated,
   availableEvidenceIds = [],
   vaultAttachments = [],
+  onAskMissingDetails,
   onClose,
   onSaved,
 }: {
@@ -51,6 +53,7 @@ export function ProposalStudio({
   voiceCalibrated: boolean;
   availableEvidenceIds?: readonly string[];
   vaultAttachments?: readonly { fileName: string; storagePath: string }[];
+  onAskMissingDetails?: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -214,13 +217,17 @@ export function ProposalStudio({
     setDocs((d) => ({ ...d, [type]: { ...current, sections: current.sections.map((s, j) => (j === i ? { ...s, body } : s)) } }));
   };
   const saveEdits = async () => {
-    const text = Object.values(docs).flatMap((doc) => doc?.sections ?? []).map((section) => `## ${section.title}\n\n${toCleanText(section.body)}`).join("\n\n");
-    if (!text.trim()) { toast.error("Generate at least one proposal document before saving."); return; }
+    const proposalText = Object.values(docs).flatMap((doc) => doc?.sections ?? []).map((section) => `## ${section.title}\n\n${toCleanText(section.body)}`).join("\n\n");
+    const budgetJustification = budgetInput && budgetCalculation?.valid
+      ? buildBudgetJustification(budgetInput, budgetCalculation)
+      : undefined;
+    const text = [
+      proposalText,
+      budgetJustification ? `## Budget Justification\n\n${budgetJustification}` : "",
+    ].filter(Boolean).join("\n\n");
+    if (!text.trim()) { toast.error("Generate a proposal document or enter a complete, verified budget before saving."); return; }
     setBusy(true);
     try {
-      const budgetJustification = budgetInput && budgetCalculation?.valid
-        ? buildBudgetJustification(budgetInput, budgetCalculation)
-        : undefined;
       const r = await saveDraft({ data: {
         applicationId: appId,
         grantId: grant.id,
@@ -304,6 +311,7 @@ export function ProposalStudio({
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
           <div className={view === "budget" ? "" : "hidden"}>
             <BudgetBuilder
+              onAskMissingDetails={onAskMissingDetails}
               onChange={(input, calculation) => {
                 setBudgetInput(input);
                 setBudgetCalculation(calculation);
@@ -525,6 +533,15 @@ export function ProposalStudio({
           </label>
           <button disabled={packageBusy || busy} onClick={exportPackage} className="w-full px-4 py-2.5 border border-primary/50 text-primary rounded-lg text-sm font-semibold disabled:opacity-40">
             {packageBusy ? "Preparing package…" : "Export Application Package (.zip)"}
+          </button>
+        </div>}
+        {view === "budget" && <div className="flex justify-end border-t border-border p-5">
+          <button
+            disabled={busy || !budgetCalculation?.valid}
+            onClick={saveEdits}
+            className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40"
+          >
+            {busy ? "Saving…" : "Save Budget to Application Tracker"}
           </button>
         </div>}
       </div>

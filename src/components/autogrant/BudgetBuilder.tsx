@@ -11,25 +11,26 @@ import {
   type InstitutionalBudgetItem,
 } from "@/lib/budget";
 
-type EquipmentDraft = { vendor: string; quantity: string; unitCost: string; freight: string; tax: string };
-type InstitutionalDraft = { category: string; basis: string; amount: string };
+type EquipmentDraft = { vendor: string; quantity: string; unitCost: string; freight: string; tax: string; purpose: string; milestone: string };
+type InstitutionalDraft = { category: string; basis: string; amount: string; purpose: string; milestone: string };
 
 type BudgetBuilderProps = {
   awardCeiling?: number | null;
   costSharingPercentage?: number | null;
   onChange?: (input: BudgetInput, calculation: BudgetCalculation | null) => void;
+  onAskMissingDetails?: ((context?: string) => void) | undefined;
 };
 
-const newEquipment = (): EquipmentDraft => ({ vendor: "", quantity: "1", unitCost: "0", freight: "0", tax: "0" });
-const newInstitutional = (): InstitutionalDraft => ({ category: "", basis: "", amount: "0" });
+const newEquipment = (): EquipmentDraft => ({ vendor: "", quantity: "", unitCost: "", freight: "", tax: "", purpose: "", milestone: "" });
+const newInstitutional = (): InstitutionalDraft => ({ category: "", basis: "", amount: "", purpose: "", milestone: "" });
 const numberValue = (value: string) => value.trim() === "" ? Number.NaN : Number(value);
 const validNumber = (value: string) => value.trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0;
 const formatMoney = (value: number) => `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }: BudgetBuilderProps) {
+export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange, onAskMissingDetails }: BudgetBuilderProps) {
   const [track, setTrack] = useState<"small_business" | "federal">("small_business");
   const [federalCosts, setFederalCosts] = useState<FederalBudgetCosts>(() =>
-    Object.fromEntries(federalBudgetCategoryNames.map((name) => [name, 0])) as FederalBudgetCosts,
+    Object.fromEntries(federalBudgetCategoryNames.map((name) => [name, Number.NaN])) as FederalBudgetCosts,
   );
   const [equipment, setEquipment] = useState<EquipmentDraft[]>([newEquipment()]);
   const [institutional, setInstitutional] = useState<InstitutionalDraft[]>([newInstitutional()]);
@@ -57,7 +58,11 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
     awardCeiling: noCeiling ? null : numberValue(ceiling),
     costSharingPercentage: noMatch ? null : numberValue(matchPercentage),
   }), [track, federalCosts, equipment, institutional, noCeiling, ceiling, noMatch, matchPercentage]);
-  const calculation = useMemo(() => termsComplete ? calculateBudget(input) : null, [input, termsComplete]);
+  const costsComplete = track === "federal"
+    ? Object.values(federalCosts).every(Number.isFinite)
+    : equipment.every((item) => [item.quantity, item.unitCost, item.freight, item.tax].every((value) => value.trim() !== ""))
+      && institutional.every((item) => item.amount.trim() !== "");
+  const calculation = useMemo(() => termsComplete && costsComplete ? calculateBudget(input) : null, [input, termsComplete, costsComplete]);
   const justification = calculation?.valid ? buildBudgetJustification(input, calculation) : "";
   useEffect(() => { onChange?.(input, calculation); }, [input, calculation, onChange]);
 
@@ -81,7 +86,7 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
       <div>
         <h4 className="text-base font-bold">Budget Builder</h4>
         <p className="text-xs text-muted-foreground mt-1">
-          Enter costs and the terms stated by the funder. Match is calculated as a percentage of total project costs.
+          Enter costs and the terms stated by the funder. Use Copilot to clarify missing details, then record verified answers in these fields; only saved budget fields are used in your application.
         </p>
       </div>
 
@@ -134,17 +139,21 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
       {track === "small_business" ? <>
       <section className="bg-background border border-border rounded-xl p-4 space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <div><h5 className="font-semibold text-sm">Equipment</h5><p className="text-xs text-muted-foreground">Vendor, quantity, unit cost, freight, and tax.</p></div>
-          <button type="button" onClick={() => setEquipment((items) => [...items, newEquipment()])}
-            className="px-3 py-2 border border-border rounded-lg text-xs font-semibold">Add equipment</button>
+          <div><h5 className="font-semibold text-sm">Equipment</h5><p className="text-xs text-muted-foreground">Enter verified quote costs, their project purpose, and milestone.</p></div>
+          <button type="button" onClick={() => { setEquipment((items) => [...items, newEquipment()]); onAskMissingDetails?.("equipment"); }}
+            className="px-3 py-2 border border-border rounded-lg text-xs font-semibold">Add equipment cost</button>
         </div>
         {equipment.map((item, index) => (
-          <div key={index} className="grid gap-3 md:grid-cols-6 items-end border-t border-border pt-3">
+          <div key={index} className="grid gap-3 md:grid-cols-4 items-end border-t border-border pt-3">
             <TextField label="Vendor" value={item.vendor} onChange={(vendor) => updateEquipment(index, { vendor })} />
             <NumberField label="Quantity" value={item.quantity} onChange={(quantity) => updateEquipment(index, { quantity })} />
             <NumberField label="Unit cost ($)" value={item.unitCost} onChange={(unitCost) => updateEquipment(index, { unitCost })} />
             <NumberField label="Freight ($)" value={item.freight} onChange={(freight) => updateEquipment(index, { freight })} />
             <NumberField label="Tax ($)" value={item.tax} onChange={(tax) => updateEquipment(index, { tax })} />
+            <TextField label="What will this cost support?" value={item.purpose} onChange={(purpose) => updateEquipment(index, { purpose })} />
+            <TextField label="Goal or milestone" value={item.milestone} onChange={(milestone) => updateEquipment(index, { milestone })} />
+            <button type="button" onClick={() => onAskMissingDetails?.(`equipment item ${index + 1}`)}
+              className="py-2 text-xs text-primary underline">Ask Copilot about this line</button>
             <button type="button" disabled={equipment.length === 1} onClick={() => setEquipment((items) => items.filter((_, row) => row !== index))}
               className="py-2 text-xs text-muted-foreground disabled:opacity-30">Remove</button>
           </div>
@@ -152,15 +161,19 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
       </section>
       <section className="bg-background border border-border rounded-xl p-4 space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <div><h5 className="font-semibold text-sm">Institutional costs</h5><p className="text-xs text-muted-foreground">Category, basis, and amount.</p></div>
-          <button type="button" onClick={() => setInstitutional((items) => [...items, newInstitutional()])}
+          <div><h5 className="font-semibold text-sm">Other project costs</h5><p className="text-xs text-muted-foreground">Category, quote or calculation basis, amount, purpose, and milestone.</p></div>
+          <button type="button" onClick={() => { setInstitutional((items) => [...items, newInstitutional()]); onAskMissingDetails?.("other project cost"); }}
             className="px-3 py-2 border border-border rounded-lg text-xs font-semibold">Add institutional cost</button>
         </div>
         {institutional.map((item, index) => (
-          <div key={index} className="grid gap-3 md:grid-cols-4 items-end border-t border-border pt-3">
+          <div key={index} className="grid gap-3 md:grid-cols-3 items-end border-t border-border pt-3">
             <TextField label="Category" value={item.category} onChange={(category) => updateInstitutional(index, { category })} />
-            <TextField label="Basis" value={item.basis} onChange={(basis) => updateInstitutional(index, { basis })} />
+            <TextField label="Quote or estimate basis" value={item.basis} onChange={(basis) => updateInstitutional(index, { basis })} />
             <NumberField label="Amount ($)" value={item.amount} onChange={(amount) => updateInstitutional(index, { amount })} />
+            <TextField label="What will this cost support?" value={item.purpose} onChange={(purpose) => updateInstitutional(index, { purpose })} />
+            <TextField label="Goal or milestone" value={item.milestone} onChange={(milestone) => updateInstitutional(index, { milestone })} />
+            <button type="button" onClick={() => onAskMissingDetails?.(`other project cost ${index + 1}`)}
+              className="py-2 text-xs text-primary underline">Ask Copilot about this line</button>
             <button type="button" disabled={institutional.length === 1} onClick={() => setInstitutional((items) => items.filter((_, row) => row !== index))}
               className="py-2 text-xs text-muted-foreground disabled:opacity-30">Remove</button>
           </div>
@@ -183,7 +196,8 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange }:
         </section>
       )}
 
-      {!termsComplete ? null : calculation && !calculation.valid ? (
+      {termsComplete && !costsComplete && <p className="text-xs text-amber-600">Enter each line-item amount, or 0 when there is no cost, before calculating. Do not estimate without a source.</p>}
+      {!termsComplete || !costsComplete ? null : calculation && !calculation.valid ? (
         <section role="alert" className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 space-y-1">
           <h5 className="font-semibold text-sm">Review the budget</h5>
           {calculation.errors.map((error) => <p key={error} className="text-xs text-destructive">{error}</p>)}

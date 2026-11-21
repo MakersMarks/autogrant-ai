@@ -46,7 +46,6 @@ export function SamRegistrationCheck() {
     <section className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-2">
       <div>
         <h3 className="text-xs font-bold">SAM.gov registration status</h3>
-        <p className="text-[11px] text-slate-400">Enter a UEI and/or CAGE code for a one-time check; they are not saved. An administrator must configure the SAM.gov API key as a server-side Lovable secret. Never paste an API key here.</p>
       </div>
       <form onSubmit={check} className="flex flex-wrap gap-2">
         <input aria-label="SAM.gov UEI" value={uei} onChange={(event) => setUei(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12))} placeholder="UEI (12 characters)" maxLength={12} className="min-w-[170px] flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white" />

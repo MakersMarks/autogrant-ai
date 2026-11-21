@@ -18,7 +18,6 @@ export type LiveGrant = {
   geographicRestriction?: "national" | "state" | "county" | "city" | "rural" | "hubzone";
   naicsCodes?: string[];
   setAsides?: string[];
-  openDate?: string;
   costSharePercentage?: number | null;
   prerequisites?: string[];
   historicalApplicantCount?: number;

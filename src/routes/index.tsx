@@ -9,7 +9,7 @@ import { LiveGrantsFeed } from '@/components/autogrant/LiveGrantsFeed';
 import { applicationToProposal } from '../lib/autopilot';
 import { useServerFn } from '@tanstack/react-start';
 import type { Session } from '@supabase/supabase-js';
-import { saveIntake } from '@/lib/ai/ai.functions';
+import { saveIntake, updateApplicationStatus } from '@/lib/ai/ai.functions';
 import { IntakeStudio } from '@/components/autogrant/IntakeStudio';
 import { DocumentViewer } from '@/components/autogrant/DocumentViewer';
 import type { Intake } from '@/lib/ai/proposal-policy';
@@ -21,6 +21,7 @@ import type { LiveGrant } from '@/lib/grants-gov/rules';
 import { getIndustryDocumentRequirements } from '@/lib/compliance/industry-documents';
 import { evaluateAutopilotGate } from '@/lib/grants-gov/scoring';
 import { CopilotDrawer } from '@/components/autogrant/CopilotDrawer';
+import { Onboarding, type ProfileInput } from '@/components/autogrant/Onboarding';
 import type { CopilotAction } from '@/lib/ai/ai.functions';
 
 export const Route = createFileRoute('/')({
@@ -52,6 +53,8 @@ function IndexComponent() {
   const [uploadCategory, setUploadCategory] = useState<"legal_tax" | "license_permit" | "vendor_quote" | "financial">("legal_tax");
   const [uploadSlotKey, setUploadSlotKey] = useState("");
   const persistIntake = useServerFn(saveIntake);
+  const persistApplicationStatus = useServerFn(updateApplicationStatus);
+  const [copilotQuestion, setCopilotQuestion] = useState<{ id: number; text: string } | undefined>();
   const activeProject = intake?.project_name || 'No project specified';
   const [fundingGoal, setFundingGoal] = useState<number>(0);
   const [editingGoal, setEditingGoal] = useState(false);
@@ -71,9 +74,14 @@ function IndexComponent() {
   const [vaultDocs, setVaultDocs] = useState<VaultDocument[]>([]);
   const [proposals, setProposals] = useState<ProposalDraft[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>('');
-  const [cockpitView, setCockpitView] = useState<'Dashboard' | 'Profile' | 'Grants' | 'Vault' | 'Tracker' | 'Settings'>('Dashboard');
+  const [cockpitView, setCockpitView] = useState<'Dashboard' | 'Profile' | 'Grants' | 'Vault' | 'Tracker' | 'Studio' | 'Settings'>('Dashboard');
+  const [showQuestionnaire, setShowQuestionnaire] = useState(false);
   const [settingsName, setSettingsName] = useState("");
   const [settingsEmail, setSettingsEmail] = useState("");
+  const [settingsPhone, setSettingsPhone] = useState("");
+  const [settingsProjectName, setSettingsProjectName] = useState("");
+  const [settingsLocation, setSettingsLocation] = useState("");
+  const [settingsFundingGoal, setSettingsFundingGoal] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [autopilot, setAutopilot] = useState(false);
@@ -132,6 +140,7 @@ function IndexComponent() {
     const applications = applicationsResult.data;
     if (profile) {
       setIntake({ project_name: profile.project_name, industry: profile.industry, lifecycle_stage: profile.lifecycle_stage, sector_code: profile.sector_code, entity_type: profile.entity_type, funding_goal: profile.funding_goal, demographics: profile.demographics, location: profile.location, funding_purpose: profile.funding_purpose });
+      setShowQuestionnaire(profile.onboarded !== true);
       setSelectedSector(profile.sector_code);
       setEntityType(profile.entity_type as EntityType);
       const persistedStage =
@@ -147,8 +156,28 @@ function IndexComponent() {
       setFundingGoal(Number(profile.funding_goal.replace(/[^0-9.]/g, '')) || 0);
       setAutopilot(!!profile.autopilot);
       setSettingsEmail(profile.email ?? "");
+      setSettingsProjectName(profile.project_name ?? "");
+      setSettingsLocation(profile.location ?? "");
+      setSettingsFundingGoal(profile.funding_goal ?? "");
+    } else {
+      setShowQuestionnaire(true);
+      setSettingsProjectName("");
+      setSettingsLocation("");
+      setSettingsFundingGoal("");
+      setIntake({
+        project_name: "",
+        industry: "",
+        lifecycle_stage: "",
+        sector_code: "BC",
+        entity_type: "Idea / Pre-Launch Founder",
+        funding_goal: "",
+        demographics: [],
+        location: "",
+        funding_purpose: "",
+      });
     }
     setSettingsName(authData.user?.user_metadata?.["name"] ?? "");
+    setSettingsPhone(authData.user?.user_metadata?.["phone"] ?? "");
     setNotificationsEnabled(authData.user?.user_metadata?.["notification_opt_in"] === true);
     setVaultDocs((documents ?? []).map((d) => ({
       id: d.id,
@@ -227,6 +256,27 @@ function IndexComponent() {
   const saveSettings = async () => {
     if (!userSession) { setShowAuth(true); return; }
     setSettingsSaving(true);
+    const goal = settingsFundingGoal.replace(/[^0-9.]/g, "");
+    const { error: profileError } = await supabase.from("profiles")
+      .update({
+        project_name: settingsProjectName.trim(),
+        location: settingsLocation.trim(),
+        funding_goal: goal,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userSession.user.id);
+    if (profileError) {
+      setSettingsSaving(false);
+      setStatusMessage(`Business settings could not be saved: ${profileError.message}`);
+      return;
+    }
+    setIntake((current) => current ? {
+      ...current,
+      project_name: settingsProjectName.trim(),
+      location: settingsLocation.trim(),
+      funding_goal: goal,
+    } : current);
+    setFundingGoal(Number(goal) || 0);
     const { error: emailError } = await supabase.from("profiles")
       .update({ email: settingsEmail.trim() || null, updated_at: new Date().toISOString() })
       .eq("id", userSession.user.id);
@@ -236,7 +286,7 @@ function IndexComponent() {
       return;
     }
     const { data, error: metadataError } = await supabase.auth.updateUser({
-      data: { name: settingsName.trim(), notification_opt_in: notificationsEnabled },
+      data: { name: settingsName.trim(), phone: settingsPhone.trim(), notification_opt_in: notificationsEnabled },
     });
     setSettingsSaving(false);
     if (metadataError) {
@@ -362,6 +412,57 @@ function IndexComponent() {
         </div>
       )}
 
+      {showQuestionnaire && userSession && (
+        <div className="fixed inset-0 z-[60]">
+          <Onboarding
+            initial={{
+              project_name: intake?.project_name ?? "",
+              entity_type: entityType,
+              sector_code: selectedSector,
+              industry: intake?.industry ?? "",
+              funding_goal: fundingGoal ? String(fundingGoal) : "",
+              demographics: intake?.demographics ?? [],
+              lifecycle_stage: intake?.lifecycle_stage ?? "",
+              location: intake?.location ?? "",
+              funding_purpose: intake?.funding_purpose ?? "",
+            }}
+            onComplete={async (profile: ProfileInput) => {
+              const { data, error } = await supabase.from("profiles").upsert({
+                id: userSession.user.id,
+                entity_type: profile.entity_type,
+                sector_code: profile.sector_code,
+                industry: profile.industry ?? "",
+                funding_goal: profile.funding_goal,
+                demographics: profile.demographics,
+                lifecycle_stage: profile.lifecycle_stage,
+                location: profile.location,
+                funding_purpose: profile.funding_purpose,
+                project_name: profile.project_name ?? intake?.project_name ?? "",
+                onboarded: true,
+                updated_at: new Date().toISOString(),
+              }).select("*").single();
+              if (error) throw new Error(error.message);
+              setIntake({
+                project_name: data.project_name ?? "",
+                industry: data.industry ?? "",
+                lifecycle_stage: data.lifecycle_stage ?? "",
+                sector_code: data.sector_code ?? "BC",
+                entity_type: data.entity_type ?? "Idea / Pre-Launch Founder",
+                funding_goal: data.funding_goal ?? "",
+                demographics: data.demographics ?? [],
+                location: data.location ?? "",
+                funding_purpose: data.funding_purpose ?? "",
+              });
+              setSelectedSector(data.sector_code ?? "BC");
+              setEntityType((data.entity_type as EntityType) || "Idea / Pre-Launch Founder");
+              setFundingGoal(Number(String(data.funding_goal ?? "").replace(/[^0-9.]/g, "")) || 0);
+              setShowQuestionnaire(false);
+              setStatusMessage("Intake questionnaire completed and saved.");
+            }}
+          />
+        </div>
+      )}
+
       {/* Header & Workspace Bar */}
       <header className="border-b border-slate-800 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -438,20 +539,24 @@ function IndexComponent() {
       </div>
 
       <main className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-4 items-start">
-        <nav aria-label="Workspace pages" className="operator-rail md:sticky md:top-4 flex md:min-h-[calc(100vh-3rem)] md:flex-col gap-2 overflow-x-auto bg-slate-900 border border-slate-800 rounded-xl p-2">
+        <nav aria-label="Workspace pages" className="operator-rail md:sticky md:top-4 flex md:min-h-[calc(100vh-3rem)] md:flex-col gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
           {([
             ["Dashboard", "Overview & Grants"],
             ["Profile", "Intake"],
             ["Grants", "Grants"],
             ["Vault", "Smart Vault"],
+            ["Studio", "Tippie Studio"],
             ["Tracker", "Proposals"],
-            ["Settings", "Tippie Studio"],
+            ["Settings", "Settings"],
           ] as const).map(([view, label]) => (
             <button
               key={view}
               type="button"
               aria-current={cockpitView === view ? "page" : undefined}
-              onClick={() => setCockpitView(view)}
+              onClick={() => {
+                setStatusMessage("");
+                setCockpitView(view);
+              }}
               className={`shrink-0 md:w-full px-3 py-3 rounded-lg text-left text-xs font-bold transition ${view === "Settings" ? "md:mt-auto" : ""} ${cockpitView === view ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
             >
               {label}
@@ -582,7 +687,7 @@ function IndexComponent() {
                     funder: pool.funderName,
                     amount: pool.directoryOnly ? "Check the official program for current award details" : pool.awardCeiling ? `$${pool.awardFloor.toLocaleString("en-US")} - $${pool.awardCeiling.toLocaleString("en-US")}` : "Not listed",
                     fit: "",
-                    tier: `[${pool.poolTier === "state_territory" ? "State" : pool.poolTier === "corporate_diversity" ? "Corporate" : "Foundation"}]`,
+                    tier: `[${pool.grantTier ?? (pool.poolTier === "state_territory" ? "State" : pool.poolTier === "corporate_diversity" ? "Corporate" : "Foundation")}]`,
                     categoryCode: selectedSector,
                     eligibilityReason: `${pool.summaryText} Confirm current eligibility and open funding cycle on the official funder site.`,
                     deadline: pool.directoryOnly ? "Check current cycle" : pool.isRolling ? "Rolling" : pool.deadline,
@@ -631,16 +736,44 @@ function IndexComponent() {
             </section>
           </section>
 
+          <section className={cockpitView === "Studio" ? "space-y-4" : "hidden"}>
+            <div>
+              <h2 className="text-lg font-bold">Tippie Studio</h2>
+              <p className="text-xs text-slate-500">Prepare, review, export, and hand off proposal materials.</p>
+            </div>
+            {selectedGrant ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">{selectedGrant.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">{selectedGrant.funder}</p>
+                </div>
+                <Button onClick={() => setSelectedGrant(selectedGrant)}>Open Proposal Studio</Button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
+                <p className="text-sm font-semibold text-slate-800">Choose a qualifying grant first</p>
+                <p className="mt-1 text-xs text-slate-500">Then return here to generate and review its proposal package.</p>
+                <Button className="mt-4" onClick={() => setCockpitView("Grants")}>Browse Grants</Button>
+              </div>
+            )}
+          </section>
+
           <section className={cockpitView === "Tracker" ? "space-y-4 min-w-0" : "hidden"}>
             <div><h2 className="text-lg font-bold">Application tracker</h2><p className="text-xs text-slate-400">Track drafts and record external submissions; AutoGrant does not submit to funder portals.</p></div>
-            <ApplicationTracker proposals={proposals} onStatusChange={async (id, status, confirmation) => {
-              const persistedStatus = status === "submitted" ? `submitted${confirmation ? `::${confirmation}` : ""}` : "draft";
-              const { error } = await supabase.from("applications").update({ status: persistedStatus }).eq("id", id);
-              if (error) setStatusMessage("Status could not be saved.");
-              else {
-                setStatusMessage(status === "submitted" ? "Submission confirmation saved." : "Application moved back to draft.");
-                await reloadWorkspace();
+            <ApplicationTracker proposals={proposals} onStatusChange={async (id, status, details) => {
+              try {
+                await persistApplicationStatus({ data: { applicationId: id, status, ...details } });
+              } catch (error) {
+                const message = error instanceof Error ? error.message : "Application status could not be saved.";
+                setStatusMessage(message);
+                throw new Error(message);
               }
+              setStatusMessage(status === "submitted"
+                ? "External submission confirmation saved."
+                : status === "submission_ready"
+                  ? "Human review sign-off saved. You still submit through the official portal."
+                  : "Application moved back to draft.");
+              await reloadWorkspace();
             }} />
           </section>
 
@@ -653,6 +786,22 @@ function IndexComponent() {
               <label className="block space-y-1 text-xs">
                 <span>Name</span>
                 <input value={settingsName} onChange={(event) => setSettingsName(event.target.value)} maxLength={120} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+              </label>
+              <label className="block space-y-1 text-xs">
+                <span>Phone number</span>
+                <input type="tel" value={settingsPhone} onChange={(event) => setSettingsPhone(event.target.value)} maxLength={40} placeholder="(555) 555-5555" className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+              </label>
+              <label className="block space-y-1 text-xs">
+                <span>Project / venture name</span>
+                <input value={settingsProjectName} onChange={(event) => setSettingsProjectName(event.target.value)} maxLength={160} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+              </label>
+              <label className="block space-y-1 text-xs">
+                <span>State or location</span>
+                <input value={settingsLocation} onChange={(event) => setSettingsLocation(event.target.value)} maxLength={120} placeholder="e.g., Tennessee" className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+              </label>
+              <label className="block space-y-1 text-xs">
+                <span>Funding goal</span>
+                <input type="number" min="0" value={settingsFundingGoal.replace(/[^\d]/g, "")} onChange={(event) => setSettingsFundingGoal(event.target.value)} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
               </label>
               <label className="block space-y-1 text-xs">
                 <span>Notification email</span>
@@ -682,9 +831,14 @@ function IndexComponent() {
           vaultAttachments={vaultDocs.flatMap((doc) => doc.storagePath ? [{ fileName: doc.name, storagePath: doc.storagePath }] : [])}
           onClose={() => setSelectedGrant(null)}
           onSaved={() => void reloadWorkspace()}
+          onAskMissingDetails={(context = "budget line item") => setCopilotQuestion((current) => ({
+            id: (current?.id ?? 0) + 1,
+            text: `I am adding a ${context}. Ask me for the missing details one at a time: what the money is for, the amount or quote/estimate, and the goal or milestone it supports. Do not guess or supply answers for me.`,
+          }))}
         />
       )}
       <CopilotDrawer
+        initialQuestion={copilotQuestion}
         onUploadFile={(file) => {
           const name = file.name.toLowerCase();
           const options = /photo.?id|passport|driver.?license/.test(name)
@@ -705,9 +859,6 @@ function IndexComponent() {
           void reloadWorkspace();
         }}
       />
-      <button type="button" onClick={() => setCockpitView("Settings")} className="fixed bottom-4 right-36 z-30 rounded border border-slate-300 bg-white px-3 py-3 text-xs font-semibold text-slate-800 shadow-lg">
-        Settings
-      </button>
     </div>
   );
 }

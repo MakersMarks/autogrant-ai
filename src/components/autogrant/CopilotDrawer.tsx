@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { copilotChat, executeCopilotAction, type CopilotAction } from "@/lib/ai/ai.functions";
 
@@ -12,9 +12,11 @@ type Message = {
 export function CopilotDrawer({
   onUploadFile,
   onActionComplete,
+  initialQuestion,
 }: {
   onUploadFile: (file: File) => Promise<boolean>;
   onActionComplete: (action: Exclude<CopilotAction, { type: "none" }>) => void;
+  initialQuestion?: { id: number; text: string } | undefined;
 }) {
   const askCopilot = useServerFn(copilotChat);
   const runAction = useServerFn(executeCopilotAction);
@@ -24,7 +26,15 @@ export function CopilotDrawer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const messageInput = useRef<HTMLTextAreaElement>(null);
   const actionLocks = useRef(new Set<number>());
+
+  useEffect(() => {
+    if (!initialQuestion) return;
+    setOpen(true);
+    setDraft(initialQuestion.text);
+    window.requestAnimationFrame(() => messageInput.current?.focus());
+  }, [initialQuestion]);
 
   const send = async (message: string, fromUpload = false) => {
     const text = message.trim();
@@ -245,6 +255,7 @@ export function CopilotDrawer({
                 }}
               />
               <textarea
+                ref={messageInput}
                 aria-label="Message AutoGrant Agent"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}

@@ -209,21 +209,21 @@
 }
 
 .operator-workspace .operator-rail {
-  background-color: oklch(0.208 0.042 265.755);
-  border-color: oklch(0.3 0.035 260);
+  background-color: oklch(1 0 0);
+  border-color: oklch(0.9 0.01 255.508);
 }
 
 .operator-workspace .operator-rail .text-slate-400,
 .operator-workspace .operator-rail .text-slate-500 {
-  color: oklch(0.82 0.02 255.508);
+  color: oklch(0.45 0.03 256.788);
 }
 
 .operator-workspace .operator-rail .hover\:text-white:hover {
-  color: oklch(0.985 0.003 247.858);
+  color: oklch(0.208 0.042 265.755);
 }
 
 .operator-workspace .operator-rail .hover\:bg-slate-800:hover {
-  background-color: oklch(0.3 0.035 260);
+  background-color: oklch(0.97 0.004 255.508);
 }
 
 .operator-workspace .operator-rail [aria-current="page"] {

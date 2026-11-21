@@ -2,6 +2,7 @@ import { useState } from "react";
 import { OFFICIAL_SECTORS, sectorName } from "@/lib/grants";
 
 export type ProfileInput = {
+  project_name?: string;
   entity_type: string;
   sector_code: string;
   industry?: string;
@@ -168,7 +169,21 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
         <div className="flex justify-between text-xs text-muted-foreground border-b border-border pb-3">
           <span className="font-bold text-primary uppercase tracking-wider">Step {step} of 5</span><span>Setup Wizard</span>
         </div>
-        {step === 1 && list("What is your business entity type?", s(["Idea / Pre-Launch Founder", "Sole Proprietorship", "LLC / Corporation", "Non-Profit Organization"]), "entity_type")}
+        {step === 1 && (
+          <div className="space-y-4">
+            <label className="block space-y-1 text-xs text-muted-foreground">
+              Project / business name
+              <input
+                aria-label="Project / business name"
+                value={p.project_name ?? ""}
+                onChange={(e) => setP({ ...p, project_name: e.target.value })}
+                placeholder="e.g., Mom's Catering Kitchen"
+                className="w-full rounded-xl border border-border bg-background p-3 text-foreground"
+              />
+            </label>
+            {list("What is your business entity type?", s(["Idea / Pre-Launch Founder", "Sole Proprietorship", "LLC / Corporation", "Non-Profit Organization"]), "entity_type")}
+          </div>
+        )}
         {step === 2 && list("Select official Grants.gov sector", OFFICIAL_SECTORS.map((x) => ({ v: x.code, label: x.name })), "sector_code")}
         {step === 3 && (
           <div className="space-y-4">
@@ -209,6 +224,7 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
           <div className="space-y-3">
             <h2 className="text-xl font-display font-bold">Profile Setup Complete</h2>
             <div className="p-4 rounded-xl bg-background border border-border text-xs space-y-2">
+              <p><strong>Project:</strong> {p.project_name || "Not specified"}</p>
               <p><strong>Entity Stage:</strong> {p.entity_type}</p>
               <p><strong>Sector:</strong> {sectorName(p.sector_code)}</p>
               <p><strong>Goal:</strong> {p.funding_goal}</p>

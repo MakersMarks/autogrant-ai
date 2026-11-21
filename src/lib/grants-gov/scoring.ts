@@ -562,7 +562,7 @@ export function scoreGrantOpportunity(input: {
   }
   const qualificationProof = [
     ...eligibilityReasons,
-    vault.reasons.filter((reason) => !reason.startsWith("Required Vault evidence is missing")),
+    ...vault.reasons.filter((reason) => !reason.startsWith("Required Vault evidence is missing")),
   ];
 
   return {
@@ -609,11 +609,11 @@ export function scoringInputFromLiveGrant(grant: LiveGrant): ScoringOpportunity 
     eligibility: grant.eligibility,
     categories: grant.categories,
     numberOfAwards: grant.numberOfAwards,
-    naicsCodes: grant.naicsCodes,
+    ...(grant.naicsCodes ? { naicsCodes: grant.naicsCodes } : {}),
     openDate: grant.openDate,
     closeDate: grant.closeDate,
-    costSharePercentage: grant.costSharePercentage,
-    prerequisites: grant.prerequisites,
+    ...(grant.costSharePercentage !== undefined ? { costSharePercentage: grant.costSharePercentage } : {}),
+    ...(grant.prerequisites ? { prerequisites: grant.prerequisites } : {}),
     competitionMetrics: {
       ...(reportedApplicantCount !== undefined
         ? { applicantCount: { value: reportedApplicantCount, sourceUrl: grant.url } }
@@ -641,13 +641,13 @@ export function scoringInputFromUnifiedGrant(grant: UnifiedGrant): ScoringOpport
     demographicSetAsides: grant.demographicSetAsides,
     geographicScope: grant.geographicScope,
     summaryText: grant.summaryText,
-    naicsCodes: grant.naicsCodes,
-    openDate: grant.openDate,
-    closeDate: grant.closeDate,
-    costSharePercentage: grant.costSharingPercentage,
-    prerequisites: grant.prerequisites,
-    competitionMetrics: grant.historicalApplicantCount !== undefined
-      ? { applicantCount: { value: grant.historicalApplicantCount, sourceUrl: grant.officialApplicationUrl ?? grant.directApplyUrl } }
-      : undefined,
+    ...(grant.naicsCodes ? { naicsCodes: grant.naicsCodes } : {}),
+    ...(grant.openDate ? { openDate: grant.openDate } : {}),
+    ...(grant.closeDate ? { closeDate: grant.closeDate } : {}),
+    ...(grant.costSharingPercentage !== undefined ? { costSharePercentage: grant.costSharingPercentage } : {}),
+    ...(grant.prerequisites ? { prerequisites: grant.prerequisites } : {}),
+    ...(grant.historicalApplicantCount !== undefined
+      ? { competitionMetrics: { applicantCount: { value: grant.historicalApplicantCount, sourceUrl: grant.officialApplicationUrl ?? grant.directApplyUrl } } }
+      : {}),
   };
 }

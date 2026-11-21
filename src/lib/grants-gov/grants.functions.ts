@@ -5,6 +5,7 @@ import { daysUntil, grantUrl, isEntityEligible, isInstitutionOnlyTitle, entityMo
 import { corporateRegistry } from "@/lib/grants/sources/corporate-registry";
 import { stateRegistry } from "@/lib/grants/sources/state-registry";
 import { stateFundingPortals } from "@/lib/grants/sources/state-portals";
+import { localRegistry } from "@/lib/grants/sources/local-registry";
 import type { UnifiedGrant } from "@/lib/grants";
 import { parseSbirSolicitations } from "./sbir";
 
@@ -34,6 +35,41 @@ async function detail(id: string) {
   const s = isJsonRecord(response["synopsis"]) ? response["synopsis"] : {};
   const applicantTypes = Array.isArray(s["applicantTypes"]) ? s["applicantTypes"] : [];
   const fundingActivityCategories = Array.isArray(s["fundingActivityCategories"]) ? s["fundingActivityCategories"] : [];
+  const assistanceListingNumber =
+    typeof s["assistanceListingNumber"] === "string"
+      ? s["assistanceListingNumber"]
+      : typeof s["cfdaNumber"] === "string"
+        ? s["cfdaNumber"]
+        : null;
+  let historicalAwards: number | null = null;
+  if (assistanceListingNumber) {
+    try {
+      const usaspending = await fetch("https://api.usaspending.gov/api/v2/search/spending_by_award/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(8000),
+        body: JSON.stringify({
+          filters: {
+            time_period: [{ start_date: "2020-10-01", end_date: new Date().toISOString().slice(0, 10) }],
+            cfda: assistanceListingNumber,
+            award_type: ["02", "03", "04", "05"],
+          },
+          fields: ["Award ID", "Award Amount"],
+          page: 1,
+          limit: 1,
+          sort: "Award Amount",
+          order: "desc",
+        }),
+      });
+      if (usaspending.ok) {
+        const payload = await usaspending.json() as { results?: unknown[]; page_metadata?: { total?: number } };
+        historicalAwards = Number(payload.page_metadata?.total);
+        if (!Number.isFinite(historicalAwards) || historicalAwards < 0) historicalAwards = null;
+      }
+    } catch {
+      historicalAwards = null;
+    }
+  }
   return {
     awardCeiling: num(s["awardCeiling"]), awardFloor: num(s["awardFloor"]), numberOfAwards: num(s["numberOfAwards"]),
     eligibility: applicantTypes.filter(isJsonRecord).map((type) => String(type["description"] ?? "")),
@@ -46,6 +82,8 @@ async function detail(id: string) {
     contact: strip([s["agencyContactName"], s["agencyContactEmail"], s["agencyContactPhone"]].filter(Boolean).join(" · ")),
     moreInfoUrl: typeof s["fundingDescLinkUrl"] === "string" && /^https?:\/\//.test(s["fundingDescLinkUrl"]) ? s["fundingDescLinkUrl"] : null,
     categories: fundingActivityCategories.filter(isJsonRecord).map((category) => String(category["description"] ?? "")),
+    assistanceListingNumber,
+    historicalAwards,
   };
 }
 
@@ -85,6 +123,15 @@ export const searchLiveGrants = createServerFn({ method: "POST" })
         openDate: String(h["openDate"] ?? ""), closeDate: String(h["closeDate"] ?? ""), daysLeft: daysUntil(String(h["closeDate"] ?? "")),
         awardCeiling: extra.awardCeiling, awardFloor: extra.awardFloor, numberOfAwards: extra.numberOfAwards,
         eligibility: extra.eligibility, categories: extra.categories, url: grantUrl(String(h["id"])), ...(keyword ? { matchedKeyword: keyword } : {}),
+        grantTier: "Federal",
+        geographicRestriction: /state|county|city|rural|hubzone/i.test(String(h["title"] ?? "")) ? "state" : "national",
+        costSharePercentage: extra.costSharing ? null : 0,
+        ...(extra.historicalAwards !== null ? { historicalAwards: extra.historicalAwards } : {}),
+        prerequisites: [
+          /sam|uei|cage/i.test(`${String(h["title"] ?? "")} ${extra.description}`) ? "SAM.gov/UEI" : "",
+          /state registration|state registration/i.test(extra.description) ? "State registration" : "",
+          extra.costSharing ? "Cost-share/match" : "",
+        ].filter(Boolean),
       };
     }));
     const mode = entityMode(data.entityType);
@@ -134,10 +181,15 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
       !data.state || !grant.geographicScope.allowedStates?.length
       || grant.geographicScope.allowedStates.includes(data.state.toUpperCase()),
     );
+    const localMatches = localRegistry.filter((grant) =>
+      !data.state || !grant.geographicScope.allowedStates?.length
+      || grant.geographicScope.allowedStates.includes(data.state.toUpperCase()),
+    );
     return {
       pools: {
         Federal: [],
         State: stateMatches,
+        Local: localMatches,
         Corporate: corporateRegistry.filter((grant) => grant.poolTier === "corporate_diversity"),
         Foundation: corporateRegistry.filter((grant) => grant.poolTier === "foundation"),
       },

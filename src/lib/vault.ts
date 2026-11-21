@@ -124,16 +124,14 @@ export async function deleteVaultDocument(doc: VaultDocument): Promise<void> {
     throw new Error("This document is outside your private Vault and cannot be deleted from this account.");
   }
 
-  let backup: Blob | null = null;
-  if (doc.storagePath) {
-    const download = await supabase.storage.from("vault").download(doc.storagePath);
-    if (download.error || !download.data) {
-      throw new Error(`Could not verify the stored file before deletion: ${download.error?.message ?? "file not found"}`);
-    }
-    backup = download.data;
-    const removal = await supabase.storage.from("vault").remove([doc.storagePath]);
-    if (removal.error) throw new Error(`Could not delete the stored file: ${removal.error.message}`);
-  }
+  const owned = await supabase
+    .from("vault_documents")
+    .select("id")
+    .eq("id", doc.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (owned.error) throw new Error(`Could not verify the Vault record: ${owned.error.message}`);
+  if (!owned.data) throw new Error("Vault record not found or not owned by this account.");
 
   const deletion = await supabase
     .from("vault_documents")
@@ -142,18 +140,13 @@ export async function deleteVaultDocument(doc: VaultDocument): Promise<void> {
     .eq("user_id", user.id)
     .select("id")
     .maybeSingle();
-  if (!deletion.error && deletion.data) return;
+  if (deletion.error) throw new Error(`Could not delete the Vault record: ${deletion.error.message}`);
+  if (!deletion.data) throw new Error("Vault record could not be deleted.");
 
-  if (doc.storagePath && backup) {
-    const rollback = await supabase.storage.from("vault").upload(doc.storagePath, backup, {
-      contentType: doc.type,
-      upsert: true,
-    });
-    if (rollback.error) {
-      throw new Error(`Vault record deletion failed (${deletion.error?.message ?? "record not found"}) and file restoration failed (${rollback.error.message}). Contact support to repair this document.`);
-    }
+  if (doc.storagePath) {
+    const removal = await supabase.storage.from("vault").remove([doc.storagePath]);
+    if (removal.error) throw new Error(`Vault record deleted, but file cleanup failed: ${removal.error.message}`);
   }
-  throw new Error(`Vault record deletion failed: ${deletion.error?.message ?? "record not found or not owned by this user"}`);
 }
 
 export async function updateVaultTextDocument(doc: VaultDocument, content: string): Promise<number> {

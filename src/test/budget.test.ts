@@ -2,8 +2,22 @@ import { describe, expect, it } from "vitest";
 import { buildBudgetJustification, calculateBudget, federalBudgetCategoryNames, type BudgetInput, type FederalBudgetCosts } from "@/lib/budget";
 
 const budget = (overrides: Partial<BudgetInput> = {}): BudgetInput => ({
-  equipment: [{ vendor: "Lab Supply Co.", quantity: 2, unitCost: 100, freight: 15, tax: 5 }],
-  institutional: [{ category: "Personnel", basis: "20 hours at $50 per hour", amount: 1000 }],
+  equipment: [{
+    vendor: "Lab Supply Co.",
+    quantity: 2,
+    unitCost: 100,
+    freight: 15,
+    tax: 5,
+    purpose: "Purchase lab supplies for the pilot.",
+    milestone: "Complete the first 20 pilot tests.",
+  }],
+  institutional: [{
+    category: "Personnel",
+    basis: "20 hours at $50 per hour",
+    amount: 1000,
+    purpose: "Pay a project coordinator.",
+    milestone: "Finish community enrollment by month 3.",
+  }],
   awardCeiling: 2000,
   costSharingPercentage: 20,
   ...overrides,
@@ -54,6 +68,20 @@ describe("budget calculations", () => {
     expect(result.errors).toContain("Equipment item 1: vendor is required for a nonzero cost.");
     expect(result.errors).toContain("Institutional item 1: category is required for a nonzero cost.");
     expect(result.errors).toContain("Institutional item 1: basis is required for a nonzero cost.");
+    expect(result.errors).toContain("Equipment item 1: project purpose is required for a nonzero cost.");
+    expect(result.errors).toContain("Equipment item 1: project milestone is required for a nonzero cost.");
+    expect(result.errors).toContain("Institutional item 1: project purpose is required for a nonzero cost.");
+    expect(result.errors).toContain("Institutional item 1: project milestone is required for a nonzero cost.");
+  });
+
+  it("includes applicant-entered purposes and milestones in the saved justification", () => {
+    const input = budget();
+    const result = calculateBudget(input);
+    const justification = buildBudgetJustification(input, result);
+    expect(justification).toContain("Purpose: Purchase lab supplies for the pilot.");
+    expect(justification).toContain("Milestone: Complete the first 20 pilot tests.");
+    expect(justification).toContain("Purpose: Pay a project coordinator.");
+    expect(justification).toContain("Milestone: Finish community enrollment by month 3.");
   });
 
   it("calculates federal category totals separately from small-business quote rows", () => {

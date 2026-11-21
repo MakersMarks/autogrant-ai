@@ -13,7 +13,6 @@ import {
   type GrantScore,
 } from "@/lib/grants-gov/scoring";
 import { SamRegistrationCheck } from "@/components/autogrant/SamRegistrationCheck";
-import { SbirSolicitationSearch } from "@/components/autogrant/SbirSolicitationSearch";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -76,7 +75,7 @@ export function LiveGrantsFeed({
   const [minAmt, setMinAmt] = useState("");
   const [maxAmt, setMaxAmt] = useState("");
   const [awardScaleOnly, setAwardScaleOnly] = useState(false);
-  const [tierFilter, setTierFilter] = useState<"All Qualifying" | "Federal" | "State" | "Local" | "Foundation">("All Qualifying");
+  const [tierFilter, setTierFilter] = useState<"All" | "Federal" | "State" | "Local" | "Foundation">("All");
   const [lowCompOnly, setLowCompOnly] = useState(false);
   const [grants, setGrants] = useState<LiveGrant[]>([]);
   const [total, setTotal] = useState(0);
@@ -97,6 +96,7 @@ export function LiveGrantsFeed({
       .then((result) => {
         setPoolGrants([
           ...(result.pools["State"] ?? []),
+          ...(result.pools["Local"] ?? []),
           ...(result.pools["Corporate"] ?? []),
           ...(result.pools["Foundation"] ?? []),
         ]);
@@ -134,7 +134,7 @@ export function LiveGrantsFeed({
   }, [grants, poolGrants, profile, evidence]);
   const shown = useMemo(() => grants.filter((g) => {
     if (!scoreById.get(g.id)?.eligible) return false;
-    if (tierFilter !== "All Qualifying" && tierFilter !== "Federal") return false;
+    if (tierFilter !== "All" && tierFilter !== "Federal") return false;
     if (lowCompOnly && (scoreById.get(g.id)?.lowCompetitionScore ?? 0) < 70) return false;
     if (deadline === "last" && !isLastChance(g.daysLeft)) return false;
     if ((deadline === "30" || deadline === "90") && (g.daysLeft === null || g.daysLeft > Number(deadline))) return false;
@@ -146,11 +146,15 @@ export function LiveGrantsFeed({
     const score = scoreById.get(grant.id);
     if (!score?.eligible) return false;
     if (lowCompOnly && (score.lowCompetitionScore ?? 0) < 70) return false;
-    if (tierFilter === "All Qualifying") return true;
+    if (tierFilter === "All") return true;
     const tier = grant.grantTier ??
       (grant.poolTier === "state_territory" ? "State" : grant.poolTier === "foundation" ? "Foundation" : "Federal");
     return tier === tierFilter;
   });
+  const closestMatches = [...grants, ...poolGrants]
+    .filter((grant) => !scoreById.get(grant.id)?.eligible)
+    .sort((a, b) => (scoreById.get(b.id)?.eligibilityScore ?? 0) - (scoreById.get(a.id)?.eligibilityScore ?? 0))
+    .slice(0, 8);
   const lastChanceCount = grants.filter((g) => isLastChance(g.daysLeft)).length;
 
   const openReader = async (g: LiveGrant) => {
@@ -176,21 +180,18 @@ export function LiveGrantsFeed({
   const field = "bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white";
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-semibold text-white">Live Federal Opportunities — Grants.gov</h2>
-        {userState && <label className="flex items-center gap-1.5 text-xs text-slate-300"><input type="checkbox" checked={localOnly} onChange={(e) => setLocalOnly(e.target.checked)} />Hide grants limited to other states (you: {userState})</label>}
-        <span className="text-xs text-slate-400">{signedIn ? `${shown.length} shown of ${total} open matches` : "Sign in to search"}</span>
+      <div className="space-y-1">
+        <h2 className="text-lg font-bold text-white">Matched Grants</h2>
+        <p className="text-xs text-slate-400">Matched for {profile?.projectName || "your business"}{userState ? ` · ${userState}` : ""}</p>
       </div>
-      <p className="text-[11px] text-slate-400">Only verified entity matches with an eligibility score of at least 70 are shown. Competition scores use equal 25% weights; win-rate estimates appear only when award and applicant counts are reported.</p>
-      {signedIn && <><SbirSolicitationSearch /><SamRegistrationCheck /></>}
 
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); void run(); }}>
-        <input aria-label="Search grants" className={`${field} flex-1`} placeholder="Search keyword (e.g. food, SBIR, rural)" value={keyword} onChange={(e) => { keywordRef.current = e.target.value; setKeyword(e.target.value); }} />
+        <input aria-label="Search grants" className={`${field} flex-1`} placeholder="Search grants" value={keyword} onChange={(e) => { keywordRef.current = e.target.value; setKeyword(e.target.value); }} />
         <Button type="submit" disabled={loading || !signedIn || !enabled} className="text-xs">Search</Button>
       </form>
 
       <div className="flex flex-wrap items-center gap-2">
-        {(["All Qualifying", "Federal", "State", "Local", "Foundation"] as const).map((tier) => (
+        {(["All", "Federal", "State", "Local", "Foundation"] as const).map((tier) => (
           <button
             key={tier}
             type="button"
@@ -203,31 +204,29 @@ export function LiveGrantsFeed({
         ))}
         <label className="ml-auto flex items-center gap-2 text-xs text-slate-300">
           <input type="checkbox" checked={lowCompOnly} onChange={(event) => setLowCompOnly(event.target.checked)} />
-          Low-Comp Only (L_comp ≥ 70)
+          Low-Comp Only
         </label>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        <select aria-label="Sector" className={field} value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">All sectors</option>
-          {OFFICIAL_SECTORS.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
-        </select>
-        <select aria-label="Eligibility" className={field} value={eligibility} onChange={(e) => setEligibility(e.target.value)}>
-          {ELIGIBILITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <select aria-label="Deadline" className={field} value={deadline} onChange={(e) => setDeadline(e.target.value)}>
-          {DEADLINES.map((o) => <option key={o.value} value={o.value}>{o.label}{o.value === "last" ? ` (${lastChanceCount})` : ""}</option>)}
-        </select>
-        <input aria-label="Minimum award" className={field} inputMode="numeric" placeholder="Min award $" value={minAmt} onChange={(e) => setMinAmt(e.target.value.replace(/\D/g, ""))} />
-        <input aria-label="Maximum award" className={field} inputMode="numeric" placeholder="Max award $" value={maxAmt} onChange={(e) => setMaxAmt(e.target.value.replace(/\D/g, ""))} />
-        <label className="flex items-center gap-2 text-xs text-slate-300">
-          <input type="checkbox" checked={awardScaleOnly} onChange={(e) => setAwardScaleOnly(e.target.checked)} />
-          Funding-scale signal only
-        </label>
-      </div>
-      <p className="text-[11px] text-slate-400">
-        This signal means an award ceiling ≤ $100,000 or at least 10 awards listed. Grants.gov does not provide applicant counts or win rates here, so this is not a measure or prediction of competition.
-      </p>
+      <details className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+        <summary className="cursor-pointer text-xs font-semibold text-slate-200">More Filters &amp; Registration Check</summary>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <select aria-label="Sector" className={field} value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">All sectors</option>
+            {OFFICIAL_SECTORS.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
+          </select>
+          <select aria-label="Eligibility" className={field} value={eligibility} onChange={(e) => setEligibility(e.target.value)}>
+            {ELIGIBILITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <select aria-label="Deadline" className={field} value={deadline} onChange={(e) => setDeadline(e.target.value)}>
+            {DEADLINES.map((o) => <option key={o.value} value={o.value}>{o.label}{o.value === "last" ? ` (${lastChanceCount})` : ""}</option>)}
+          </select>
+          <input aria-label="Minimum award" className={field} inputMode="numeric" placeholder="Minimum award" value={minAmt} onChange={(e) => setMinAmt(e.target.value.replace(/\D/g, ""))} />
+          <input aria-label="Maximum award" className={field} inputMode="numeric" placeholder="Maximum award" value={maxAmt} onChange={(e) => setMaxAmt(e.target.value.replace(/\D/g, ""))} />
+          {userState && <label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={localOnly} onChange={(e) => setLocalOnly(e.target.checked)} />Focus on grants available in {userState}</label>}
+        </div>
+        {signedIn && <div className="mt-3"><SamRegistrationCheck /></div>}
+      </details>
 
       {!keyword.trim() && scout.length > 0 && <p className="text-[11px] text-slate-400">Scouting from your intake for: {scout.map((k) => <span key={k} className="inline-block mr-1 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-slate-200">{k}</span>)} · only grants open to {mode === "nonprofit" ? "nonprofits" : "for-profit / small businesses"}</p>}
       {eligiblePoolGrants.length > 0 && (
@@ -239,25 +238,22 @@ export function LiveGrantsFeed({
               <div key={grant.id} className="p-3 bg-slate-950 border border-slate-800 rounded-lg space-y-2">
                 <div className="flex justify-between gap-2">
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-950 text-violet-300 border border-violet-800">
-                    [{grant.poolTier === "state_territory" ? "State" : grant.poolTier === "corporate_diversity" ? "Corporate" : "Foundation"}]
+                    [{grant.grantTier ??
+                      (grant.poolTier === "state_territory" ? "State" : grant.poolTier === "corporate_diversity" ? "Corporate" : "Foundation")}]
                   </span>
                   <span className="text-[10px] text-slate-300 font-mono">{grant.directoryOnly ? "Check current award" : `$${grant.awardCeiling.toLocaleString("en-US")}`}</span>
                 </div>
                 <p className="text-sm font-bold text-blue-400">{grant.title}</p>
                 <p className="text-xs text-slate-400">{grant.funderName} · {grant.directoryOnly ? "Check current cycle" : grant.isRolling ? "Rolling" : grant.deadline}</p>
                 <p className="rounded-md border border-emerald-900 bg-emerald-950/30 p-2 text-[11px] text-emerald-200">
-                  <strong>Why This Is Low-Comp For You:</strong>{" "}
+                  <strong>Why You Qualify:</strong>{" "}
                   {scoreById.get(grant.id)?.whyLowCompetition.join(" ") ?? "Eligibility and readiness advantages are being evaluated."}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  <span className="rounded border border-emerald-800 px-1.5 py-0.5 text-[10px] text-emerald-300">
-                    L_comp {scoreById.get(grant.id)?.lowCompetitionScore ?? "—"}/100
-                  </span>
-                  <span className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300">
-                    {scoreById.get(grant.id)?.dataConfidence ?? "Estimated"} confidence
-                  </span>
+                  {(scoreById.get(grant.id)?.lowCompetitionScore ?? 0) >= 70 && <span className="rounded border border-emerald-800 px-1.5 py-0.5 text-[10px] text-emerald-300">Low Competition</span>}
+                  <span className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300">{grant.directoryOnly ? "Check current award" : `Award ${formatMoney(grant.awardCeiling)}`}</span>
+                  <span className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300">{grant.isRolling ? "Rolling deadline" : `Deadline ${grant.deadline}`}</span>
                 </div>
-                <ScoreBreakdown score={scoreById.get(grant.id)} />
                 <div className="flex gap-2">
                   <Button variant="outline" asChild className="text-xs h-8"><a href={grant.directApplyUrl} target="_blank" rel="noreferrer">Read Grant</a></Button>
                   {grant.publicWinnerHistoryUrl && <Button variant="outline" asChild className="text-xs h-8"><a href={grant.publicWinnerHistoryUrl} target="_blank" rel="noreferrer">Past winners</a></Button>}
@@ -272,7 +268,7 @@ export function LiveGrantsFeed({
         <section className="p-3 bg-slate-950 border border-slate-800 rounded-lg space-y-2">
           <div>
             <h3 className="text-xs font-bold">{statePortal.stateName} funding source</h3>
-            <p className="text-[11px] text-slate-400">{statePortal.agency} · Official agency directory, not a live feed of all state grants. Confirm current programs and requirements with the agency.</p>
+            <p className="text-[11px] text-slate-400">{statePortal.agency}</p>
           </div>
           <Button variant="outline" asChild className="text-xs h-8"><a href={statePortal.url} target="_blank" rel="noreferrer">Explore {statePortal.stateName} programs</a></Button>
         </section>
@@ -281,7 +277,37 @@ export function LiveGrantsFeed({
       {error && <p className="text-xs text-red-400">{error}</p>}
       {loading ? <p className="text-xs text-slate-400">Loading live grants from Grants.gov…</p> : (
         <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
-          {signedIn && shown.length === 0 && !error && <p className="text-xs text-slate-400">No grants passed the eligibility gate and 70-point threshold for this profile. Add eligible Vault evidence or review profile qualifications.</p>}
+          {signedIn && shown.length === 0 && !error && closestMatches.length > 0 && (
+            <section className="space-y-2">
+              <div>
+                <h3 className="text-sm font-bold text-amber-300">Closest Matches — Missing 1–2 Requirements</h3>
+                <p className="text-xs text-slate-400">These opportunities are close. Add the listed evidence or update the matching profile detail to unlock them.</p>
+              </div>
+              {closestMatches.map((grant) => {
+                const score = scoreById.get(grant.id);
+                const missing = score?.hardDisqualifiers.slice(0, 3) ?? ["Complete the intake profile."];
+                const tier = "agency" in grant
+                  ? "Federal"
+                  : grant.grantTier ?? (grant.poolTier === "foundation" ? "Foundation" : grant.poolTier === "corporate_diversity" ? "Corporate" : "State");
+                return (
+                  <div key={grant.id} className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-blue-300">{grant.title}</p>
+                      <span className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-300">{tier}</span>
+                    </div>
+                    <ul className="list-disc pl-4 text-xs text-amber-200 space-y-1">
+                      {missing.map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                    <div className="flex gap-2">
+                      {"agency" in grant
+                        ? <Button variant="outline" onClick={() => openReader(grant)} className="text-xs h-8">Read Grant</Button>
+                        : <Button variant="outline" asChild className="text-xs h-8"><a href={grant.directApplyUrl} target="_blank" rel="noreferrer">Read Grant</a></Button>}
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
+          )}
           {shown.map((g) => (
             <div key={g.id} className="p-4 bg-slate-950 border border-slate-800 rounded-lg space-y-2 hover:border-slate-600 transition">
               <button type="button" onClick={() => openReader(g)} className="text-left w-full">
@@ -294,7 +320,10 @@ export function LiveGrantsFeed({
                 </div>
               </button>
               <div className="flex flex-wrap gap-1.5">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">[Federal]</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">Federal</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">Award {formatMoney(g.awardCeiling)}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">Deadline {g.closeDate || "Not listed"}</span>
+                {(scoreById.get(g.id)?.lowCompetitionScore ?? 0) >= 70 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">Low Competition</span>}
                 {g.matchedKeyword && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">Matches "{g.matchedKeyword}"</span>}
                 {isLastChance(g.daysLeft) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800">Last Chance</span>}
                 {grantAwardScaleSignals(g).map((signal) => (
@@ -305,18 +334,9 @@ export function LiveGrantsFeed({
                 {g.eligibility.slice(0, 2).map((e) => <span key={e} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">{e}</span>)}
               </div>
               <p className="rounded-md border border-emerald-900 bg-emerald-950/30 p-2 text-[11px] text-emerald-200">
-                <strong>Why This Is Low-Comp For You:</strong>{" "}
+                <strong>Why You Qualify:</strong>{" "}
                 {scoreById.get(g.id)?.whyLowCompetition.join(" ") ?? "Eligibility and readiness advantages are being evaluated."}
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                <span className="rounded border border-emerald-800 px-1.5 py-0.5 text-[10px] text-emerald-300">
-                  L_comp {scoreById.get(g.id)?.lowCompetitionScore ?? "—"}/100
-                </span>
-                <span className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300">
-                  {scoreById.get(g.id)?.dataConfidence ?? "Estimated"} confidence
-                </span>
-              </div>
-              <ScoreBreakdown score={scoreById.get(g.id)} />
               <div className="flex flex-wrap justify-between items-center gap-2 pt-1">
                 <span className="text-[11px] text-slate-400 font-mono">Closes {g.closeDate || "—"}{g.daysLeft !== null ? ` · ${g.daysLeft} days left` : ""}</span>
                 <div className="flex gap-2">
@@ -350,8 +370,8 @@ export function LiveGrantsFeed({
               </div>
               {scoreById.get(open.id) && (
                 <section className="rounded-lg border border-emerald-800 bg-emerald-950/30 p-3 text-xs space-y-2">
-                  <p><strong>Grant Tier:</strong> Federal · <strong>L_comp:</strong> {scoreById.get(open.id)?.lowCompetitionScore}/100 · <strong>{scoreById.get(open.id)?.dataConfidence}</strong> confidence</p>
-                  <p><strong>Why This Is Low-Comp For You:</strong> {scoreById.get(open.id)?.whyLowCompetition.join(" ")}</p>
+                  <p><strong>Grant Type:</strong> Federal · <strong>{scoreById.get(open.id)?.lowCompetitionScore && scoreById.get(open.id)!.lowCompetitionScore! >= 70 ? "Low Competition" : "Competition Level"}</strong></p>
+                  <p><strong>Why You Qualify:</strong> {scoreById.get(open.id)?.whyLowCompetition.join(" ")}</p>
                   <p><strong>Qualification proof:</strong> {scoreById.get(open.id)?.qualificationProof.slice(0, 3).join(" ")}</p>
                 </section>
               )}
@@ -411,8 +431,6 @@ function ScoreBreakdown({ score }: { score: GrantScore | undefined }) {
         <span>Estimated win rate: {score.estimatedWinRatePct === null ? "Not estimable" : `${score.estimatedWinRatePct}%`}</span>
       </summary>
       <div className="mt-2 space-y-2 border-t border-slate-800 pt-2">
-        <p>{competitionLabel} · equal 25% weights; available components are normalized to their available weights.</p>
-        <p className="text-emerald-200">Win rate is not guaranteed; shown only from reported historical awards and applicant counts, adjusted by this profile's eligibility score.</p>
         <div className="grid gap-1 sm:grid-cols-2">
           {dimensions.map(([label, value]) => (
             <span key={label}>{label}: {value}/100</span>

@@ -4,12 +4,16 @@ export type EquipmentBudgetItem = {
   unitCost: number;
   freight: number;
   tax: number;
+  purpose?: string;
+  milestone?: string;
 };
 
 export type InstitutionalBudgetItem = {
   category: string;
   basis: string;
   amount: number;
+  purpose?: string;
+  milestone?: string;
 };
 
 export const federalBudgetCategoryNames = [
@@ -68,6 +72,8 @@ export function calculateBudget(input: BudgetInput): BudgetCalculation {
       return;
     }
     if (lineTotal > 0 && !item.vendor.trim()) errors.push(`Equipment item ${row}: vendor is required for a nonzero cost.`);
+    if (lineTotal > 0 && !item.purpose?.trim()) errors.push(`Equipment item ${row}: project purpose is required for a nonzero cost.`);
+    if (lineTotal > 0 && !item.milestone?.trim()) errors.push(`Equipment item ${row}: project milestone is required for a nonzero cost.`);
     equipmentTotal += money(lineTotal);
   });
 
@@ -79,6 +85,8 @@ export function calculateBudget(input: BudgetInput): BudgetCalculation {
     }
     if (item.amount > 0 && !item.category.trim()) errors.push(`Institutional item ${row}: category is required for a nonzero cost.`);
     if (item.amount > 0 && !item.basis.trim()) errors.push(`Institutional item ${row}: basis is required for a nonzero cost.`);
+    if (item.amount > 0 && !item.purpose?.trim()) errors.push(`Institutional item ${row}: project purpose is required for a nonzero cost.`);
+    if (item.amount > 0 && !item.milestone?.trim()) errors.push(`Institutional item ${row}: project milestone is required for a nonzero cost.`);
     institutionalTotal += money(item.amount);
   });
   if (input.track === "federal" && input.federalCosts) {
@@ -127,11 +135,11 @@ export function buildBudgetJustification(input: BudgetInput, calculation: Budget
   const equipment = input.equipment
     .map((item) => ({ ...item, total: money(item.quantity * item.unitCost + item.freight + item.tax) }))
     .filter((item) => item.total > 0)
-    .map((item) => `${item.vendor}: ${item.quantity} unit(s) at ${formatMoney(item.unitCost)} each, plus ${formatMoney(item.freight)} freight and ${formatMoney(item.tax)} tax`)
+    .map((item) => `${item.vendor}: ${item.quantity} unit(s) at ${formatMoney(item.unitCost)} each, plus ${formatMoney(item.freight)} freight and ${formatMoney(item.tax)} tax. Purpose: ${item.purpose}. Milestone: ${item.milestone}.`)
     .join("; ");
   const institutional = input.institutional
     .filter((item) => item.amount > 0)
-    .map((item) => `${item.category} (${item.basis}): ${formatMoney(item.amount)}`)
+    .map((item) => `${item.category} (${item.basis}): ${formatMoney(item.amount)}. Purpose: ${item.purpose}. Milestone: ${item.milestone}.`)
     .join("; ");
 
   const lines = [
