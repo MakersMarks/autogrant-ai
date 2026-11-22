@@ -9,27 +9,65 @@ import { intakeSchema, summarySchema, buildProposalPrompt, validateProposalOutpu
 import { extractDocumentText } from "./documents.server";
 import { grantRequirementBOMSchema } from "./rfp-parser";
 import { programGuidanceForProgram, winnerResearchForProgram } from "@/lib/grants/sources/winner-research";
+import type { Tables } from "@/integrations/supabase/types";
 
 const grantSchema = z.object({ title: z.string().min(1).max(500), funder: z.string().max(500), amount: z.string().max(500), eligibilityReason: z.string().max(500), grantId: z.string().max(200).optional() });
 
-async function loadEvidence(supabase: import('@supabase/supabase-js').SupabaseClient<import('@/integrations/supabase/types').Database>, userId: string) {
-  const [{ data: profile, error: profileError }, { data: docs, error: docsError }] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', userId).single(),
-    supabase.from('vault_documents').select('*').eq('user_id', userId).order('created_at'),
-  ]);
-  if (profileError || !profile) throw new Error('Save your intake profile before drafting.');
-  if (docsError) throw new Error('Could not read your Vault inventory.');
-  const evidence: { name: string; text: string }[] = [];
+type ApplicantProfile = Tables<"profiles">;
+type VaultEvidence = { name: string; text: string }[];
+
+async function loadEvidence(
+  supabase: import("@supabase/supabase-js").SupabaseClient<
+    import("@/integrations/supabase/types").Database
+  >,
+  userId: string,
+): Promise<{ profile: ApplicantProfile; evidence: VaultEvidence }>;
+async function loadEvidence(
+  supabase: import("@supabase/supabase-js").SupabaseClient<
+    import("@/integrations/supabase/types").Database
+  >,
+  userId: string,
+  allowMissingProfile: true,
+): Promise<{ profile: ApplicantProfile | null; evidence: VaultEvidence }>;
+async function loadEvidence(
+  supabase: import("@supabase/supabase-js").SupabaseClient<
+    import("@/integrations/supabase/types").Database
+  >,
+  userId: string,
+  allowMissingProfile = false,
+): Promise<{ profile: ApplicantProfile | null; evidence: VaultEvidence }> {
+  const [{ data: profile, error: profileError }, { data: docs, error: docsError }] =
+    await Promise.all([
+      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+      supabase.from("vault_documents").select("*").eq("user_id", userId).order("created_at"),
+    ]);
+  if (profileError) throw new Error("Could not read your intake profile.");
+  if (!allowMissingProfile && !profile)
+    throw new Error("Save your intake profile before drafting.");
+  if (docsError) throw new Error("Could not read your Vault inventory.");
+  const evidence: VaultEvidence = [];
   for (const doc of docs ?? []) {
-    if (!doc.storage_path.startsWith(`${userId}/`)) throw new Error('Vault document ownership could not be verified.');
-    const { data: file, error } = await supabase.storage.from('vault').download(doc.storage_path);
+    if (!doc.storage_path.startsWith(`${userId}/`))
+      throw new Error("Vault document ownership could not be verified.");
+    const { data: file, error } = await supabase.storage.from("vault").download(doc.storage_path);
     if (error || !file) throw new Error(`Could not read Vault document: ${doc.file_name}`);
-    const text = (await extractDocumentText(new Uint8Array(await file.arrayBuffer()), doc.mime_type)).trim();
-    if (!text) throw new Error(`No readable text in ${doc.file_name}. Upload a text-searchable PDF, DOCX, or TXT version.`);
+    const text = (
+      await extractDocumentText(new Uint8Array(await file.arrayBuffer()), doc.mime_type)
+    ).trim();
+    if (!text)
+      throw new Error(
+        `No readable text in ${doc.file_name}. Upload a text-searchable PDF, DOCX, or TXT version.`,
+      );
     evidence.push({ name: doc.file_name, text });
   }
-  if (JSON.stringify(evidence).length > 1_000_000) throw new Error('Your Vault exceeds the drafting context capacity. Reduce document size before drafting; no evidence was silently omitted.');
-  return { profile: { ...profile, location: stateFromLocation(profile.location) ?? "" }, evidence };
+  if (JSON.stringify(evidence).length > 1_000_000)
+    throw new Error(
+      "Your Vault exceeds the drafting context capacity. Reduce document size before drafting; no evidence was silently omitted.",
+    );
+  return {
+    profile: profile ? { ...profile, location: stateFromLocation(profile.location) ?? "" } : null,
+    evidence,
+  };
 }
 
 const copilotActionSchema = z.discriminatedUnion("type", [
@@ -68,7 +106,7 @@ export const copilotChat = createServerFn({ method: "POST" })
         action: { type: "none" as const },
       };
     }
-    const { profile, evidence } = await loadEvidence(context.supabase, context.userId);
+    const { profile, evidence } = await loadEvidence(context.supabase, context.userId, true);
     const { data: applications, error: applicationError } = await context.supabase
       .from("applications").select("id, name, funder, amount, status").eq("user_id", context.userId).order("created_at", { ascending: false });
     if (applicationError) throw new Error("Could not load your application tracker for Copilot context.");

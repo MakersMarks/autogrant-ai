@@ -10,10 +10,14 @@ type Message = {
 };
 
 export function CopilotDrawer({
+  isAuthenticated,
+  onSignIn,
   onUploadFile,
   onActionComplete,
   initialQuestion,
 }: {
+  isAuthenticated: boolean;
+  onSignIn: () => void;
   onUploadFile: (file: File) => Promise<boolean>;
   onActionComplete: (action: Exclude<CopilotAction, { type: "none" }>) => void;
   initialQuestion?: { id: number; text: string } | undefined;
@@ -36,9 +40,20 @@ export function CopilotDrawer({
     window.requestAnimationFrame(() => messageInput.current?.focus());
   }, [initialQuestion]);
 
+  useEffect(() => {
+    if (isAuthenticated) return;
+    setMessages([]);
+    setDraft("");
+    setError("");
+  }, [isAuthenticated]);
+
   const send = async (message: string, fromUpload = false) => {
     const text = message.trim();
     if (!text || (busy && !fromUpload)) return;
+    if (!isAuthenticated) {
+      onSignIn();
+      return;
+    }
     setError("");
     setBusy(true);
     const nextMessages: Message[] = [...messages, { role: "user", content: text }];
@@ -100,6 +115,10 @@ export function CopilotDrawer({
   };
 
   const uploadAndReview = async (file: File) => {
+    if (!isAuthenticated) {
+      onSignIn();
+      return;
+    }
     setError("");
     setBusy(true);
     try {
@@ -221,57 +240,73 @@ export function CopilotDrawer({
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
               event.preventDefault();
+              if (!isAuthenticated) {
+                onSignIn();
+                return;
+              }
               const file = event.dataTransfer.files[0];
               if (file) void uploadAndReview(file);
             }}
           >
             <p className="text-[10px] text-slate-500">
-              Drop a document here or attach one to save it to your private Vault.
+              {isAuthenticated
+                ? "Drop a document here or attach one to save it to your private Vault."
+                : "Sign in to chat with AutoGrant Agent or upload documents to your private Vault."}
             </p>
-            <form
-              className="flex items-end gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void send(draft);
-              }}
-            >
+            {isAuthenticated ? (
+              <form
+                className="flex items-end gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void send(draft);
+                }}
+              >
+                <button
+                  type="button"
+                  aria-label="Attach file"
+                  onClick={() => fileInput.current?.click()}
+                  className="rounded border border-slate-300 px-2 py-2 text-xs"
+                >
+                  Attach
+                </button>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  className="sr-only"
+                  accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void uploadAndReview(file);
+                    event.target.value = "";
+                  }}
+                />
+                <textarea
+                  ref={messageInput}
+                  aria-label="Message AutoGrant Agent"
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  rows={2}
+                  maxLength={4000}
+                  className="min-w-0 flex-1 resize-none rounded border border-slate-300 bg-white p-2 text-xs text-slate-900"
+                  placeholder="Ask AutoGrant Agent…"
+                />
+                <button
+                  type="submit"
+                  disabled={busy || !draft.trim()}
+                  className="rounded bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  Send
+                </button>
+              </form>
+            ) : (
               <button
                 type="button"
-                aria-label="Attach file"
-                onClick={() => fileInput.current?.click()}
-                className="rounded border border-slate-300 px-2 py-2 text-xs"
+                onClick={onSignIn}
+                className="w-full rounded bg-emerald-700 px-3 py-2 text-xs font-semibold text-white"
               >
-                Attach
+                Sign in to chat or upload
               </button>
-              <input
-                ref={fileInput}
-                type="file"
-                className="sr-only"
-                accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void uploadAndReview(file);
-                  event.target.value = "";
-                }}
-              />
-              <textarea
-                ref={messageInput}
-                aria-label="Message AutoGrant Agent"
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                rows={2}
-                maxLength={4000}
-                className="min-w-0 flex-1 resize-none rounded border border-slate-300 bg-white p-2 text-xs text-slate-900"
-                placeholder="Ask AutoGrant Agent…"
-              />
-              <button
-                type="submit"
-                disabled={busy || !draft.trim()}
-                className="rounded bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-              >
-                Send
-              </button>
-            </form>
+            )}
           </div>
         </section>
       )}

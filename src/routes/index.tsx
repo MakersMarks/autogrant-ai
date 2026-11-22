@@ -863,6 +863,8 @@ function IndexComponent() {
         />
       )}
       <CopilotDrawer
+        isAuthenticated={!!userSession}
+        onSignIn={() => setShowAuth(true)}
         initialQuestion={copilotQuestion}
         onUploadFile={(file) => {
           const name = file.name.toLowerCase();
