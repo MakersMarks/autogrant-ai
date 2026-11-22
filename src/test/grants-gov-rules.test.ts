@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { isUnifiedGrantOpen } from "@/lib/grants";
 import {
   daysUntil,
   isLastChance,
@@ -15,6 +16,21 @@ describe("live grant rules", () => {
     expect(isLastChance(2)).toBe(true);
     expect(isLastChance(7)).toBe(true);
     expect(isLastChance(8)).toBe(false);
+  });
+
+  describe("fixed grant deadlines", () => {
+    const now = new Date("2026-11-22T03:13:00Z");
+
+    it("keeps fixed-deadline grants open through the deadline day and closes them afterward", () => {
+      expect(isUnifiedGrantOpen({ isRolling: false, closeDate: "2026-11-22" }, now)).toBe(true);
+      expect(isUnifiedGrantOpen({ isRolling: false, closeDate: "2026-11-21" }, now)).toBe(false);
+      expect(isUnifiedGrantOpen({ isRolling: true }, now)).toBe(true);
+    });
+
+    it("does not treat a fixed grant with no verifiable closing date as open", () => {
+      expect(isUnifiedGrantOpen({ isRolling: false }, now)).toBe(false);
+      expect(isUnifiedGrantOpen({ isRolling: false, closeDate: "not a date" }, now)).toBe(false);
+    });
   });
   it("reports award-scale signals without treating them as competition statistics", () => {
     expect(grantAwardScaleSignals({ awardCeiling: 100000, numberOfAwards: 1 })).toEqual([
@@ -75,6 +91,19 @@ describe("scout + entity gate", () => {
     const k = scoutKeywords({ industry: "AI software", entityType: "LLC / Corporation" });
     expect(k).toContain("artificial intelligence");
     expect(k).toContain("sbir");
+  });
+  it("scouts specific project language and sector synonyms", () => {
+    const k = scoutKeywords({
+      industry: "Food service",
+      entityType: "LLC / Corporation",
+      problemStatement: "Our rural catering service needs a commercial kitchen.",
+      solutionArchitecture: "Purchase kitchen equipment to expand local food service capacity.",
+    });
+
+    expect(k).toContain("commercial kitchen");
+    expect(k).toContain("kitchen equipment");
+    expect(k.length).toBeGreaterThanOrEqual(3);
+    expect(k.length).toBeLessThanOrEqual(4);
   });
 });
 

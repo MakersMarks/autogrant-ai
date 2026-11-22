@@ -40,6 +40,15 @@ const findRequirementsForType = (bom: GrantRequirementBOM, type: DocumentType) =
 const isDocumentType = (value: string): value is DocumentType =>
   (documentTypes as readonly string[]).includes(value);
 
+function defaultDocumentType(grant: Grant): DocumentType {
+  if (/\b(?:letter of inquiry|LOI)\b/i.test(`${grant.title} ${grant.eligibilityReason}`)) {
+    return "letter_of_inquiry";
+  }
+  if (/\[Federal\]/i.test(grant.tier)) return "institutional";
+  if (/\[Corporate\]/i.test(grant.tier)) return "portal_answers";
+  return "executive_summary";
+}
+
 export function ProposalStudio({
   grant,
   voiceCalibrated,
@@ -57,7 +66,7 @@ export function ProposalStudio({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [type, setType] = useState<DocumentType>("executive_summary");
+  const [type, setType] = useState<DocumentType>(() => defaultDocumentType(grant));
   const [view, setView] = useState<"documents" | "budget" | "audit" | "requirements" | "winners" | "submit">("documents");
   const [docs, setDocs] = useState<Partial<Record<DocumentType, { sections: Section[]; fileName: string }>>>({});
   const [appId, setAppId] = useState<string | undefined>();
@@ -141,6 +150,14 @@ export function ProposalStudio({
 
   const plain = (s: Section[]) => s.map((x) => `${x.title}\n\n${toCleanText(x.body)}`).join("\n\n");
   const copy = async () => { if (current) { await navigator.clipboard.writeText(plain(current.sections)); toast.success("Clean text copied"); } };
+  const copySection = async (section: Section) => {
+    try {
+      await navigator.clipboard.writeText(`${section.title}\n\n${toCleanText(section.body)}`);
+      toast.success(`${section.title} copied`);
+    } catch {
+      toast.error(`Could not copy ${section.title}`);
+    }
+  };
   const download = () => {
     if (!current) return;
     const url = URL.createObjectURL(new Blob([plain(current.sections)], { type: "text/plain" }));
@@ -420,7 +437,7 @@ export function ProposalStudio({
                   rel="noreferrer"
                   className="block w-full rounded-lg bg-primary px-4 py-3 text-center text-sm font-bold text-primary-foreground"
                 >
-                  Open Official Grant / Application Portal
+                  Submit Application on Official Portal
                 </a>
               ) : (
                 <p className="text-xs text-amber-700">No official application URL was supplied for this draft. Confirm the source on the grant listing before proceeding.</p>
@@ -509,6 +526,9 @@ export function ProposalStudio({
                       <span>{i + 1}. {s.title}</span>
                       <span className={`text-xs ${max && wc > max ? "text-destructive" : "text-muted-foreground"}`}>{wc}{max ? ` / ${max}` : ""} words · {s.body.length} chars</span>
                     </summary>
+                    <div className="flex justify-end border-t border-border px-4 pt-2">
+                      <button type="button" onClick={() => void copySection(s)} className="text-xs text-primary underline">Copy section</button>
+                    </div>
                     <textarea value={s.body} onChange={(e) => updateBody(i, e.target.value)} className="w-full min-h-40 bg-transparent border-t border-border p-4 text-sm leading-relaxed focus:outline-none" />
                   </details>
                 );

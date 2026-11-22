@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '../integrations/supabase/client';
 import { VaultDocument, ProposalDraft, EntityType } from '../lib/types';
 import { ProposalStudio } from '@/components/autogrant/ProposalStudio';
+import { BudgetBuilder } from '@/components/autogrant/BudgetBuilder';
 import type { LiveGrant } from '@/lib/grants-gov/rules';
 import { getIndustryDocumentRequirements } from '@/lib/compliance/industry-documents';
 import { evaluateAutopilotGate } from '@/lib/grants-gov/scoring';
@@ -74,7 +75,7 @@ function IndexComponent() {
   const [vaultDocs, setVaultDocs] = useState<VaultDocument[]>([]);
   const [proposals, setProposals] = useState<ProposalDraft[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>('');
-  const [cockpitView, setCockpitView] = useState<'Dashboard' | 'Profile' | 'Grants' | 'Vault' | 'Tracker' | 'Studio' | 'Settings'>('Dashboard');
+  const [cockpitView, setCockpitView] = useState<'Dashboard' | 'Profile' | 'Grants' | 'Budget' | 'Vault' | 'Tracker' | 'Studio' | 'Settings'>('Dashboard');
   const [showQuestionnaire, setShowQuestionnaire] = useState(false);
   const [settingsName, setSettingsName] = useState("");
   const [settingsEmail, setSettingsEmail] = useState("");
@@ -544,9 +545,10 @@ function IndexComponent() {
             ["Dashboard", "Overview & Grants"],
             ["Profile", "Intake"],
             ["Grants", "Grants"],
+            ["Budget", "Budget Builder"],
             ["Vault", "Smart Vault"],
-            ["Studio", "Tippie Studio"],
             ["Tracker", "Proposals"],
+            ["Studio", "Tippie Studio"],
             ["Settings", "Settings"],
           ] as const).map(([view, label]) => (
             <button
@@ -666,6 +668,8 @@ function IndexComponent() {
                 fundingPurpose: intake.funding_purpose,
                 fundingGoal: intake.funding_goal,
                 demographics: intake.demographics,
+                problemStatement: summary,
+                solutionArchitecture: summary,
               } : undefined}
               evidence={vaultDocs.map((doc) => ({
                 slotKey: doc.slotKey ?? "",
@@ -691,12 +695,22 @@ function IndexComponent() {
                     categoryCode: selectedSector,
                     eligibilityReason: `${pool.summaryText} Confirm current eligibility and open funding cycle on the official funder site.`,
                     deadline: pool.directoryOnly ? "Check current cycle" : pool.isRolling ? "Rolling" : pool.deadline,
-                    officialUrl: pool.directApplyUrl,
+                    officialUrl: pool.officialApplicationUrl || pool.directApplyUrl,
                     ...(pool.publicWinnerHistoryUrl ? { publicWinnerHistoryUrl: pool.publicWinnerHistoryUrl } : {}),
                   });
                 }
               }}
             />
+          </section>
+
+          <section className={cockpitView === "Budget" ? "space-y-4" : "hidden"}>
+            <div>
+              <h2 className="text-lg font-bold">Budget Builder</h2>
+              <p className="text-xs text-slate-400">Build and review an equipment or operational budget before attaching it to a proposal.</p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+              <BudgetBuilder />
+            </div>
           </section>
 
           <section className={cockpitView === "Vault" ? "space-y-4" : "hidden"}>

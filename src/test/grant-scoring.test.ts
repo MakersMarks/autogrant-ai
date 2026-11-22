@@ -47,6 +47,35 @@ describe("grant eligibility and competition scoring", () => {
     expect(result.eligibilityBreakdown.vaultReadiness).toBe(100);
   });
 
+  it("keeps a strong profile discoverable with an empty Vault and reports missing documents as readiness tasks", () => {
+    const result = scoreGrantOpportunity({ opportunity, profile, evidence: [] });
+
+    expect(result.eligible).toBe(true);
+    expect(result.eligibilityScore).toBeGreaterThanOrEqual(70);
+    expect(result.hardDisqualifiers.join(" ")).not.toMatch(/Vault evidence is missing/i);
+    expect(result.vaultReadiness.score).toBe(0);
+    expect(result.vaultReadiness.readyDocuments).toBe(0);
+    expect(result.vaultReadiness.totalDocuments).toBeGreaterThan(0);
+    expect(result.vaultReadiness.missing.length).toBe(result.vaultReadiness.totalDocuments);
+  });
+
+  it("does not hide a national opportunity because its title mentions another state", () => {
+    const result = scoreGrantOpportunity({
+      opportunity: {
+        ...opportunity,
+        title: "California National Small Business Equipment Program",
+        geographicScope: { level: "national" },
+      },
+      profile,
+      evidence,
+    });
+
+    expect(result.eligible).toBe(true);
+    expect(result.hardDisqualifiers).not.toContain(
+      "The opportunity title restricts eligibility to a different state.",
+    );
+  });
+
   it("excludes a grant when its eligibility score is below 70 even if no hard rule fails", () => {
     const result = scoreGrantOpportunity({
       opportunity,
@@ -67,7 +96,7 @@ describe("grant eligibility and competition scoring", () => {
     );
   });
 
-  it("hard-fails mismatched entity, geography, set-aside, and mandatory evidence", () => {
+  it("hard-fails mismatched entity, geography, and set-aside while keeping mandatory evidence as readiness", () => {
     const result = scoreGrantOpportunity({
       opportunity: {
         ...opportunity,
@@ -89,8 +118,9 @@ describe("grant eligibility and competition scoring", () => {
 
     expect(result.eligible).toBe(false);
     expect(result.hardDisqualifiers.join(" ")).toMatch(
-      /entity types|demographic|geographic|Vault evidence/,
+      /entity types|demographic|geographic/,
     );
+    expect(result.vaultReadiness.missing).toContain("health_permit");
   });
 
   it("weights each available competition metric equally and estimates win rate only from reported history", () => {

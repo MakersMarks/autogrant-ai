@@ -66,6 +66,18 @@ export interface UnifiedGrant {
   publicWinnerHistoryUrl?: string;
 }
 
+export function isUnifiedGrantOpen(
+  grant: Pick<UnifiedGrant, "isRolling" | "closeDate">,
+  now = new Date(),
+): boolean {
+  if (grant.isRolling) return true;
+  if (!grant.closeDate) return false;
+
+  const closeDate = new Date(grant.closeDate);
+  if (Number.isNaN(closeDate.getTime())) return false;
+  return closeDate.toISOString().slice(0, 10) >= now.toISOString().slice(0, 10);
+}
+
 export const grantPoolBadge: Record<GrantPoolTier, string> = {
   federal: "Federal",
   state_territory: "State",

@@ -62,6 +62,7 @@ export type ScoringOpportunity = {
   eligibleEntityTypes?: readonly UnifiedGrant["eligibleEntityTypes"][number][];
   demographicSetAsides?: readonly UnifiedGrant["demographicSetAsides"][number][];
   geographicScope?: UnifiedGrant["geographicScope"];
+  geographicRestriction?: LiveGrant["geographicRestriction"];
   summaryText?: string;
   requiredEvidence?: Requirement[];
   competitionMetrics?: CompetitionMetrics;
@@ -79,6 +80,12 @@ export type CompetitionComponent = {
 export type GrantScore = {
   eligible: boolean;
   eligibilityScore: number;
+  vaultReadiness: {
+    score: number;
+    readyDocuments: number;
+    totalDocuments: number;
+    missing: string[];
+  };
   personalLowCompetitionScore: number | null;
   lowCompetitionScore: number | null;
   lowCompetitionTier: "Low" | "Moderate" | "High" | "Insufficient data";
@@ -168,7 +175,7 @@ function computeVaultReadiness(
   opportunity: ScoringOpportunity,
   profile: GrantScoringProfile,
   evidence: readonly GrantScoringEvidence[],
-): { score: number; missing: string[]; reasons: string[] } {
+): { score: number; readyDocuments: number; totalDocuments: number; missing: string[]; reasons: string[] } {
   const mandatory = opportunity.requiredEvidence?.filter((item) => item.isMandatory) ?? [];
   const matchingEvidence = (tag: string) =>
     evidence.some(
@@ -183,6 +190,8 @@ function computeVaultReadiness(
     );
     return {
       score: Math.round(((mandatory.length - missing.length) / mandatory.length) * 100),
+      readyDocuments: mandatory.length - missing.length,
+      totalDocuments: mandatory.length,
       missing: missing.map((item) => item.evidenceId),
       reasons: missing.map((item) => `Required Vault evidence is missing: ${item.evidenceId}.`),
     };
@@ -193,6 +202,8 @@ function computeVaultReadiness(
   const missing = baseline.filter((slot) => !matchingEvidence(slot.key));
   return {
     score: baseline.length ? Math.round((available.length / baseline.length) * 100) : 0,
+    readyDocuments: available.length,
+    totalDocuments: baseline.length,
     missing: missing.map((slot) => slot.key),
     reasons: [
       `${available.length} of ${baseline.length} baseline Vault documents are available; grant-specific requirements have not been parsed.`,
@@ -414,7 +425,11 @@ export function scoreGrantOpportunity(input: {
         `Official applicant types include: ${opportunity.eligibility.join(", ")}.`,
       );
     }
-    if (isOtherStateOnly(opportunity.title, stateFromLocation(profile.location))) {
+    if (
+      opportunity.geographicScope?.level !== "national" &&
+      opportunity.geographicRestriction !== "national" &&
+      isOtherStateOnly(opportunity.title, stateFromLocation(profile.location))
+    ) {
       hardDisqualifiers.push("The opportunity title restricts eligibility to a different state.");
     }
   }
@@ -444,7 +459,10 @@ export function scoreGrantOpportunity(input: {
   }
 
   const scope = opportunity.geographicScope;
-  if (scope?.level === "state_specific" || scope?.level === "local_county") {
+  if (
+    (scope?.level === "state_specific" || scope?.level === "local_county") &&
+    (scope.allowedStates?.length ?? 0) > 0
+  ) {
     const stateCode = stateCodeFromLocation(profile.location);
     if (!stateCode || !scope.allowedStates?.includes(stateCode)) {
       hardDisqualifiers.push(
@@ -458,9 +476,6 @@ export function scoreGrantOpportunity(input: {
   }
 
   const vault = computeVaultReadiness(opportunity, profile, evidence);
-  hardDisqualifiers.push(
-    ...vault.reasons.filter((reason) => reason.startsWith("Required Vault evidence is missing")),
-  );
   const sectorText = opportunity.categories?.join(" ") ?? "";
   const sectorFit = opportunity.categories?.some(
     (category) =>
@@ -478,9 +493,7 @@ export function scoreGrantOpportunity(input: {
     [profile.lifecycleStage, profile.fundingPurpose],
     `${opportunity.title} ${opportunity.summaryText ?? ""} ${sectorText}`,
   );
-  const eligibilityScore = Math.round(
-    (sectorFit + demographicAlignment + stageAndPurposeFit + vault.score) / 4,
-  );
+  const eligibilityScore = Math.round((sectorFit + demographicAlignment + stageAndPurposeFit) / 3);
   eligibilityReasons.push(
     sectorFit > 0
       ? `Sector fit: ${sectorFit}/100 based on published categories or opportunity text.`
@@ -568,6 +581,12 @@ export function scoreGrantOpportunity(input: {
   return {
     eligible,
     eligibilityScore,
+    vaultReadiness: {
+      score: vault.score,
+      readyDocuments: vault.readyDocuments,
+      totalDocuments: vault.totalDocuments,
+      missing: vault.missing,
+    },
     personalLowCompetitionScore,
     lowCompetitionScore,
     lowCompetitionTier,
@@ -608,6 +627,7 @@ export function scoringInputFromLiveGrant(grant: LiveGrant): ScoringOpportunity 
     grantTier: grant.grantTier ?? "Federal",
     eligibility: grant.eligibility,
     categories: grant.categories,
+    geographicRestriction: grant.geographicRestriction,
     numberOfAwards: grant.numberOfAwards,
     ...(grant.naicsCodes ? { naicsCodes: grant.naicsCodes } : {}),
     openDate: grant.openDate,

@@ -4,9 +4,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { daysUntil, grantUrl, isEntityEligible, isInstitutionOnlyTitle, entityMode, type LiveGrant } from "./rules";
 import { corporateRegistry } from "@/lib/grants/sources/corporate-registry";
 import { stateRegistry } from "@/lib/grants/sources/state-registry";
-import { stateFundingPortals } from "@/lib/grants/sources/state-portals";
 import { localRegistry } from "@/lib/grants/sources/local-registry";
-import type { UnifiedGrant } from "@/lib/grants";
+import { isUnifiedGrantOpen, type UnifiedGrant } from "@/lib/grants";
 import { parseSbirSolicitations } from "./sbir";
 
 const API = "https://api.grants.gov/v1/api";
@@ -176,7 +175,8 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({
     state: z.string().max(2).default(""),
   }).parse(i))
-  .handler(async ({ data }): Promise<{ pools: Record<string, UnifiedGrant[]>; statePortal: typeof stateFundingPortals[number] | null }> => {
+  .handler(async ({ data }): Promise<{ pools: Record<string, UnifiedGrant[]> }> => {
+    const isCurrent = (grant: UnifiedGrant) => isUnifiedGrantOpen(grant);
     const stateMatches = stateRegistry.filter((grant) =>
       !data.state || !grant.geographicScope.allowedStates?.length
       || grant.geographicScope.allowedStates.includes(data.state.toUpperCase()),
@@ -188,12 +188,11 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
     return {
       pools: {
         Federal: [],
-        State: stateMatches,
-        Local: localMatches,
-        Corporate: corporateRegistry.filter((grant) => grant.poolTier === "corporate_diversity"),
-        Foundation: corporateRegistry.filter((grant) => grant.poolTier === "foundation"),
+        State: stateMatches.filter((grant) => !grant.directoryOnly && isCurrent(grant)),
+        Local: localMatches.filter((grant) => !grant.directoryOnly && isCurrent(grant)),
+        Corporate: corporateRegistry.filter((grant) => grant.poolTier === "corporate_diversity" && isCurrent(grant)),
+        Foundation: corporateRegistry.filter((grant) => grant.poolTier === "foundation" && isCurrent(grant)),
       },
-      statePortal: stateFundingPortals.find((portal) => portal.stateCode === data.state.toUpperCase()) ?? null,
     };
   });
 

@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { searchLiveGrants, getGrantDetail, summarizeGrant, auditGrantFit, getMultiPoolRegistry } from "@/lib/grants-gov/grants.functions";
+import {
+  searchLiveGrants,
+  searchSbirSolicitations,
+  getGrantDetail,
+  summarizeGrant,
+  auditGrantFit,
+  getMultiPoolRegistry,
+} from "@/lib/grants-gov/grants.functions";
 import { ELIGIBILITY_OPTIONS, entityMode, eligibilityCodesFor, scoutKeywords, scoutCategories, formatMoney, isOtherStateOnly, stateFromLocation, stateCodeFromLocation, isLastChance, grantAwardScaleSignals, matchesAmount, type LiveGrant } from "@/lib/grants-gov/rules";
 import { OFFICIAL_SECTORS, type UnifiedGrant } from "@/lib/grants";
-import type { StateFundingPortal } from "@/lib/grants/sources/state-portals";
+import { sbirToUnifiedGrant, shouldSearchSbirSolicitations } from "@/lib/grants-gov/sbir";
 import {
   scoreGrantOpportunity,
   scoringInputFromLiveGrant,
@@ -36,12 +43,17 @@ export function LiveGrantsFeed({
   drafting: boolean;
   enabled?: boolean;
   onDraft: (g: LiveGrant | UnifiedGrant) => void;
-  profile?: Omit<GrantScoringProfile, "sectorCode"> & { sector: string } | undefined;
+  profile?: Omit<GrantScoringProfile, "sectorCode"> & {
+    sector: string;
+    problemStatement?: string;
+    solutionArchitecture?: string;
+  } | undefined;
   evidence?: readonly GrantScoringEvidence[];
 }) {
   const userState = stateFromLocation(profile?.location ?? "");
   const registryStateCode = stateCodeFromLocation(profile?.location ?? "");
   const search = useServerFn(searchLiveGrants);
+  const searchSbir = useServerFn(searchSbirSolicitations);
   const fetchDetail = useServerFn(getGrantDetail);
   const summarize = useServerFn(summarizeGrant);
   const [keyword, setKeyword] = useState("");
@@ -52,11 +64,20 @@ export function LiveGrantsFeed({
   const profileIndustry = profile?.industry ?? "";
   const profilePurpose = profile?.fundingPurpose ?? "";
   const profileEntityType = profile?.entityType ?? "";
+  const profileProblem = profile?.problemStatement ?? "";
+  const profileSolution = profile?.solutionArchitecture ?? "";
   const scout = useMemo(
     () => hasProfile
-      ? scoutKeywords({ industry: profileIndustry, fundingPurpose: profilePurpose, entityType: profileEntityType })
+      ? scoutKeywords({
+        industry: profileIndustry,
+        fundingPurpose: profilePurpose,
+        entityType: profileEntityType,
+        problemStatement: profileProblem,
+        solutionArchitecture: profileSolution,
+        fundingGoal: profile?.fundingGoal,
+      })
       : [],
-    [hasProfile, profileIndustry, profilePurpose, profileEntityType],
+    [hasProfile, profileIndustry, profilePurpose, profileEntityType, profileProblem, profileSolution, profile?.fundingGoal],
   );
   const [category, setCategory] = useState(profile ? scoutCategories(profile.sector, profile.industry) : "BC");
   const [eligibility, setEligibility] = useState(eligibilityCodesFor(mode));
@@ -75,7 +96,7 @@ export function LiveGrantsFeed({
   const [minAmt, setMinAmt] = useState("");
   const [maxAmt, setMaxAmt] = useState("");
   const [awardScaleOnly, setAwardScaleOnly] = useState(false);
-  const [tierFilter, setTierFilter] = useState<"All" | "Federal" | "State" | "Local" | "Foundation">("All");
+  const [tierFilter, setTierFilter] = useState<"All" | "Federal" | "State" | "Local" | "Corporate" | "Foundation">("All");
   const [lowCompOnly, setLowCompOnly] = useState(false);
   const [grants, setGrants] = useState<LiveGrant[]>([]);
   const [total, setTotal] = useState(0);
@@ -88,8 +109,10 @@ export function LiveGrantsFeed({
   const [summarizing, setSummarizing] = useState(false);
   const pool = useServerFn(getMultiPoolRegistry);
   const [poolGrants, setPoolGrants] = useState<UnifiedGrant[]>([]);
-  const [statePortal, setStatePortal] = useState<StateFundingPortal | null>(null);
+  const [sbirGrants, setSbirGrants] = useState<UnifiedGrant[]>([]);
+  const [sbirError, setSbirError] = useState("");
   const [poolError, setPoolError] = useState("");
+  const matchingPoolGrants = useMemo(() => [...poolGrants, ...sbirGrants], [poolGrants, sbirGrants]);
   useEffect(() => {
     if (!signedIn) return;
     void pool({ data: { state: registryStateCode } })
@@ -100,12 +123,10 @@ export function LiveGrantsFeed({
           ...(result.pools["Corporate"] ?? []),
           ...(result.pools["Foundation"] ?? []),
         ]);
-        setStatePortal(result.statePortal);
         setPoolError("");
       })
       .catch((e) => {
         setPoolGrants([]);
-        setStatePortal(null);
         setPoolError(e instanceof Error ? e.message : "Could not load the program directory.");
       });
   }, [signedIn, registryStateCode, pool]);
@@ -113,25 +134,46 @@ export function LiveGrantsFeed({
   const run = useCallback(async (keywords?: string[]) => {
     if (!signedIn) return;
     setLoading(true); setError("");
+    setSbirGrants([]);
+    setSbirError("");
     try {
       const searchKeywords = keywords ?? (keywordRef.current.trim() ? [keywordRef.current.trim()] : scout);
-      const r = await search({ data: { keywords: searchKeywords, category, eligibility, entityType: profileEntityType } });
-      setGrants(r.grants); setTotal(r.total);
+      const shouldSearchSbir = shouldSearchSbirSolicitations(profile?.sector ?? "", profileIndustry, searchKeywords);
+      const [r, sbirResult] = await Promise.all([
+        search({ data: { keywords: searchKeywords, category, eligibility, entityType: profileEntityType } }),
+        shouldSearchSbir
+          ? searchSbir({ data: { keyword: searchKeywords[0] ?? "", openOnly: true } })
+            .then(({ solicitations }) => ({
+              grants: solicitations
+                .map((solicitation) => sbirToUnifiedGrant(solicitation))
+                .filter((grant): grant is UnifiedGrant => grant !== null),
+              error: "",
+            }))
+            .catch((cause) => ({
+              grants: [],
+              error: cause instanceof Error ? cause.message : "SBIR.gov search failed.",
+            }))
+          : Promise.resolve({ grants: [], error: "" }),
+      ]);
+      setGrants(r.grants);
+      setTotal(r.total);
+      setSbirGrants(sbirResult.grants);
+      setSbirError(sbirResult.error);
     } catch (e) { setError(e instanceof Error ? e.message : "Search failed."); }
     finally { setLoading(false); }
-  }, [signedIn, search, scout, category, eligibility, profileEntityType]);
+  }, [signedIn, search, searchSbir, scout, category, eligibility, profileEntityType, profile?.sector, profileIndustry]);
   useEffect(() => { void run(); }, [run]);
 
   const scoreById = useMemo(() => {
     if (!profile) return new Map<string, GrantScore>();
     const scoringProfile = { ...profile, sectorCode: profile.sector };
-    return new Map([...grants, ...poolGrants].map((grant) => {
+    return new Map([...grants, ...matchingPoolGrants].map((grant) => {
       const opportunity = "agency" in grant
         ? scoringInputFromLiveGrant(grant)
         : scoringInputFromUnifiedGrant(grant);
       return [grant.id, scoreGrantOpportunity({ opportunity, profile: scoringProfile, evidence })] as const;
     }));
-  }, [grants, poolGrants, profile, evidence]);
+  }, [grants, matchingPoolGrants, profile, evidence]);
   const shown = useMemo(() => grants.filter((g) => {
     if (!scoreById.get(g.id)?.eligible) return false;
     if (tierFilter !== "All" && tierFilter !== "Federal") return false;
@@ -139,19 +181,29 @@ export function LiveGrantsFeed({
     if (deadline === "last" && !isLastChance(g.daysLeft)) return false;
     if ((deadline === "30" || deadline === "90") && (g.daysLeft === null || g.daysLeft > Number(deadline))) return false;
     if (awardScaleOnly && grantAwardScaleSignals(g).length === 0) return false;
-    if (localOnly && isOtherStateOnly(g.title, userState)) return false;
+    if (localOnly && g.geographicRestriction !== "national" && isOtherStateOnly(g.title, userState)) return false;
     return matchesAmount(g, Number(minAmt) || 0, Number(maxAmt) || 0);
   }).sort((a, b) => (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999)), [grants, deadline, awardScaleOnly, minAmt, maxAmt, localOnly, userState, scoreById, tierFilter, lowCompOnly]);
-  const eligiblePoolGrants = poolGrants.filter((grant) => {
+  const eligiblePoolGrants = matchingPoolGrants.filter((grant) => {
     const score = scoreById.get(grant.id);
     if (!score?.eligible) return false;
     if (lowCompOnly && (score.lowCompetitionScore ?? 0) < 70) return false;
     if (tierFilter === "All") return true;
     const tier = grant.grantTier ??
-      (grant.poolTier === "state_territory" ? "State" : grant.poolTier === "foundation" ? "Foundation" : "Federal");
+      (grant.poolTier === "state_territory" ? "State" : grant.poolTier === "corporate_diversity" ? "Corporate" : "Foundation");
     return tier === tierFilter;
   });
-  const closestMatches = [...grants, ...poolGrants]
+  const allEligibleGrants = [...shown, ...eligiblePoolGrants].sort(
+    (a, b) => {
+      const scoreA = scoreById.get(a.id);
+      const scoreB = scoreById.get(b.id);
+      return (
+        (scoreB?.eligibilityScore ?? 0) + (scoreB?.personalLowCompetitionScore ?? 0) -
+        (scoreA?.eligibilityScore ?? 0) - (scoreA?.personalLowCompetitionScore ?? 0)
+      );
+    },
+  );
+  const closestMatches = [...grants, ...matchingPoolGrants]
     .filter((grant) => !scoreById.get(grant.id)?.eligible)
     .sort((a, b) => (scoreById.get(b.id)?.eligibilityScore ?? 0) - (scoreById.get(a.id)?.eligibilityScore ?? 0))
     .slice(0, 8);
@@ -191,7 +243,7 @@ export function LiveGrantsFeed({
       </form>
 
       <div className="flex flex-wrap items-center gap-2">
-        {(["All", "Federal", "State", "Local", "Foundation"] as const).map((tier) => (
+        {(["All", "Federal", "State", "Local", "Corporate", "Foundation"] as const).map((tier) => (
           <button
             key={tier}
             type="button"
@@ -229,51 +281,11 @@ export function LiveGrantsFeed({
       </details>
 
       {!keyword.trim() && scout.length > 0 && <p className="text-[11px] text-slate-400">Scouting from your intake for: {scout.map((k) => <span key={k} className="inline-block mr-1 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-slate-200">{k}</span>)} · only grants open to {mode === "nonprofit" ? "nonprofits" : "for-profit / small businesses"}</p>}
-      {eligiblePoolGrants.length > 0 && (
-        <section className="space-y-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Corporate, State & Foundation Opportunities</h3>
-          <p className="text-[11px] text-slate-400">Program directory only. Funding cycles, amounts, eligibility, and open status vary; confirm all details on the official funder site.</p>
-          <div className="grid gap-2 md:grid-cols-2">
-            {eligiblePoolGrants.map((grant) => (
-              <div key={grant.id} className="p-3 bg-slate-950 border border-slate-800 rounded-lg space-y-2">
-                <div className="flex justify-between gap-2">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-950 text-violet-300 border border-violet-800">
-                    [{grant.grantTier ??
-                      (grant.poolTier === "state_territory" ? "State" : grant.poolTier === "corporate_diversity" ? "Corporate" : "Foundation")}]
-                  </span>
-                  <span className="text-[10px] text-slate-300 font-mono">{grant.directoryOnly ? "Check current award" : `$${grant.awardCeiling.toLocaleString("en-US")}`}</span>
-                </div>
-                <p className="text-sm font-bold text-blue-400">{grant.title}</p>
-                <p className="text-xs text-slate-400">{grant.funderName} · {grant.directoryOnly ? "Check current cycle" : grant.isRolling ? "Rolling" : grant.deadline}</p>
-                <p className="rounded-md border border-emerald-900 bg-emerald-950/30 p-2 text-[11px] text-emerald-200">
-                  <strong>Why You Qualify:</strong>{" "}
-                  {scoreById.get(grant.id)?.whyLowCompetition.join(" ") ?? "Eligibility and readiness advantages are being evaluated."}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(scoreById.get(grant.id)?.lowCompetitionScore ?? 0) >= 70 && <span className="rounded border border-emerald-800 px-1.5 py-0.5 text-[10px] text-emerald-300">Low Competition</span>}
-                  <span className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300">{grant.directoryOnly ? "Check current award" : `Award ${formatMoney(grant.awardCeiling)}`}</span>
-                  <span className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300">{grant.isRolling ? "Rolling deadline" : `Deadline ${grant.deadline}`}</span>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" asChild className="text-xs h-8"><a href={grant.directApplyUrl} target="_blank" rel="noreferrer">Read Grant</a></Button>
-                  {grant.publicWinnerHistoryUrl && <Button variant="outline" asChild className="text-xs h-8"><a href={grant.publicWinnerHistoryUrl} target="_blank" rel="noreferrer">Past winners</a></Button>}
-                  <Button disabled={drafting || !enabled} onClick={() => onDraft(grant)} className="text-xs h-8">{drafting ? "Drafting…" : "Run Autopilot"}</Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-      {statePortal && (
-        <section className="p-3 bg-slate-950 border border-slate-800 rounded-lg space-y-2">
-          <div>
-            <h3 className="text-xs font-bold">{statePortal.stateName} funding source</h3>
-            <p className="text-[11px] text-slate-400">{statePortal.agency}</p>
-          </div>
-          <Button variant="outline" asChild className="text-xs h-8"><a href={statePortal.url} target="_blank" rel="noreferrer">Explore {statePortal.stateName} programs</a></Button>
-        </section>
-      )}
       {poolError && <p role="alert" className="text-xs text-red-400">Program directory: {poolError}</p>}
+      {sbirError && <p role="alert" className="text-xs text-red-400">SBIR.gov: {sbirError}</p>}
+      {userState && !poolGrants.some((grant) => grant.grantTier === "State" || grant.grantTier === "Local" || grant.poolTier === "state_territory") && (
+        <p className="text-[11px] text-slate-400">No verified current state or local grant opportunities are listed for {userState}. Generic agency directories are omitted.</p>
+      )}
       {error && <p className="text-xs text-red-400">{error}</p>}
       {loading ? <p className="text-xs text-slate-400">Loading live grants from Grants.gov…</p> : (
         <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
@@ -308,44 +320,77 @@ export function LiveGrantsFeed({
               })}
             </section>
           )}
-          {shown.map((g) => (
-            <div key={g.id} className="p-4 bg-slate-950 border border-slate-800 rounded-lg space-y-2 hover:border-slate-600 transition">
-              <button type="button" onClick={() => openReader(g)} className="text-left w-full">
-                <div className="flex justify-between gap-3">
+          {allEligibleGrants.map((grant) => {
+            const isLiveGrant = "agency" in grant;
+            const score = scoreById.get(grant.id);
+            const tier = isLiveGrant
+              ? "Federal"
+              : grant.grantTier ??
+                (grant.poolTier === "state_territory"
+                  ? "State"
+                  : grant.poolTier === "corporate_diversity"
+                    ? "Corporate"
+                    : grant.poolTier === "foundation" ? "Foundation" : "Local");
+            const source = isLiveGrant
+              ? /sbir|sttr/i.test(`${grant.title} ${grant.agency}`)
+                ? "Federal — SBIR/STTR"
+                : "Federal — Grants.gov"
+              : `${tier} — ${grant.funderName}`;
+            const award = isLiveGrant
+              ? formatMoney(grant.awardCeiling)
+              : formatMoney(grant.awardCeiling || null);
+            const awardLabel = award === "Not listed" ? "Award not listed" : `Up to ${award}`;
+            const closing = isLiveGrant
+              ? grant.closeDate || "Not listed"
+              : grant.directoryOnly ? "Check current cycle" : grant.isRolling ? "Rolling" : grant.deadline;
+            const eligibilityText = isLiveGrant
+              ? grant.eligibility.join("; ") || "See official listing"
+              : grant.eligibleEntityTypes.map((entity) => entity.replaceAll("_", " ")).join(", ");
+            const officialUrl = isLiveGrant ? grant.url : grant.officialApplicationUrl || grant.directApplyUrl;
+
+            return (
+              <article key={grant.id} className="p-4 bg-slate-950 border border-slate-800 rounded-lg space-y-2 hover:border-slate-600 transition">
+                <div className="flex flex-wrap justify-between items-start gap-2">
                   <div>
-                    <h3 className="font-bold text-sm text-blue-400 hover:underline">{g.title}</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">{g.agency} · {g.number}</p>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">{source}</span>
+                    <h3 className="mt-1 font-bold text-sm text-blue-300">{grant.title}</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">{isLiveGrant ? `${grant.agency} · ${grant.number}` : grant.summaryText}</p>
                   </div>
-                  <span className="text-xs font-mono text-emerald-400 font-bold whitespace-nowrap">Up to {formatMoney(g.awardCeiling)}</span>
+                  <span className="text-xs font-mono text-emerald-400 font-bold whitespace-nowrap">{awardLabel}</span>
                 </div>
-              </button>
-              <div className="flex flex-wrap gap-1.5">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">Federal</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">Award {formatMoney(g.awardCeiling)}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">Deadline {g.closeDate || "Not listed"}</span>
-                {(scoreById.get(g.id)?.lowCompetitionScore ?? 0) >= 70 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">Low Competition</span>}
-                {g.matchedKeyword && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">Matches "{g.matchedKeyword}"</span>}
-                {isLastChance(g.daysLeft) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800">Last Chance</span>}
-                {grantAwardScaleSignals(g).map((signal) => (
-                  <span key={signal} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
-                    {signal === "award_ceiling_at_most_100k" ? "Award ceiling ≤ $100k" : "10+ awards listed"}
-                  </span>
-                ))}
-                {g.eligibility.slice(0, 2).map((e) => <span key={e} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">{e}</span>)}
-              </div>
-              <p className="rounded-md border border-emerald-900 bg-emerald-950/30 p-2 text-[11px] text-emerald-200">
-                <strong>Why You Qualify:</strong>{" "}
-                {scoreById.get(g.id)?.whyLowCompetition.join(" ") ?? "Eligibility and readiness advantages are being evaluated."}
-              </p>
-              <div className="flex flex-wrap justify-between items-center gap-2 pt-1">
-                <span className="text-[11px] text-slate-400 font-mono">Closes {g.closeDate || "—"}{g.daysLeft !== null ? ` · ${g.daysLeft} days left` : ""}</span>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => openReader(g)} className="text-xs h-8">Read Grant</Button>
-                  <Button disabled={drafting || !enabled} onClick={() => onDraft(g)} className="text-xs h-8">{drafting ? "Drafting…" : "Run Autopilot"}</Button>
+                <div className="flex flex-wrap gap-1.5 text-[10px]">
+                  <span className="px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">Deadline {closing}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">Eligible: {eligibilityText}</span>
+                  {score && <span className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">Match {score.eligibilityScore}/100</span>}
+                  {score && <span className="px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
+                    {score.vaultReadiness.missing.length
+                      ? `Requires ${score.vaultReadiness.missing.length} Vault ${score.vaultReadiness.missing.length === 1 ? "document" : "documents"}`
+                      : "Ready to Draft"}
+                  </span>}
+                  {isLiveGrant && grant.matchedKeyword && <span className="px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">Matches "{grant.matchedKeyword}"</span>}
+                  {isLiveGrant && isLastChance(grant.daysLeft) && <span className="px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800">Last Chance</span>}
                 </div>
-              </div>
-            </div>
-          ))}
+                {score && <p className="rounded-md border border-emerald-900 bg-emerald-950/30 p-2 text-[11px] text-emerald-200">
+                  <strong>Why You Qualify:</strong> {score.whyLowCompetition.join(" ")}
+                </p>}
+                {score?.vaultReadiness.missing.length ? (
+                  <p className="text-[11px] text-amber-200">
+                    Vault readiness {score.vaultReadiness.readyDocuments}/{score.vaultReadiness.totalDocuments}: add {score.vaultReadiness.missing.join(", ")}.
+                  </p>
+                ) : null}
+                {score && <ScoreBreakdown score={score} />}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {isLiveGrant ? (
+                    <Button variant="outline" onClick={() => openReader(grant)} className="text-xs h-8">View Grants.gov Details</Button>
+                  ) : grant.publicWinnerHistoryUrl ? (
+                    <Button variant="outline" asChild className="text-xs h-8"><a href={grant.publicWinnerHistoryUrl} target="_blank" rel="noreferrer">Past winners</a></Button>
+                  ) : null}
+                  <Button variant="outline" asChild className="text-xs h-8"><a href={officialUrl} target="_blank" rel="noreferrer">Funder RFP / Guidelines</a></Button>
+                  <Button disabled={drafting || !enabled} onClick={() => onDraft(grant)} className="text-xs h-8">{drafting ? "Drafting…" : "Draft Proposal"}</Button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 

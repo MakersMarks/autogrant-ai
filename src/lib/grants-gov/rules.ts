@@ -193,13 +193,24 @@ export function isEntityEligible(applicantTypes: string[], mode: EntityMode): bo
 
 const TECH =
   /\b(ai|a\.i\.|artificial intelligence|machine learning|software|saas|tech|data|automation|platform|app)\b/i;
-/** Derive targeted Grants.gov keywords from the intake profile (max 4). */
+const KEYWORD_STOP_WORDS = new Set([
+  "about", "after", "also", "and", "are", "because", "been", "being", "build",
+  "business", "can", "could", "create", "currently", "for", "from", "have",
+  "help", "into", "its", "make", "more", "need", "our", "project", "provide",
+  "should", "solution", "support", "that", "their", "there", "these", "this",
+  "through", "those", "will", "with", "would",
+]);
+
+/** Derive targeted Grants.gov keywords from profile and project intent (max 4). */
 export function scoutKeywords(p: {
   industry: string;
   fundingPurpose?: string;
   entityType: string;
+  problemStatement?: string;
+  solutionArchitecture?: string;
+  fundingGoal?: string;
 }): string[] {
-  const text = `${p.industry} ${p.fundingPurpose ?? ""}`;
+  const text = `${p.industry} ${p.fundingPurpose ?? ""} ${p.problemStatement ?? ""} ${p.solutionArchitecture ?? ""}`;
   const out: string[] = [];
   const ind = p.industry
     .trim()
@@ -207,14 +218,50 @@ export function scoutKeywords(p: {
     .replace(/\s+/g, " ")
     .slice(0, 60);
   if (ind) out.push(ind);
-  if (TECH.test(text))
+  const purpose = p.fundingPurpose?.trim().replace(/[^\w\s&-]/g, " ").replace(/\s+/g, " ").slice(0, 60);
+  if (purpose) out.push(purpose);
+
+  const intent = `${p.problemStatement ?? ""} ${p.solutionArchitecture ?? ""}`.toLowerCase();
+  const intentPhrases = [
+    "commercial kitchen",
+    "kitchen equipment",
+    "oral history",
+    "performing arts",
+    "mineral exploration",
+    "industrial machinery",
+    "clean extraction",
+    "youth mentorship",
+    "veteran recognition",
+    "supply chain",
+  ];
+  out.push(...intentPhrases.filter((phrase) => intent.includes(phrase)));
+
+  if (/\b(food|hospitality|restaurant|cater|kitchen|agriculture)\b/i.test(text)) {
+    out.push("food service", "kitchen equipment", "agriculture", "supply chain");
+  } else if (/\b(mining|mineral|industrial|extraction)\b/i.test(text)) {
+    out.push("mineral exploration", "industrial machinery", "clean extraction", "export");
+  } else if (/\b(arts?|humanities|cultural|oral history|performing)\b/i.test(text)) {
+    out.push("cultural preservation", "veteran recognition", "performing arts", "youth mentorship");
+  }
+
+  const anchors = `${p.problemStatement ?? ""} ${p.solutionArchitecture ?? ""}`
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .split(/\s+/u)
+    .filter((word) => word.length >= 4 && !KEYWORD_STOP_WORDS.has(word));
+  out.push(...anchors.slice(0, 3));
+
+  if (TECH.test(text)) {
     out.push(
       "artificial intelligence",
       entityMode(p.entityType) === "forprofit" ? "SBIR" : "technology capacity",
       "software",
     );
-  else if (entityMode(p.entityType) === "forprofit") out.push("small business");
-  else out.push("community");
+  } else if (entityMode(p.entityType) === "forprofit") {
+    out.push("small business", "small business grants");
+  } else {
+    out.push("community", "community grants");
+  }
   return [...new Set(out.map((k) => k.toLowerCase()))].slice(0, 4);
 }
 
