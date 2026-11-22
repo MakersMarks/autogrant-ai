@@ -6,6 +6,7 @@ export type StateFundingPortal = {
 };
 
 export const stateFundingPortals: StateFundingPortal[] = [
+  { stateCode: "AS", stateName: "American Samoa", agency: "American Samoa Government", url: "https://www.americansamoa.gov/" },
   { stateCode: "AL", stateName: "Alabama", agency: "Alabama Department of Economic and Community Affairs", url: "https://adeca.alabama.gov/" },
   { stateCode: "AK", stateName: "Alaska", agency: "Alaska Department of Commerce, Community, and Economic Development", url: "https://www.commerce.alaska.gov/web/ded/" },
   { stateCode: "AZ", stateName: "Arizona", agency: "Arizona Commerce Authority", url: "https://www.azcommerce.com/" },
@@ -16,6 +17,7 @@ export const stateFundingPortals: StateFundingPortal[] = [
   { stateCode: "DE", stateName: "Delaware", agency: "Delaware Division of Small Business", url: "https://business.delaware.gov/" },
   { stateCode: "FL", stateName: "Florida", agency: "Florida Department of Commerce", url: "https://floridajobs.org/" },
   { stateCode: "GA", stateName: "Georgia", agency: "Georgia Department of Economic Development", url: "https://georgia.org/" },
+  { stateCode: "GU", stateName: "Guam", agency: "Guam Economic Development Authority", url: "https://www.investguam.com/" },
   { stateCode: "HI", stateName: "Hawaii", agency: "Hawaii Department of Business, Economic Development and Tourism", url: "https://dbedt.hawaii.gov/" },
   { stateCode: "ID", stateName: "Idaho", agency: "Idaho Department of Commerce", url: "https://commerce.idaho.gov/" },
   { stateCode: "IL", stateName: "Illinois", agency: "Illinois Department of Commerce and Economic Opportunity", url: "https://dceo.illinois.gov/" },
@@ -30,6 +32,7 @@ export const stateFundingPortals: StateFundingPortal[] = [
   { stateCode: "MI", stateName: "Michigan", agency: "Michigan Economic Development Corporation", url: "https://www.michiganbusiness.org/" },
   { stateCode: "MN", stateName: "Minnesota", agency: "Minnesota Department of Employment and Economic Development", url: "https://mn.gov/deed/" },
   { stateCode: "MS", stateName: "Mississippi", agency: "Mississippi Development Authority", url: "https://mississippi.org/" },
+  { stateCode: "MP", stateName: "Northern Mariana Islands", agency: "Commonwealth of the Northern Mariana Islands Department of Commerce", url: "https://commerce.gov.mp/" },
   { stateCode: "MO", stateName: "Missouri", agency: "Missouri Department of Economic Development", url: "https://ded.mo.gov/" },
   { stateCode: "MT", stateName: "Montana", agency: "Montana Department of Commerce", url: "https://commerce.mt.gov/" },
   { stateCode: "NE", stateName: "Nebraska", agency: "Nebraska Department of Economic Development", url: "https://opportunity.nebraska.gov/" },
@@ -44,6 +47,7 @@ export const stateFundingPortals: StateFundingPortal[] = [
   { stateCode: "OK", stateName: "Oklahoma", agency: "Oklahoma Department of Commerce", url: "https://www.okcommerce.gov/" },
   { stateCode: "OR", stateName: "Oregon", agency: "Oregon Business Development Department", url: "https://www.oregon.gov/biz/" },
   { stateCode: "PA", stateName: "Pennsylvania", agency: "Pennsylvania Department of Community and Economic Development", url: "https://dced.pa.gov/" },
+  { stateCode: "PR", stateName: "Puerto Rico", agency: "Puerto Rico Department of Economic Development and Commerce", url: "https://www.desarrollo.pr.gov/" },
   { stateCode: "RI", stateName: "Rhode Island", agency: "Rhode Island Commerce Corporation", url: "https://commerceri.com/" },
   { stateCode: "SC", stateName: "South Carolina", agency: "South Carolina Department of Commerce", url: "https://www.sccommerce.com/" },
   { stateCode: "SD", stateName: "South Dakota", agency: "South Dakota Governor's Office of Economic Development", url: "https://sdgoed.com/" },
@@ -51,6 +55,7 @@ export const stateFundingPortals: StateFundingPortal[] = [
   { stateCode: "TX", stateName: "Texas", agency: "Texas Economic Development and Tourism", url: "https://gov.texas.gov/business" },
   { stateCode: "UT", stateName: "Utah", agency: "Utah Governor's Office of Economic Opportunity", url: "https://business.utah.gov/" },
   { stateCode: "VT", stateName: "Vermont", agency: "Vermont Agency of Commerce and Community Development", url: "https://accd.vermont.gov/" },
+  { stateCode: "VI", stateName: "U.S. Virgin Islands", agency: "U.S. Virgin Islands Economic Development Authority", url: "https://usvieda.org/" },
   { stateCode: "VA", stateName: "Virginia", agency: "Virginia Economic Development Partnership", url: "https://www.vedp.org/" },
   { stateCode: "WA", stateName: "Washington", agency: "Washington State Department of Commerce", url: "https://www.commerce.wa.gov/" },
   { stateCode: "WV", stateName: "West Virginia", agency: "West Virginia Department of Economic Development", url: "https://westvirginia.gov/" },

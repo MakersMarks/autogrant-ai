@@ -49,6 +49,7 @@ function IndexComponent() {
   const [intake, setIntake] = useState<Intake | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [summary, setSummary] = useState('');
+  const [voiceProfile, setVoiceProfile] = useState('');
   const [viewing, setViewing] = useState<VaultDocument | null>(null);
   const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
   const [uploadCategory, setUploadCategory] = useState<"legal_tax" | "license_permit" | "vendor_quote" | "financial">("legal_tax");
@@ -156,6 +157,7 @@ function IndexComponent() {
       }
       setFundingGoal(Number(profile.funding_goal.replace(/[^0-9.]/g, '')) || 0);
       setAutopilot(!!profile.autopilot);
+      setVoiceProfile(profile.voice_profile ?? "");
       setSettingsEmail(profile.email ?? "");
       setSettingsProjectName(profile.project_name ?? "");
       setSettingsLocation(profile.location ?? "");
@@ -523,10 +525,18 @@ function IndexComponent() {
           </select>
 
           <button
-            onClick={() => setShowAuth(true)}
+            onClick={() => {
+              if (userSession) {
+                void supabase.auth.signOut().then(() => {
+                  setStatusMessage("Signed out.");
+                });
+              } else {
+                setShowAuth(true);
+              }
+            }}
             className="text-xs font-mono bg-slate-900 hover:bg-slate-800 border border-slate-700 text-emerald-400 px-3 py-1.5 rounded transition"
           >
-            {userSession ? userSession.user.email : 'Sync Grants.gov / Auth'}
+            {userSession ? `Sign out · ${userSession.user.email}` : 'Sync Grants.gov / Auth'}
           </button>
         </div>
       </header>
@@ -810,8 +820,9 @@ function IndexComponent() {
                 <input value={settingsProjectName} onChange={(event) => setSettingsProjectName(event.target.value)} maxLength={160} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
               </label>
               <label className="block space-y-1 text-xs">
-                <span>State or location</span>
-                <input value={settingsLocation} onChange={(event) => setSettingsLocation(event.target.value)} maxLength={120} placeholder="e.g., Tennessee" className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+                <span>Business address for grant matching</span>
+                <span className="block text-sm text-slate-300">Street, city, county, state or territory, and ZIP. This address is saved with your business profile.</span>
+                <input value={settingsLocation} onChange={(event) => setSettingsLocation(event.target.value)} maxLength={200} placeholder="Street, city, county, state/territory, ZIP" className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
               </label>
               <label className="block space-y-1 text-xs">
                 <span>Funding goal</span>
@@ -840,7 +851,7 @@ function IndexComponent() {
       {selectedGrant && (
         <ProposalStudio
           grant={selectedGrant}
-          voiceCalibrated={false}
+          voiceCalibrated={!!voiceProfile}
           availableEvidenceIds={vaultDocs.flatMap((doc) => [doc.slotKey, doc.categoryTag].filter((value): value is string => !!value))}
           vaultAttachments={vaultDocs.flatMap((doc) => doc.storagePath ? [{ fileName: doc.name, storagePath: doc.storagePath }] : [])}
           onClose={() => setSelectedGrant(null)}

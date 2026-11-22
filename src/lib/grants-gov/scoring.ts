@@ -106,7 +106,7 @@ export type GrantScore = {
 };
 
 const COMPONENT_WEIGHT = 25;
-const ELIGIBILITY_THRESHOLD = 70;
+const ELIGIBILITY_THRESHOLD = 65;
 const COMPETITION_WEIGHTS = {
   award_rate: 25,
   applicant_scarcity: 25,

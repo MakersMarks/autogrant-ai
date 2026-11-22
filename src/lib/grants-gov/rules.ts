@@ -140,6 +140,10 @@ const STATES: Record<string, string> = {
   WY: "Wyoming",
   PR: "Puerto Rico",
   GU: "Guam",
+  AS: "American Samoa",
+  MP: "Northern Mariana Islands",
+  VI: "U.S. Virgin Islands",
+  DC: "District of Columbia",
 };
 
 /** Resolve the user's state name from free-text location like "Nashville, TN". */

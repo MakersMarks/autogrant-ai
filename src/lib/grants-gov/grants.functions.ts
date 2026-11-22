@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { daysUntil, grantUrl, isEntityEligible, isInstitutionOnlyTitle, entityMode, type LiveGrant } from "./rules";
+import { daysUntil, grantUrl, isEntityEligible, isInstitutionOnlyTitle, entityMode, stateFromLocation, type LiveGrant } from "./rules";
 import { corporateRegistry } from "@/lib/grants/sources/corporate-registry";
 import { stateRegistry } from "@/lib/grants/sources/state-registry";
 import { localRegistry } from "@/lib/grants/sources/local-registry";
@@ -266,7 +266,7 @@ export const auditGrantFit = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const [d, { data: p }] = await Promise.all([detail(data.id), context.supabase.from("profiles").select("*").eq("id", context.userId).maybeSingle()]);
     const { generateWithGemini } = await import("@/lib/ai/ai.server");
-    const profile = p ? `Name: ${p.project_name}\nEntity: ${p.entity_type}\nIndustry: ${p.industry}\nStage: ${p.lifecycle_stage}\nLocation: ${p.location}\nFunding goal: ${p.funding_goal}\nUse of funds: ${p.funding_purpose}\nDemographics: ${(p.demographics ?? []).join(", ")}` : "No profile on file.";
+    const profile = p ? `Name: ${p.project_name}\nEntity: ${p.entity_type}\nIndustry: ${p.industry}\nStage: ${p.lifecycle_stage}\nState/territory: ${stateFromLocation(p.location) ?? "Not stated"}\nFunding goal: ${p.funding_goal}\nUse of funds: ${p.funding_purpose}\nDemographics: ${(p.demographics ?? []).join(", ")}` : "No profile on file.";
     const text = await generateWithGemini(
       "You are a veteran federal grant consultant doing a fast Go/No-Go screen before a founder spends time writing. Use only the facts given. Be blunt. Never invent rules; if unclear say 'Not stated — confirm with the program officer'.",
       `APPLICANT\n${profile}\n\nGRANT: ${data.title}\nEligible applicants: ${d.eligibility.join("; ") || "Not stated"}\nEligibility notes: ${d.eligibilityNotes.slice(0, 3000)}\nCost sharing flag: ${d.costSharing === null ? "NOT STATED" : d.costSharing ? "REQUIRED" : "NOT REQUIRED"}\nAward: ${d.awardFloor ?? "?"} - ${d.awardCeiling ?? "?"}\nDescription: ${d.description.slice(0, 10000)}\n\nReply in exactly this plain-text format, no markdown:\nVERDICT: GO or CAUTION or NO-GO\nEntity fit: one sentence\nCost share: one sentence (amount/percent if stated, or say not stated)\nTopic fit: one sentence on how well the applicant's business matches what is funded\nRegistrations needed: only list requirements stated in the listing; otherwise say not stated\nNext steps: 2-3 short actions separated by semicolons, marking assumptions for confirmation`,

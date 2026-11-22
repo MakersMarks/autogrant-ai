@@ -115,21 +115,32 @@ export const CUSTOM_DOC_SLOTS: DocSlot[] = [
 ];
 
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
-const VALID_TYPES = [
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
-const VALID_EXT = [".pdf", ".docx"];
 
 /** Returns an error message, or null when the file is acceptable. */
 export function validateVaultFile(file: { name: string; type: string; size: number }): string | null {
   const dot = file.name.lastIndexOf(".");
   const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
-  const typeOk = VALID_TYPES.includes(file.type);
-  const extOk = VALID_EXT.includes(ext);
-  // Both must agree when the browser reports a MIME type; fall back to extension when it's blank.
-  if (!extOk || (file.type !== "" && !typeOk)) {
-    return `Rejected: "${file.name}" must be a valid PDF or DOCX document.`;
+  const allowedTypes = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain",
+    "image/jpeg",
+    "image/png",
+  ];
+  const matchingTypes: Record<string, readonly string[]> = {
+    ".pdf": ["application/pdf"],
+    ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    ".txt": ["text/plain"],
+    ".jpg": ["image/jpeg"],
+    ".jpeg": ["image/jpeg"],
+    ".png": ["image/png"],
+  };
+  const allowedExt = Object.keys(matchingTypes);
+  const typeOk = allowedTypes.includes(file.type);
+  const extOk = allowedExt.includes(ext);
+  const mimeMatchesExt = file.type === "" || matchingTypes[ext]?.includes(file.type);
+  if (!extOk || !typeOk || !mimeMatchesExt) {
+    return `Rejected: "${file.name}" must be a valid PDF, DOCX, TXT, JPG, or PNG document.`;
   }
   if (file.size > MAX_UPLOAD_BYTES) return "Rejected: File exceeds 15MB limit.";
   return null;

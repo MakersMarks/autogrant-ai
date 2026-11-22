@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateWithGemini } from "./ai.server";
 import { sectorName } from "@/lib/grants";
+import { stateFromLocation } from "@/lib/grants-gov/rules";
 
 import { z } from "zod";
 import { intakeSchema, summarySchema, buildProposalPrompt, validateProposalOutput, documentTypes, buildDocumentPrompt, parseDocument, voiceDirective, documentFileName, isRestrictedDocumentRequest } from "./proposal-policy";
@@ -28,7 +29,7 @@ async function loadEvidence(supabase: import('@supabase/supabase-js').SupabaseCl
     evidence.push({ name: doc.file_name, text });
   }
   if (JSON.stringify(evidence).length > 1_000_000) throw new Error('Your Vault exceeds the drafting context capacity. Reduce document size before drafting; no evidence was silently omitted.');
-  return { profile, evidence };
+  return { profile: { ...profile, location: stateFromLocation(profile.location) ?? "" }, evidence };
 }
 
 const copilotActionSchema = z.discriminatedUnion("type", [

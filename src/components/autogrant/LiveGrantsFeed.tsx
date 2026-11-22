@@ -10,6 +10,7 @@ import {
 } from "@/lib/grants-gov/grants.functions";
 import { ELIGIBILITY_OPTIONS, entityMode, eligibilityCodesFor, scoutKeywords, scoutCategories, formatMoney, isOtherStateOnly, stateFromLocation, stateCodeFromLocation, isLastChance, grantAwardScaleSignals, matchesAmount, type LiveGrant } from "@/lib/grants-gov/rules";
 import { OFFICIAL_SECTORS, type UnifiedGrant } from "@/lib/grants";
+import { stateFundingPortals } from "@/lib/grants/sources/state-portals";
 import { sbirToUnifiedGrant, shouldSearchSbirSolicitations } from "@/lib/grants-gov/sbir";
 import {
   scoreGrantOpportunity,
@@ -52,6 +53,7 @@ export function LiveGrantsFeed({
 }) {
   const userState = stateFromLocation(profile?.location ?? "");
   const registryStateCode = stateCodeFromLocation(profile?.location ?? "");
+  const statePortal = stateFundingPortals.find((portal) => portal.stateCode === registryStateCode);
   const search = useServerFn(searchLiveGrants);
   const searchSbir = useServerFn(searchSbirSolicitations);
   const fetchDetail = useServerFn(getGrantDetail);
@@ -283,8 +285,14 @@ export function LiveGrantsFeed({
       {!keyword.trim() && scout.length > 0 && <p className="text-[11px] text-slate-400">Scouting from your intake for: {scout.map((k) => <span key={k} className="inline-block mr-1 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-slate-200">{k}</span>)} · only grants open to {mode === "nonprofit" ? "nonprofits" : "for-profit / small businesses"}</p>}
       {poolError && <p role="alert" className="text-xs text-red-400">Program directory: {poolError}</p>}
       {sbirError && <p role="alert" className="text-xs text-red-400">SBIR.gov: {sbirError}</p>}
-      {userState && !poolGrants.some((grant) => grant.grantTier === "State" || grant.grantTier === "Local" || grant.poolTier === "state_territory") && (
-        <p className="text-[11px] text-slate-400">No verified current state or local grant opportunities are listed for {userState}. Generic agency directories are omitted.</p>
+      {statePortal && (
+        <p className="text-xs text-slate-300">
+          Official {statePortal.stateName} business/economic development agency link (not a live grant listing):{" "}
+          <a className="text-blue-300 underline" href={statePortal.url} target="_blank" rel="noreferrer">{statePortal.agency}</a>
+        </p>
+      )}
+      {userState && !eligiblePoolGrants.some((grant) => grant.grantTier === "State" || grant.grantTier === "Local" || grant.poolTier === "state_territory") && (
+        <p className="text-[11px] text-slate-400">No current state or local listings in AutoGrant match this profile for {userState}. The official source above may list additional programs not included here.</p>
       )}
       {error && <p className="text-xs text-red-400">{error}</p>}
       {loading ? <p className="text-xs text-slate-400">Loading live grants from Grants.gov…</p> : (

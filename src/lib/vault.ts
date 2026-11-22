@@ -21,14 +21,18 @@ export function validateVaultFile(file: File): { valid: boolean; error?: string 
   if (file.size > MAX_FILE_SIZE_BYTES) {
     return { valid: false, error: 'File size exceeds the 15MB limit.' };
   }
-  const allowedTypes = [
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain',
-    'image/jpeg',
-    'image/png'
-  ];
-  if (!allowedTypes.includes(file.type)) {
+  const dot = file.name.lastIndexOf(".");
+  const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
+  const matchingTypes: Record<string, readonly string[]> = {
+    ".pdf": ["application/pdf"],
+    ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    ".txt": ["text/plain"],
+    ".jpg": ["image/jpeg"],
+    ".jpeg": ["image/jpeg"],
+    ".png": ["image/png"],
+  };
+  const mimeMatchesExt = file.type === "" || matchingTypes[ext]?.includes(file.type);
+  if (!matchingTypes[ext] || !mimeMatchesExt) {
     return { valid: false, error: 'Invalid file format. Please upload PDF, DOCX, TXT, JPG, or PNG.' };
   }
   return { valid: true };

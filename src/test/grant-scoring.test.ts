@@ -36,11 +36,11 @@ const opportunity = {
 };
 
 describe("grant eligibility and competition scoring", () => {
-  it("scores only applicants that pass hard rules and reach 70 eligibility points", () => {
+  it("scores only applicants that pass hard rules and reach 65 eligibility points", () => {
     const result = scoreGrantOpportunity({ opportunity, profile, evidence });
 
     expect(result.eligible).toBe(true);
-    expect(result.eligibilityScore).toBeGreaterThanOrEqual(70);
+    expect(result.eligibilityScore).toBeGreaterThanOrEqual(65);
     expect(result.eligibilityReasons).toContain(
       "Applicant entity matches the listed type: LLC / Corporation.",
     );
@@ -51,7 +51,7 @@ describe("grant eligibility and competition scoring", () => {
     const result = scoreGrantOpportunity({ opportunity, profile, evidence: [] });
 
     expect(result.eligible).toBe(true);
-    expect(result.eligibilityScore).toBeGreaterThanOrEqual(70);
+    expect(result.eligibilityScore).toBeGreaterThanOrEqual(65);
     expect(result.hardDisqualifiers.join(" ")).not.toMatch(/Vault evidence is missing/i);
     expect(result.vaultReadiness.score).toBe(0);
     expect(result.vaultReadiness.readyDocuments).toBe(0);
@@ -76,7 +76,7 @@ describe("grant eligibility and competition scoring", () => {
     );
   });
 
-  it("excludes a grant when its eligibility score is below 70 even if no hard rule fails", () => {
+  it("excludes a grant when its eligibility score is below 65 even if no hard rule fails", () => {
     const result = scoreGrantOpportunity({
       opportunity,
       profile: {
@@ -89,10 +89,10 @@ describe("grant eligibility and competition scoring", () => {
       evidence,
     });
 
-    expect(result.eligibilityScore).toBeLessThan(70);
+    expect(result.eligibilityScore).toBeLessThan(65);
     expect(result.eligible).toBe(false);
     expect(result.hardDisqualifiers).toContain(
-      `Eligibility score ${result.eligibilityScore} is below the 70-point threshold.`,
+      `Eligibility score ${result.eligibilityScore} is below the 65-point threshold.`,
     );
   });
 

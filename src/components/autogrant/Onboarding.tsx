@@ -121,8 +121,9 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
             return <button type="button" key={option} aria-pressed={active} onClick={() => toggleGeographyTag(option)} className={opt(active)}>{option}{active ? " ✓" : ""}</button>;
           })}
           <label className="block space-y-1 text-xs text-muted-foreground">
-            State of headquarters
-            <input aria-label="State of headquarters" value={p.location} onChange={(e) => setP({ ...p, location: e.target.value })} placeholder="e.g., TN" className="w-full p-3 rounded-xl border border-border bg-background text-foreground" />
+            Business address for grant matching
+            <span className="block text-sm">Enter street, city, county, state or territory, and ZIP. This address is saved with your business profile.</span>
+            <input aria-label="Business address for grant matching" value={p.location} maxLength={200} onChange={(e) => setP({ ...p, location: e.target.value })} placeholder="Street, city, county, state/territory, ZIP" className="w-full p-3 rounded-xl border border-border bg-background text-foreground" />
           </label>
         </div>
       ),
