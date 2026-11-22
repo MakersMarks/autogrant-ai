@@ -138,6 +138,7 @@ function Platform({ userId }: { userId: string }) {
         lifecycle_stage: p.lifecycle_stage,
         location: p.location,
         funding_purpose: p.funding_purpose,
+        voice_sample: p.voice_sample ?? "",
         onboarded: true,
         updated_at: new Date().toISOString(),
       }).eq("id", userId).select().single();
@@ -149,7 +150,8 @@ function Platform({ userId }: { userId: string }) {
     }} />;
   }
 
-  const slots = coreDocSlots(profile.entity_type);
+  const earlyStage = /idea|new startup|under 1 year|creator/i.test(profile.lifecycle_stage);
+  const slots = coreDocSlots(profile.entity_type, profile.lifecycle_stage);
   const verified = slots.filter((s) => docs.some((d) => d.slot_key === s.key)).length;
   const industryRequirements = getIndustryDocumentRequirements(profile.industry ?? "", profile.entity_type);
   const industryReady = industryRequirements.filter((requirement) => docs.some((doc) => doc.slot_key === requirement.key)).length;
@@ -214,6 +216,7 @@ function Platform({ userId }: { userId: string }) {
           <section className="min-w-0">
             <LiveGrantsFeed
             signedIn
+            showAdvancedCompliance={!earlyStage}
             drafting={autoRunning}
             enabled={profile.onboarded}
             profile={{
@@ -233,7 +236,7 @@ function Platform({ userId }: { userId: string }) {
           </section>
           <aside className="space-y-4">
             <div className="bg-card p-4 rounded-xl border border-border max-h-[55vh] overflow-y-auto">
-              <Vault userId={userId} entityType={profile.entity_type} industry={profile.industry} docs={docs} reload={loadDocs} voiceSample={profile.voice_sample} voiceProfile={profile.voice_profile} onVoiceSaved={loadProfile} />
+              <Vault userId={userId} entityType={profile.entity_type} lifecycleStage={profile.lifecycle_stage} industry={profile.industry} docs={docs} reload={loadDocs} voiceSample={profile.voice_sample} voiceProfile={profile.voice_profile} onVoiceSaved={loadProfile} />
             </div>
             <div className="bg-card p-4 rounded-xl border border-border max-h-[35vh] overflow-y-auto">
               <h2 className="text-sm font-display font-bold mb-3">Application Tracker</h2>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { OFFICIAL_SECTORS, sectorName } from "@/lib/grants";
+import { stateCodeFromLocation } from "@/lib/grants-gov/rules";
 
 export type ProfileInput = {
   project_name?: string;
@@ -11,7 +12,24 @@ export type ProfileInput = {
   lifecycle_stage: string;
   location: string;
   funding_purpose: string;
+  voice_sample?: string;
 };
+
+export const US_STATE_OPTIONS = [
+  ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"],
+  ["CA", "California"], ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"],
+  ["FL", "Florida"], ["GA", "Georgia"], ["HI", "Hawaii"], ["ID", "Idaho"],
+  ["IL", "Illinois"], ["IN", "Indiana"], ["IA", "Iowa"], ["KS", "Kansas"],
+  ["KY", "Kentucky"], ["LA", "Louisiana"], ["ME", "Maine"], ["MD", "Maryland"],
+  ["MA", "Massachusetts"], ["MI", "Michigan"], ["MN", "Minnesota"], ["MS", "Mississippi"],
+  ["MO", "Missouri"], ["MT", "Montana"], ["NE", "Nebraska"], ["NV", "Nevada"],
+  ["NH", "New Hampshire"], ["NJ", "New Jersey"], ["NM", "New Mexico"], ["NY", "New York"],
+  ["NC", "North Carolina"], ["ND", "North Dakota"], ["OH", "Ohio"], ["OK", "Oklahoma"],
+  ["OR", "Oregon"], ["PA", "Pennsylvania"], ["RI", "Rhode Island"], ["SC", "South Carolina"],
+  ["SD", "South Dakota"], ["TN", "Tennessee"], ["TX", "Texas"], ["UT", "Utah"],
+  ["VT", "Vermont"], ["VA", "Virginia"], ["WA", "Washington"], ["WV", "West Virginia"],
+  ["WI", "Wisconsin"], ["WY", "Wyoming"], ["DC", "District of Columbia"],
+] as const;
 
 export const DEMOGRAPHIC_OPTIONS = [
   "Woman-Owned",
@@ -31,18 +49,18 @@ export const GEOGRAPHY_OPTIONS = [
 ] as const;
 
 export const ENTITY_OPTIONS = [
-  "For-Profit LLC",
-  "C-Corp",
-  "Sole Proprietorship",
+  "Not registered yet",
+  "LLC / Corp registered",
+  "Sole Proprietor / Creator",
   "501(c)(3) Nonprofit",
   "Fiscal Sponsorship",
   "Faith-Based Church",
 ] as const;
 
 export const STAGE_OPTIONS = [
-  "Idea / Pre-Revenue (<1 yr)",
-  "Early Operating (1–2 yrs)",
-  "Established (>2 yrs profitable)",
+  "Idea / Pre-Launch",
+  "New Startup / Creator (Under 1 Year)",
+  "Established Business (1+ Years)",
 ] as const;
 
 export const CAPITAL_OPTIONS = [
@@ -74,7 +92,10 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
     lifecycle_stage: initial.lifecycle_stage ?? "",
     location: initial.location ?? "",
     funding_purpose: initial.funding_purpose ?? "",
+    voice_sample: initial.voice_sample ?? "",
   });
+  const [city, setCity] = useState(initial.location.includes(",") ? initial.location.split(",")[0]!.trim() : "");
+  const [stateCode, setStateCode] = useState(stateCodeFromLocation(initial.location));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [qualifierCard, setQualifierCard] = useState(0);
@@ -87,6 +108,15 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
     </div>
   );
   const s = (arr: string[]) => arr.map((v) => ({ v, label: v }));
+  const updateLocation = (nextCity: string, nextStateCode: string) => {
+    setCity(nextCity);
+    setStateCode(nextStateCode);
+    const stateName = US_STATE_OPTIONS.find(([code]) => code === nextStateCode)?.[1] ?? "";
+    setP((current) => ({
+      ...current,
+      location: [nextCity.trim(), stateName].filter(Boolean).join(", "),
+    }));
+  };
   const toggleDemographicTag = (option: string) => {
     const alias = option === "Woman-Owned" ? "Women-Owned" : option === "Veteran / Disabled Veteran" ? "Veteran-Owned" : "";
     const active = p.demographics.includes(option) || (alias ? p.demographics.includes(alias) : false);
@@ -121,9 +151,15 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
             return <button type="button" key={option} aria-pressed={active} onClick={() => toggleGeographyTag(option)} className={opt(active)}>{option}{active ? " ✓" : ""}</button>;
           })}
           <label className="block space-y-1 text-xs text-muted-foreground">
-            Business address for grant matching
-            <span className="block text-sm">Enter street, city, county, state or territory, and ZIP. This address is saved with your business profile.</span>
-            <input aria-label="Business address for grant matching" value={p.location} maxLength={200} onChange={(e) => setP({ ...p, location: e.target.value })} placeholder="Street, city, county, state/territory, ZIP" className="w-full p-3 rounded-xl border border-border bg-background text-foreground" />
+            City
+            <input aria-label="City" value={city} maxLength={100} onChange={(e) => updateLocation(e.target.value, stateCode)} placeholder="City" className="w-full p-3 rounded-xl border border-border bg-background text-foreground" />
+          </label>
+          <label className="block space-y-1 text-xs text-muted-foreground">
+            US State
+            <select aria-label="US State" value={stateCode} onChange={(e) => updateLocation(city, e.target.value)} className="w-full p-3 rounded-xl border border-border bg-background text-foreground">
+              <option value="">Select a state</option>
+              {US_STATE_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+            </select>
           </label>
         </div>
       ),
@@ -147,18 +183,16 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
           <label className="block space-y-1 text-xs text-muted-foreground">
             Industry
             <select aria-label="Industry" value={p.industry} onChange={(e) => setP({ ...p, industry: e.target.value })} className="w-full p-3 rounded-xl border border-border bg-background text-foreground">
-              <option value="">Select industry</option>
-              <option value="Food / Restaurant / Catering">Food / Restaurant / Catering</option>
-              <option value="Mining / Mineral Extraction">Mining / Mineral Extraction</option>
-              <option value="Nonprofit">Nonprofit</option>
-              <option value="Creative / Media / Arts">Creative / Media / Arts</option>
-              <option value="Technology / General Business">Technology / General Business</option>
-            </select>
+              <input aria-label="Industry / niche" value={p.industry} maxLength={200} onChange={(e) => setP({ ...p, industry: e.target.value })} placeholder="e.g. food business, creative studio, clean energy" className="w-full p-3 rounded-xl border border-border bg-background text-foreground" />
           </label>
           {UNIQUE_OPTIONS.map((option) => {
             const active = uniqueSelections.includes(option);
             return <button type="button" key={option} aria-pressed={active} onClick={() => setUniqueSelections(active ? uniqueSelections.filter((x) => x !== option) : [...uniqueSelections, option])} className={opt(active)}>{option}{active ? " ✓" : ""}</button>;
           })}
+          <label className="block space-y-1 text-xs text-muted-foreground">
+            Founder Voice Sample (2–3 sentences)
+            <textarea aria-label="Founder Voice Sample" value={p.voice_sample ?? ""} maxLength={8000} onChange={(e) => setP({ ...p, voice_sample: e.target.value })} placeholder="Write a few sentences in your everyday voice. AI drafts can use this as a style reference." className="w-full min-h-24 p-3 rounded-xl border border-border bg-background text-foreground" />
+          </label>
           <p className="text-xs leading-relaxed text-muted-foreground border-t border-border pt-3">Not saved: the current profile schema has no safe dedicated field for these identifiers. Existing profile values are never replaced to approximate this category.</p>
         </div>
       ),

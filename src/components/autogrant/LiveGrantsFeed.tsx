@@ -39,6 +39,7 @@ export function LiveGrantsFeed({
   enabled = true,
   profile,
   evidence = [],
+  showAdvancedCompliance = true,
 }: {
   signedIn: boolean;
   drafting: boolean;
@@ -50,6 +51,7 @@ export function LiveGrantsFeed({
     solutionArchitecture?: string;
   } | undefined;
   evidence?: readonly GrantScoringEvidence[];
+  showAdvancedCompliance?: boolean;
 }) {
   const userState = stateFromLocation(profile?.location ?? "");
   const registryStateCode = stateCodeFromLocation(profile?.location ?? "");
@@ -117,7 +119,7 @@ export function LiveGrantsFeed({
   const matchingPoolGrants = useMemo(() => [...poolGrants, ...sbirGrants], [poolGrants, sbirGrants]);
   useEffect(() => {
     if (!signedIn) return;
-    void pool({ data: { state: registryStateCode } })
+    void pool({ data: { state: registryStateCode, lifecycleStage: profile?.lifecycleStage ?? "" } })
       .then((result) => {
         setPoolGrants([
           ...(result.pools["State"] ?? []),
@@ -142,7 +144,7 @@ export function LiveGrantsFeed({
       const searchKeywords = keywords ?? (keywordRef.current.trim() ? [keywordRef.current.trim()] : scout);
       const shouldSearchSbir = shouldSearchSbirSolicitations(profile?.sector ?? "", profileIndustry, searchKeywords);
       const [r, sbirResult] = await Promise.all([
-        search({ data: { keywords: searchKeywords, category, eligibility, entityType: profileEntityType } }),
+        search({ data: { keywords: searchKeywords, category, eligibility, entityType: profileEntityType, lifecycleStage: profile?.lifecycleStage ?? "" } }),
         shouldSearchSbir
           ? searchSbir({ data: { keyword: searchKeywords[0] ?? "", openOnly: true } })
             .then(({ solicitations }) => ({
@@ -163,7 +165,7 @@ export function LiveGrantsFeed({
       setSbirError(sbirResult.error);
     } catch (e) { setError(e instanceof Error ? e.message : "Search failed."); }
     finally { setLoading(false); }
-  }, [signedIn, search, searchSbir, scout, category, eligibility, profileEntityType, profile?.sector, profileIndustry]);
+  }, [signedIn, search, searchSbir, scout, category, eligibility, profileEntityType, profile?.sector, profile?.lifecycleStage, profileIndustry]);
   useEffect(() => { void run(); }, [run]);
 
   const scoreById = useMemo(() => {
@@ -279,7 +281,7 @@ export function LiveGrantsFeed({
           <input aria-label="Maximum award" className={field} inputMode="numeric" placeholder="Maximum award" value={maxAmt} onChange={(e) => setMaxAmt(e.target.value.replace(/\D/g, ""))} />
           {userState && <label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={localOnly} onChange={(e) => setLocalOnly(e.target.checked)} />Focus on grants available in {userState}</label>}
         </div>
-        {signedIn && <div className="mt-3"><SamRegistrationCheck /></div>}
+        {signedIn && showAdvancedCompliance && <div className="mt-3"><SamRegistrationCheck /></div>}
       </details>
 
       {!keyword.trim() && scout.length > 0 && <p className="text-[11px] text-slate-400">Scouting from your intake for: {scout.map((k) => <span key={k} className="inline-block mr-1 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-slate-200">{k}</span>)} · only grants open to {mode === "nonprofit" ? "nonprofits" : "for-profit / small businesses"}</p>}

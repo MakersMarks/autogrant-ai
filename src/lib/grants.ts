@@ -42,6 +42,9 @@ export interface UnifiedGrant {
   funderType: "government" | "corporate" | "private_foundation" | "nonprofit";
   awardFloor: number;
   awardCeiling: number;
+  minMonthsInBusiness?: number | null;
+  eligibleStates?: string[] | null;
+  applicationTimeMinutes?: number | null;
   deadline: string;
   isRolling: boolean;
   costSharingRequired: boolean;
@@ -60,6 +63,7 @@ export interface UnifiedGrant {
 
   applicationMethod: "online_portal" | "grants_gov_workspace" | "email_package" | "physical_mail";
   directApplyUrl: string;
+  portalUrl?: string;
   isFreeToApply: boolean;
   summaryText: string;
   sourceSolicitationUrl?: string;
@@ -91,10 +95,10 @@ export function sectorName(code: string) {
 
 export type DocSlot = { key: string; name: string; required: boolean };
 
-export function coreDocSlots(entityType: string): DocSlot[] {
-  if (entityType === "Idea / Pre-Launch Founder") {
+export function coreDocSlots(entityType: string, lifecycleStage = ""): DocSlot[] {
+  if (/idea|not registered|new startup|under 1 year|creator|pre-launch/i.test(`${entityType} ${lifecycleStage}`)) {
     return [
-      { key: "ein", name: "EIN Confirmation Letter (CP 575)", required: true },
+      { key: "ein", name: "EIN Confirmation Letter (CP 575)", required: false },
       { key: "business_plan", name: "Business Plan & Executive Summary", required: true },
       { key: "photo_id", name: "Founder Government Photo ID", required: true },
     ];

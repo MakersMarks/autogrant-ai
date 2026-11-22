@@ -178,15 +178,33 @@ export const documentSpecs: Record<DocumentType, { label: string; fileLabel: str
 };
 
 export const bannedPhrases = [
-  'delve', 'delve into', 'testament', 'tapestry', "in today's fast-paced", 'ever-evolving landscape',
+  'delve', 'delve into', 'testament', 'landscape', 'tapestry', "in today's fast-paced", 'ever-evolving landscape',
   'beacon of hope', 'synergy', 'synergistic', 'game-changer', 'unlock the potential',
   'navigate the complexities', 'it is important to note', 'it is worth noting', 'in conclusion',
   'in summary', 'to summarize', 'furthermore', 'moreover', 'ultimately', 'first and foremost',
   'robust', 'cutting-edge', 'groundbreaking', 'transformative', 'revolutionary', 'world-class',
   'unprecedented', 'holistic', 'seamless', 'leverage', 'utilize', 'empower', 'foster',
-  'pivotal', 'paramount', 'vibrant', 'at the forefront', 'in the realm of',
+  'pivotal', 'crucial', 'paramount', 'vibrant', 'at the forefront', 'in the realm of',
   'not only ... but also',
 ];
+
+export function validateHumanVoicePass(original: string, rewritten: string) {
+  const clean = rewritten.trim();
+  if (!clean) throw new Error('The human voice pass returned an empty answer.');
+  const numbers = (text: string) => text.match(/[$]?\b\d[\d,]*(?:\.\d+)?%?/gu) ?? [];
+  if (JSON.stringify(numbers(original)) !== JSON.stringify(numbers(clean))) {
+    throw new Error('The human voice pass changed a number or budget figure. No rewrite was saved.');
+  }
+  const lower = clean.toLowerCase();
+  const found = bannedPhrases.filter((term) => {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&').replace(/\s+/gu, '\\s+');
+    return new RegExp(`\\b${escaped}\\b`, 'iu').test(lower);
+  });
+  if (found.length) {
+    throw new Error(`The human voice pass used blocked wording: ${found.join(', ')}. No rewrite was saved.`);
+  }
+  return clean;
+}
 
 export type FounderVoiceCalibration = {
   sentenceCount: number;

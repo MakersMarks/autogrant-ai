@@ -197,7 +197,7 @@ function computeVaultReadiness(
     };
   }
 
-  const baseline = coreDocSlots(profile.entityType).filter((slot) => slot.required);
+  const baseline = coreDocSlots(profile.entityType, profile.lifecycleStage).filter((slot) => slot.required);
   const available = baseline.filter((slot) => matchingEvidence(slot.key));
   const missing = baseline.filter((slot) => !matchingEvidence(slot.key));
   return {

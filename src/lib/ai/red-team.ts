@@ -55,6 +55,7 @@ export interface RedTeamResult {
 export const redTeamBannedTerms = [
   'delve',
   'testament',
+  'landscape',
   'tapestry',
   "in today's fast-paced",
   'ever-evolving landscape',
@@ -66,6 +67,13 @@ export const redTeamBannedTerms = [
   'navigate the complexities',
   'it is important to note',
   'in conclusion',
+  'empower',
+  'foster',
+  'leverage',
+  'holistic',
+  'pivotal',
+  'crucial',
+  'furthermore',
 ] as const;
 
 type ParsedSection = { heading: string; body: string };

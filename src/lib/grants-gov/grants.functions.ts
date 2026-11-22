@@ -86,11 +86,130 @@ async function detail(id: string) {
   };
 }
 
+type SiteGrantSearch = {
+  query: string;
+  agency?: string;
+  category?: string;
+  state?: string;
+  lifecycleStage?: string;
+};
+
+const registryGrants = [...stateRegistry, ...localRegistry, ...corporateRegistry];
+
+export async function searchSiteGrantListings(input: SiteGrantSearch) {
+  const query = input.query.trim();
+  const state = input.state?.toUpperCase() ?? "";
+  const stage = input.lifecycleStage?.toLowerCase() ?? "";
+  const response = await gov("search2", {
+    keyword: query,
+    rows: 10,
+    oppStatuses: "posted",
+    sortBy: "closeDate|asc",
+    fundingCategories: input.category ?? "",
+  });
+  if (!isJsonRecord(response)) throw new Error("Grants.gov returned an invalid search response.");
+
+  const federal = (Array.isArray(response["oppHits"]) ? response["oppHits"] : [])
+    .filter(isJsonRecord)
+    .slice(0, 10);
+  const federalResults = await Promise.all(federal.map(async (hit) => {
+    if (typeof hit["id"] !== "string" && typeof hit["id"] !== "number") return null;
+    const id = String(hit["id"]);
+    const grant = await detail(id);
+    const agency = String(hit["agency"] ?? hit["agencyCode"] ?? "");
+    if (input.agency && !agency.toLowerCase().includes(input.agency.toLowerCase())) return null;
+    const title = String(hit["title"] ?? "");
+    const closeDate = String(hit["closeDate"] ?? "");
+    if (daysUntil(closeDate) !== null && (daysUntil(closeDate) ?? -1) < 0) return null;
+    const limitations = `${title}\n${grant.description}\n${grant.eligibilityNotes}`;
+    if (/new startup|idea|pre.?launch/i.test(stage) && /(?:2|two)\+?\s+years?\s+(?:in business|of operation)|\$100,?000.{0,30}revenue|revenue.{0,30}\$100,?000/i.test(limitations)) return null;
+    return {
+      id,
+      source: "Grants.gov",
+      title,
+      funder: agency,
+      awardFloor: grant.awardFloor,
+      awardCeiling: grant.awardCeiling,
+      deadline: closeDate || "Not stated",
+      eligibility: grant.eligibility,
+      eligibilitySummary: grant.eligibilityNotes || "Eligibility details are not stated in the listing summary.",
+      summary: grant.description,
+      url: grantUrl(id),
+      requirementsSource: "Grants.gov listing; verify the complete official opportunity notice.",
+    };
+  }));
+
+  const queryTerms = query.toLowerCase().split(/\s+/u).filter((term) => term.length > 2);
+  const regional = registryGrants.filter((grant) => {
+    if (grant.directoryOnly || !isUnifiedGrantOpen(grant)) return false;
+    if (input.agency && !grant.funderName.toLowerCase().includes(input.agency.toLowerCase())) return false;
+    if (grant.geographicScope.level === "state_specific" || grant.geographicScope.level === "local_county") {
+      if (state && !grant.geographicScope.allowedStates?.includes(state)) return false;
+    }
+    if (/new startup|idea|pre.?launch/i.test(stage) && (grant.minMonthsInBusiness ?? 0) > 12) return false;
+    return !queryTerms.length || queryTerms.some((term) =>
+      `${grant.title} ${grant.funderName} ${grant.summaryText}`.toLowerCase().includes(term),
+    );
+  }).slice(0, 8).map((grant) => ({
+    id: grant.id,
+    source: "AutoGrant program directory",
+    title: grant.title,
+    funder: grant.funderName,
+    awardFloor: grant.awardFloor || null,
+    awardCeiling: grant.awardCeiling || null,
+    deadline: grant.isRolling ? "Rolling (confirm current cycle)" : grant.deadline,
+    eligibility: grant.eligibleEntityTypes,
+    eligibilitySummary: grant.summaryText,
+    minMonthsInBusiness: grant.minMonthsInBusiness ?? null,
+    url: grant.directApplyUrl,
+    requirementsSource: "Directory entry; confirm current rules, deadline, and amounts with the official funder.",
+  }));
+
+  return [...federalResults.filter((grant) => grant !== null), ...regional];
+}
+
+export async function getSiteGrantDetails(grantId: string) {
+  const listed = registryGrants.find((grant) => grant.id === grantId);
+  if (listed) {
+    return {
+      id: listed.id,
+      title: listed.title,
+      funder: listed.funderName,
+      awardFloor: listed.awardFloor || null,
+      awardCeiling: listed.awardCeiling || null,
+      deadline: listed.isRolling ? "Rolling; verify the current cycle" : listed.deadline,
+      eligibility: listed.eligibleEntityTypes,
+      eligibilitySummary: listed.summaryText,
+      minimumMonthsInBusiness: listed.minMonthsInBusiness ?? null,
+      officialUrl: listed.directApplyUrl,
+      solicitationText: null,
+      scoringCriteria: null,
+      requirementsSource: "Directory entry only; the full current solicitation was not stored in AutoGrant.",
+    };
+  }
+  if (!/^\d+$/u.test(grantId)) throw new Error("That grant ID is not in the live or directory grant sources.");
+  const grant = await detail(grantId);
+  return {
+    id: grantId,
+    awardFloor: grant.awardFloor,
+    awardCeiling: grant.awardCeiling,
+    eligibility: grant.eligibility,
+    eligibilitySummary: grant.eligibilityNotes,
+    description: grant.description,
+    costSharing: grant.costSharing,
+    officialUrl: grant.moreInfoUrl ?? grantUrl(grantId),
+    solicitationText: null,
+    scoringCriteria: null,
+    requirementsSource: "Grants.gov listing details; the full RFP/NOFO and scoring rubric are not included in this response.",
+  };
+}
+
 const searchSchema = z.object({
   keywords: z.array(z.string().max(100)).max(5).default([]),
   category: z.string().max(30).default(""),
   eligibility: z.string().max(30).default(""),
   entityType: z.string().max(100).default(""),
+  lifecycleStage: z.string().max(100).default(""),
 });
 
 export const searchLiveGrants = createServerFn({ method: "POST" })
@@ -131,10 +250,17 @@ export const searchLiveGrants = createServerFn({ method: "POST" })
           /state registration|state registration/i.test(extra.description) ? "State registration" : "",
           extra.costSharing ? "Cost-share/match" : "",
         ].filter(Boolean),
+        description: extra.description,
+        eligibilityNotes: extra.eligibilityNotes,
       };
     }));
     const mode = entityMode(data.entityType);
-    const kept = grants.filter((g) => (g.daysLeft === null || g.daysLeft >= 0) && (!data.entityType || isEntityEligible(g.eligibility, mode) && !isInstitutionOnlyTitle(g.title, mode)));
+    const earlyStage = /idea|pre.?launch|new startup|under 1 year|creator/i.test(data.lifecycleStage);
+    const kept = grants.filter((g) =>
+      (g.daysLeft === null || g.daysLeft >= 0) &&
+      (!data.entityType || isEntityEligible(g.eligibility, mode) && !isInstitutionOnlyTitle(g.title, mode)) &&
+      !(earlyStage && /(?:2|two)\+?\s+years?\s+(?:in business|of operation)|\$100,?000.{0,30}revenue|revenue.{0,30}\$100,?000/i.test(`${g.title} ${g.description ?? ""} ${g.eligibilityNotes ?? ""}`)),
+    );
     return { total: results.reduce((n, r) => n + r.total, 0), grants: kept };
   });
 
@@ -174,24 +300,28 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) => z.object({
     state: z.string().max(2).default(""),
+    lifecycleStage: z.string().max(100).default(""),
   }).parse(i))
   .handler(async ({ data }): Promise<{ pools: Record<string, UnifiedGrant[]> }> => {
     const isCurrent = (grant: UnifiedGrant) => isUnifiedGrantOpen(grant);
+    const earlyStage = /idea|pre.?launch|new startup|under 1 year|creator/i.test(data.lifecycleStage);
+    const stageEligible = (grant: UnifiedGrant) =>
+      !earlyStage || grant.minMonthsInBusiness == null || grant.minMonthsInBusiness <= 12;
     const stateMatches = stateRegistry.filter((grant) =>
       !data.state || !grant.geographicScope.allowedStates?.length
       || grant.geographicScope.allowedStates.includes(data.state.toUpperCase()),
-    );
+    ).filter(stageEligible);
     const localMatches = localRegistry.filter((grant) =>
       !data.state || !grant.geographicScope.allowedStates?.length
       || grant.geographicScope.allowedStates.includes(data.state.toUpperCase()),
-    );
+    ).filter(stageEligible);
     return {
       pools: {
         Federal: [],
         State: stateMatches.filter((grant) => !grant.directoryOnly && isCurrent(grant)),
         Local: localMatches.filter((grant) => !grant.directoryOnly && isCurrent(grant)),
-        Corporate: corporateRegistry.filter((grant) => grant.poolTier === "corporate_diversity" && isCurrent(grant)),
-        Foundation: corporateRegistry.filter((grant) => grant.poolTier === "foundation" && isCurrent(grant)),
+        Corporate: corporateRegistry.filter((grant) => grant.poolTier === "corporate_diversity" && isCurrent(grant) && stageEligible(grant)),
+        Foundation: corporateRegistry.filter((grant) => grant.poolTier === "foundation" && isCurrent(grant) && stageEligible(grant)),
       },
     };
   });

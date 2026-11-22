@@ -12,12 +12,14 @@ type Message = {
 export function CopilotDrawer({
   isAuthenticated,
   onSignIn,
+  activePage = "Dashboard",
   onUploadFile,
   onActionComplete,
   initialQuestion,
 }: {
   isAuthenticated: boolean;
   onSignIn: () => void;
+  activePage?: string;
   onUploadFile: (file: File) => Promise<boolean>;
   onActionComplete: (action: Exclude<CopilotAction, { type: "none" }>) => void;
   initialQuestion?: { id: number; text: string } | undefined;
@@ -63,7 +65,8 @@ export function CopilotDrawer({
       const result = await askCopilot({
         data: {
           message: text,
-          history: messages.slice(-10).map(({ role, content }) => ({ role, content })),
+          messages: nextMessages.map(({ role, content }) => ({ role, content })),
+          activePage,
         },
       });
       setMessages([
