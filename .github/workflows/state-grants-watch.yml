@@ -1,0 +1,34 @@
+name: Monitor TN and IA Grant Pages
+
+on:
+  schedule:
+    - cron: "0 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run TN and IA grant page monitor
+        run: node scripts/check-state-grants.mjs
+
+      - name: Commit updated snapshot if anything changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/state-watch-snapshot.json
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update TN and IA grant page snapshot"
+            git push
+          fi
