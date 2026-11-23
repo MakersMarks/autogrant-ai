@@ -2,7 +2,7 @@ import type { UnifiedGrant } from "../../grants";
 
 export const corporateRegistry: UnifiedGrant[] = [
   {
-    id: "fast-break-for-small-business"",directoryOnly: false, poolTier: "corporate_diversity", title: "Amber Grant for Women",
+    id: "fast-break-legalzoom", directoryOnly: false, grantTier: "Corporate", poolTier: "corporate_diversity", title: "Amber Grant for Women",
     funderName: "Amber Grant Foundation", funderType: "corporate", awardFloor: 15000, awardCeiling: 15000,
     deadline: "Rolling", isRolling: true, costSharingRequired: false,
     eligibleEntityTypes: ["for_profit"], demographicSetAsides: ["women_owned"], geographicScope: { level: "national" },
@@ -12,7 +12,7 @@ export const corporateRegistry: UnifiedGrant[] = [
     publicWinnerHistoryUrl: "https://ambergrantsforwomen.com/business_category/amber-grant-winners/",
   },
   {
-    id: "black-ambition-prize", directoryOnly: false, poolTier: "corporate_diversity", title: "Black Ambition Prize",
+    id: "black-ambition-prize", directoryOnly: false, grantTier: "Corporate", poolTier: "corporate_diversity", title: "Black Ambition Prize",
     funderName: "Black Ambition", funderType: "corporate", awardFloor: 10000, awardCeiling: 100000,
     deadline: "Rolling", isRolling: true, costSharingRequired: false,
     eligibleEntityTypes: ["for_profit"], demographicSetAsides: ["african_diaspora"], geographicScope: { level: "national" },
@@ -21,7 +21,7 @@ export const corporateRegistry: UnifiedGrant[] = [
     publicWinnerHistoryUrl: "https://blackambitionprize.com/prize_winners/expert-iep/",
   },
   {
-    id: "tory-burch-fellows", directoryOnly: false, poolTier: "corporate_diversity", title: "Tory Burch Fellows",
+    id: "tory-burch-fellows", directoryOnly: false, grantTier: "Corporate", poolTier: "corporate_diversity", title: "Tory Burch Fellows",
     funderName: "Tory Burch Foundation", funderType: "corporate", awardFloor: 5000, awardCeiling: 5000,
     deadline: "Rolling", isRolling: true, costSharingRequired: false,
     eligibleEntityTypes: ["for_profit"], demographicSetAsides: ["women_owned"], geographicScope: { level: "national" },
@@ -29,7 +29,7 @@ export const corporateRegistry: UnifiedGrant[] = [
     summaryText: "Capital, education, and peer support for women entrepreneurs."
   },
   {
-    id: "fedex-small-business", directoryOnly: false, poolTier: "corporate_diversity", title: "FedEx Small Business Grant",
+    id: "fedex-small-business", directoryOnly: false, grantTier: "Corporate", poolTier: "corporate_diversity", title: "FedEx Small Business Grant",
     funderName: "FedEx", funderType: "corporate", awardFloor: 5000, awardCeiling: 50000,
     deadline: "Rolling", isRolling: true, costSharingRequired: false,
     eligibleEntityTypes: ["for_profit"], demographicSetAsides: [], geographicScope: { level: "national" },
@@ -37,7 +37,7 @@ export const corporateRegistry: UnifiedGrant[] = [
     summaryText: "Annual prizes for innovative small businesses."
   },
   {
-    id: "fast-break-legalzoom", directoryOnly: true, poolTier: "corporate_diversity", title: "Fast Break for Small Business",
+    id: "fast-break-for-small-business", directoryOnly: true, grantTier: "Corporate", poolTier: "corporate_diversity", title: "Fast Break for Small Business",
     funderName: "NBA/WNBA/LegalZoom", funderType: "corporate", awardFloor: 5000, awardCeiling: 50000,
     deadline: "Rolling", isRolling: true, costSharingRequired: false,
     eligibleEntityTypes: ["for_profit"], demographicSetAsides: [], geographicScope: { level: "national" },
@@ -45,7 +45,7 @@ export const corporateRegistry: UnifiedGrant[] = [
     summaryText: "Sports-community small-business grant combining cash and legal services."
   },
   {
-    id: "bob-woodruff-venture", directoryOnly: true, poolTier: "foundation", title: "Bob Woodruff Foundation Veteran Grant",
+    id: "bob-woodruff-venture", directoryOnly: true, grantTier: "Foundation", poolTier: "foundation", title: "Bob Woodruff Foundation Veteran Grant",
     funderName: "Bob Woodruff Foundation", funderType: "private_foundation", awardFloor: 25000, awardCeiling: 100000,
     deadline: "Rolling", isRolling: true, costSharingRequired: false,
     eligibleEntityTypes: ["for_profit", "nonprofit_501c3"], demographicSetAsides: ["veteran_owned"], geographicScope: { level: "national" },
