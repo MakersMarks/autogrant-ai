@@ -283,6 +283,16 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
   const query = input.query.trim();
   const state = input.state?.toUpperCase() ?? "";
   const stage = input.lifecycleStage?.toLowerCase() ?? "";
+  const entityType = input.entityType?.toLowerCase() ?? "";
+  const isFounderOrSmallBiz =
+    /small.?business|for.?profit|llc|sole|founder|startup|idea|pre.?launch|new startup/i.test(
+      `${entityType} ${stage}`,
+    );
+  const explicitlyAskedForAcademic = /\b(university|universities|college|colleges|higher.?ed|cesu|cooperative ecosystem)\b/i.test(
+    query,
+  );
+  const academicOnlyPattern =
+    /\b(cesu|cooperative ecosystem studies unit|institution of higher education|institutions of higher education)\b/i;
   const response = await gov("search2", {
     keyword: query,
     rows: 10,
