@@ -118,7 +118,8 @@ export function LiveGrantsFeed({
   const [poolError, setPoolError] = useState("");
   const matchingPoolGrants = useMemo(() => [...poolGrants, ...sbirGrants], [poolGrants, sbirGrants]);
   useEffect(() => {
-    if (!signedIn) return;
+    useEffect(() => {
+  void pool({ data: { state: registryStateCode, lifecycleStage: profile?.lifecycleStage ?? "" } })
     void pool({ data: { state: registryStateCode, lifecycleStage: profile?.lifecycleStage ?? "" } })
       .then((result) => {
         setPoolGrants([
