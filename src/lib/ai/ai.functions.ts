@@ -234,6 +234,58 @@ export const copilotChat = createServerFn({ method: "POST" })
             state: stateFromLocation(profile?.location ?? "") ?? undefined,
             lifecycleStage: profile?.lifecycle_stage,
           }),
+              add_budget_line_item: tool({
+        description:
+          "Add a specific budget line item with its amount, vendor quote or estimate, and milestone goal to the user's project budget.",
+        inputSchema: z.object({
+          category: z.string().trim().min(1).max(100),
+          description: z.string().trim().min(1).max(300),
+          amount: z.number().positive(),
+          vendorQuoteOrEstimate: z.string().trim().max(300).optional(),
+          milestoneSupported: z.string().trim().min(1).max(300),
+        }),
+        execute: async ({ category, description, amount, vendorQuoteOrEstimate, milestoneSupported }) => {
+          return {
+            status: "added",
+            category,
+            description,
+            amount,
+            vendorQuoteOrEstimate: vendorQuoteOrEstimate ?? "Estimate provided by user",
+            milestoneSupported,
+            message: `Recorded budget line item: $${amount.toLocaleString()} for ${description} under ${category}.`,
+          };
+        },
+      }),
+      update_application_status: tool({
+        description:
+          "Update the status of a proposal in the Application Tracker (draft, submission_ready, or submitted).",
+        inputSchema: z.object({
+          applicationId: z.string().uuid(),
+          newStatus: z.enum(["draft", "submission_ready", "submitted"]),
+          confirmationReceipt: z.string().trim().max(200).optional(),
+        }),
+        execute: async ({ applicationId, newStatus, confirmationReceipt }) => {
+          const updatePayload: Record<string, unknown> = {
+            status: newStatus,
+            updated_at: new Date().toISOString(),
+          };
+          if (confirmationReceipt) {
+            updatePayload["confirmation"] = confirmationReceipt;
+          }
+          const { error } = await context.supabase
+            .from("applications")
+            .update(updatePayload)
+            .eq("id", applicationId)
+            .eq("user_id", context.userId);
+          if (error) throw new Error(`Could not update application: ${error.message}`);
+          return {
+            status: "success",
+            applicationId,
+            newStatus,
+            message: `Application status updated to ${newStatus}.`,
+          };
+        },
+      }),
       }),
       get_grant_details: tool({
         description:
@@ -291,6 +343,13 @@ export const copilotChat = createServerFn({ method: "POST" })
         execute: ({ url }) => fetchGrantPage(url),
       }),
     };
+        const systemPrompt = [
+      "You are Grant, the institutional AI grant copilot for AutoGrant.ai.",
+      "Work directly with the user's real business profile, Vault documents, active applications, and live grant opportunities.",
+      "STRICT INTERVIEW RULE: If you need missing information—such as a line-item budget cost, vendor quote/estimate, milestone goal, or eligibility document—ask exactly ONE clear, focused question at a time. Never overwhelm the user with a numbered list of multiple questions.",
+      "Never invent facts, revenue figures, partners, certifications, or vendor quotes. Ground every answer strictly in the user's supplied facts.",
+      "Use your available tools to search grants, inspect workspace records, run rubric audits, add budget line items, and update application statuses.",
+    ].join(" ");
     const raw = await generateCopilotWithTools(
       `You are AutoGrant's warm, sharp Senior Grant Consultant. Match the user's tone and keep replies conversational, clear, and specific. The user is currently viewing ${data.activePage}; use that page context to make guidance actionable.
 
