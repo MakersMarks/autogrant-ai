@@ -207,8 +207,8 @@ export const copilotChat = createServerFn({ method: "POST" })
       .from("applications").select("id, name, funder, amount, status").eq("user_id", context.userId).order("created_at", { ascending: false });
     if (applicationError) throw new Error("Could not load your application tracker for Copilot context.");
     // Fixed:
-const documents = await context.supabase.from("vault_documents")
-  .select("id, file_name, slot_key, mime_type").eq("user_id", context.userId);
+    const documents = await context.supabase.from("vault_documents")
+      .select("id, file_name, slot_key, mime_type").eq("user_id", context.userId);
     if (documents.error) throw new Error("Could not load your Vault inventory for Copilot context.");
     if (
       !data.messages.length ||
