@@ -74,7 +74,7 @@ export function CopilotDrawer({
         { role: "assistant", content: result.reply, action: result.action },
       ]);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "AutoGrant Agent could not respond.");
+      setError(cause instanceof Error ? cause.message : "Grant could not respond.");
       setMessages(nextMessages);
     } finally {
       setBusy(false);
@@ -192,11 +192,11 @@ export function CopilotDrawer({
       {open && (
         <section
           className="fixed bottom-20 right-4 z-40 flex h-[min(72vh,720px)] w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl"
-          aria-label="AutoGrant Agent"
+          aria-label="Grant"
         >
           <header className="flex items-center justify-between border-b border-slate-200 bg-slate-900 px-4 py-3 text-white">
             <div>
-              <h2 className="text-sm font-bold">AutoGrant Agent</h2>
+              <h2 className="text-sm font-bold">Grant</h2>
               <p className="text-[11px] text-slate-300">
                 Private profile, tracker &amp; Vault context
               </p>
@@ -228,7 +228,7 @@ export function CopilotDrawer({
                   acceptAction(message.action, index)}
               </article>
             ))}
-            {busy && <p className="text-xs text-slate-500">AutoGrant Agent is working…</p>}
+            {busy && <p className="text-xs text-slate-500">Grant is working…</p>}
             {error && (
               <p
                 role="alert"
@@ -254,7 +254,7 @@ export function CopilotDrawer({
             <p className="text-[10px] text-slate-500">
               {isAuthenticated
                 ? "Drop a document here or attach one to save it to your private Vault."
-                : "Sign in to chat with AutoGrant Agent or upload documents to your private Vault."}
+                : "Sign in to chat with Grant or upload documents to your private Vault."}
             </p>
             {isAuthenticated ? (
               <form
@@ -285,13 +285,13 @@ export function CopilotDrawer({
                 />
                 <textarea
                   ref={messageInput}
-                  aria-label="Message AutoGrant Agent"
+                  aria-label="Message Grant"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   rows={2}
                   maxLength={4000}
                   className="min-w-0 flex-1 resize-none rounded border border-slate-300 bg-white p-2 text-xs text-slate-900"
-                  placeholder="Ask AutoGrant Agent…"
+                  placeholder="Ask Grant…"
                 />
                 <button
                   type="submit"
