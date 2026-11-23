@@ -227,12 +227,14 @@ export const copilotChat = createServerFn({ method: "POST" })
           category: z.string().trim().max(30).optional(),
         }),
         execute: async ({ query, agency, category }) =>
-          searchSiteGrantListings({
-            query,
-            agency,
-            category,
-            state: stateFromLocation(profile?.location ?? "") ?? undefined,
-            lifecycleStage: profile?.lifecycle_stage,
+       searchSiteGrantListings({
+         query,
+         agency,
+         category,
+         state: stateFromLocation(profile?.location ?? "") ?? undefined,
+         lifecycleStage: profile?.lifecycle_stage,
+         entityType: profile?.entity_type,
+       }),
           }),
       }),
       add_budget_line_item: tool({
