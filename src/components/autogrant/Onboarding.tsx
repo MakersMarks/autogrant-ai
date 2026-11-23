@@ -182,7 +182,6 @@ export function Onboarding({ initial, onComplete }: { initial: ProfileInput; onC
         <div className="space-y-3">
           <label className="block space-y-1 text-xs text-muted-foreground">
             Industry
-            <select aria-label="Industry" value={p.industry} onChange={(e) => setP({ ...p, industry: e.target.value })} className="w-full p-3 rounded-xl border border-border bg-background text-foreground">
               <input aria-label="Industry / niche" value={p.industry} maxLength={200} onChange={(e) => setP({ ...p, industry: e.target.value })} placeholder="e.g. food business, creative studio, clean energy" className="w-full p-3 rounded-xl border border-border bg-background text-foreground" />
           </label>
           {UNIQUE_OPTIONS.map((option) => {
