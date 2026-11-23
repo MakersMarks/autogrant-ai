@@ -59,7 +59,7 @@ const strip = (html: string) =>
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n\n")
     .replace(/<[^>]+>/g, "")
-    .replace(/ /g, " ")
+    .replace(/ /g, " ")
     .replace(/&/g, "&")
     .replace(/'|’/g, "'")
     .replace(/"|“|”/g, '"')
@@ -354,12 +354,18 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
       if (/new startup|idea|pre.?launch/i.test(stage) && (grant.minMonthsInBusiness ?? 0) > 12) {
         return false;
       }
-      return (
-        !queryTerms.length ||
-        queryTerms.some((term) =>
-          `${grant.title} ${grant.funderName} ${grant.summaryText}`.toLowerCase().includes(term),
-        )
-      );
+      const searchableText = [
+        grant.title,
+        grant.funderName,
+        grant.summaryText,
+        grant.grantTier ?? "",
+        ...grant.eligibleEntityTypes,
+        ...grant.demographicSetAsides,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return !queryTerms.length || queryTerms.some((term) => searchableText.includes(term));
     })
     .slice(0, 8)
     .map((grant) => ({
@@ -617,11 +623,17 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
         Local: localMatches.filter((grant) => !grant.directoryOnly && isCurrent(grant)),
         Corporate: corporateRegistry.filter(
           (grant) =>
-            grant.poolTier === "corporate_diversity" && isCurrent(grant) && stageEligible(grant),
+            !grant.directoryOnly &&
+            grant.poolTier === "corporate_diversity" &&
+            isCurrent(grant) &&
+            stageEligible(grant),
         ),
         Foundation: corporateRegistry.filter(
           (grant) =>
-            grant.poolTier === "foundation" && isCurrent(grant) && stageEligible(grant),
+            !grant.directoryOnly &&
+            grant.poolTier === "foundation" &&
+            isCurrent(grant) &&
+            stageEligible(grant),
         ),
       },
     };
