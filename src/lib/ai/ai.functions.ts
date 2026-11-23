@@ -217,7 +217,7 @@ export const copilotChat = createServerFn({ method: "POST" })
     ) {
       throw new Error("The complete conversation must end with the current user message.");
     }
-    const tools = {
+        const tools = {
       search_site_grants: tool({
         description:
           "Search live Grants.gov opportunities and AutoGrant's regional program directory. Use before answering questions about current grants, amounts, deadlines, eligibility, or available programs.",
@@ -234,7 +234,8 @@ export const copilotChat = createServerFn({ method: "POST" })
             state: stateFromLocation(profile?.location ?? "") ?? undefined,
             lifecycleStage: profile?.lifecycle_stage,
           }),
-              add_budget_line_item: tool({
+      }),
+      add_budget_line_item: tool({
         description:
           "Add a specific budget line item with its amount, vendor quote or estimate, and milestone goal to the user's project budget.",
         inputSchema: z.object({
@@ -285,7 +286,6 @@ export const copilotChat = createServerFn({ method: "POST" })
             message: `Application status updated to ${newStatus}.`,
           };
         },
-      }),
       }),
       get_grant_details: tool({
         description:
@@ -350,7 +350,10 @@ export const copilotChat = createServerFn({ method: "POST" })
       "Never invent facts, revenue figures, partners, certifications, or vendor quotes. Ground every answer strictly in the user's supplied facts.",
       "Use your available tools to search grants, inspect workspace records, run rubric audits, add budget line items, and update application statuses.",
     ].join(" ");
-    const raw = await generateCopilotWithTools(
+        const raw = await generateCopilotWithTools(
+      `${systemPrompt}
+You are AutoGrant's warm, sharp Senior Grant Consultant. Match the user's tone and keep replies conversational, clear, and specific. The user is currently viewing ${data.activePage}; use that page context to make guidance actionable.
+
       `You are AutoGrant's warm, sharp Senior Grant Consultant. Match the user's tone and keep replies conversational, clear, and specific. The user is currently viewing ${data.activePage}; use that page context to make guidance actionable.
 
 Pacing: greet warmly and briefly, then ask one open question; never answer a greeting with a checklist. If the user is at the idea stage, reassure them, explain readiness versus early-stage paths briefly, and ask only 1–2 simple discovery questions. Never overwhelm them with more than 1–2 targeted questions per reply.
