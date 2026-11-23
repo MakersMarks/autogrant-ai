@@ -493,7 +493,9 @@ export function scoreGrantOpportunity(input: {
     [profile.lifecycleStage, profile.fundingPurpose],
     `${opportunity.title} ${opportunity.summaryText ?? ""} ${sectorText}`,
   );
-  const eligibilityScore = Math.round((sectorFit + demographicAlignment + stageAndPurposeFit) / 3);
+  const eligibilityScore = stageAndPurposeFit > 0
+  ? Math.round((sectorFit + demographicAlignment + stageAndPurposeFit) / 3)
+  : Math.round(sectorFit * 0.6 + demographicAlignment * 0.4);
   eligibilityReasons.push(
     sectorFit > 0
       ? `Sector fit: ${sectorFit}/100 based on published categories or opportunity text.`
