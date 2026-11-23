@@ -356,6 +356,10 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
 
   const regional = registryGrants
     .filter((grant) => {
+      const regionalText = `${grant.title} ${grant.summaryText} ${grant.eligibleEntityTypes.join(" ")}`;
+   if (isFounderOrSmallBiz && !explicitlyAskedForAcademic && academicOnlyPattern.test(regionalText)) {
+     return false;
+   }
       if (grant.directoryOnly || !isUnifiedGrantOpen(grant)) return false;
       if (input.agency && !grant.funderName.toLowerCase().includes(input.agency.toLowerCase())) {
         return false;
