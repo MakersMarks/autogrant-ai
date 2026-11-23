@@ -274,6 +274,7 @@ type SiteGrantSearch = {
   category?: string;
   state?: string;
   lifecycleStage?: string;
+  entityType?: string;
 };
 
 const registryGrants = [...stateRegistry, ...localRegistry, ...corporateRegistry];
