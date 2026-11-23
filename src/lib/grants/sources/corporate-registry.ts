@@ -2,7 +2,7 @@ import type { UnifiedGrant } from "../../grants";
 
 export const corporateRegistry: UnifiedGrant[] = [
   {
-    id: "fast-break-legalzoom",directoryOnly: false, poolTier: "corporate_diversity", title: "Amber Grant for Women",
+    id: "fast-break-for-small-business"",directoryOnly: false, poolTier: "corporate_diversity", title: "Amber Grant for Women",
     funderName: "Amber Grant Foundation", funderType: "corporate", awardFloor: 15000, awardCeiling: 15000,
     deadline: "Rolling", isRolling: true, costSharingRequired: false,
     eligibleEntityTypes: ["for_profit"], demographicSetAsides: ["women_owned"], geographicScope: { level: "national" },
