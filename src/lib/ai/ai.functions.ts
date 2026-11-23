@@ -287,6 +287,30 @@ export const copilotChat = createServerFn({ method: "POST" })
           };
         },
       }),
+          remove_application: tool({
+        description:
+          "Delete a single application card from the user's Application Tracker by ID when the user explicitly asks to remove or clean out a specific application. Always check get_user_workspace first so you have the exact applicationId.",
+        inputSchema: z.object({
+          applicationId: z.string().uuid(),
+          reason: z.string().trim().max(300).optional(),
+        }),
+        execute: async ({ applicationId }) => {
+          const { data: deleted, error } = await context.supabase
+            .from("applications")
+            .delete()
+            .eq("id", applicationId)
+            .eq("user_id", context.userId)
+            .select("id")
+            .maybeSingle();
+          if (error) throw new Error(`Could not remove application: ${error.message}`);
+          if (!deleted) throw new Error("Application was not found in your tracker.");
+          return {
+            status: "removed",
+            applicationId,
+            message: "Removed the application from your tracker.",
+          };
+        },
+      }),
       get_grant_details: tool({
         description:
           "Read current data for a grant already listed on AutoGrant. Returns sourced listing details and explicitly identifies when the full solicitation or scoring rubric is unavailable.",
