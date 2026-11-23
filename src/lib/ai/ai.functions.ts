@@ -235,7 +235,6 @@ export const copilotChat = createServerFn({ method: "POST" })
          lifecycleStage: profile?.lifecycle_stage,
          entityType: profile?.entity_type,
        }),
-          }),
       }),
       add_budget_line_item: tool({
         description:
