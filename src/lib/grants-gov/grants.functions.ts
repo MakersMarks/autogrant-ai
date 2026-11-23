@@ -318,6 +318,10 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
       const title = String(hit["title"] ?? "");
       const closeDate = String(hit["closeDate"] ?? "");
       if (daysUntil(closeDate) !== null && (daysUntil(closeDate) ?? -1) < 0) return null;
+      const combinedText = `${title}\n${grant.eligibility.join(" ")}\n${grant.description}\n${grant.eligibilityNotes}`;
+   if (isFounderOrSmallBiz && !explicitlyAskedForAcademic && academicOnlyPattern.test(combinedText)) {
+     return null;
+   }
       const limitations = `${title}\n${grant.description}\n${grant.eligibilityNotes}`;
       if (
         /new startup|idea|pre.?launch/i.test(stage) &&
