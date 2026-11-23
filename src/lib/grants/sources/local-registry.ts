@@ -2,7 +2,7 @@ import type { UnifiedGrant } from "../../grants";
 
 export const localRegistry: UnifiedGrant[] = [
   {
-    id: "nashville-metro-business-directory",
+    id: "metro-arts-nashville-microgrant",
     grantTier: "Local",
     directoryOnly: false,
     poolTier: "state_territory",
