@@ -81,13 +81,13 @@ function IndexComponent() {
     return window.localStorage.getItem('autogrant.businessStage') === 'pre_launch' ? 'pre_launch' : 'established';
   });
   const [intake, setIntake] = useState<Intake | null>(null);
-  const [drafting, setDrafting] = useState(false);
+  const [drafting] = useState(false);
   const [summary, setSummary] = useState('');
   const [voiceProfile, setVoiceProfile] = useState('');
   const [viewing, setViewing] = useState<VaultDocument | null>(null);
   const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
   const [uploadCategory, setUploadCategory] = useState<"legal_tax" | "license_permit" | "vendor_quote" | "financial">("legal_tax");
-  const [uploadSlotKey, setUploadSlotKey] = useState("");
+  const [uploadSlotKey] = useState("");
   const persistIntake = useServerFn(saveIntake);
   const persistApplicationStatus = useServerFn(updateApplicationStatus);
   const [copilotQuestion, setCopilotQuestion] = useState<{ id: number; text: string } | undefined>();
@@ -234,7 +234,6 @@ function IndexComponent() {
       if (session) setShowAuth(false);
     });
 
-
     return () => subscription.unsubscribe();
   }, []);
 
@@ -305,4 +304,178 @@ function IndexComponent() {
       setAutopilot(!!profile.autopilot);
       setVoiceProfile(profile.voice_profile ?? "");
       setSettingsEmail(profile.email ?? "");
-      setSettingsProjectName(profile.project_
+      setSettingsProjectName(profile.project_name ?? "");
+      setSettingsLocation(profile.location ?? "");
+      setSettingsFundingGoal(profile.funding_goal ?? "");
+    } else {
+      setShowQuestionnaire(true);
+      setSettingsProjectName("");
+      setSettingsLocation("");
+      setSettingsFundingGoal("");
+      setIntake({
+        project_name: "",
+        industry: "",
+        lifecycle_stage: "",
+        sector_code: "BC",
+        entity_type: "Idea / Pre-Launch Founder",
+        funding_goal: "",
+        demographics: [],
+        location: "",
+        funding_purpose: "",
+      });
+    }
+    setSettingsName(authData.user?.user_metadata?.["name"] ?? "");
+    setSettingsPhone(authData.user?.user_metadata?.["phone"] ?? "");
+    setNotificationsEnabled(authData.user?.user_metadata?.["notification_opt_in"] === true);
+    setVaultDocs((documents ?? []).map((d) => ({
+      id: d.id,
+      name: d.file_name,
+      size: d.size_bytes,
+      type: d.mime_type,
+      uploadedAt: d.created_at,
+      storagePath: d.storage_path,
+      slotKey: d.slot_key,
+      ...(d.category_tag ? { categoryTag: d.category_tag } : {}),
+      ...(d.grant_id ? { grantId: d.grant_id } : {}),
+    })));
+    setProposals((applications ?? []).map(applicationToProposal));
+  }, []);
+
+  const syncBankDeposits = useCallback(async () => {
+    setSyncingBank(true);
+    try {
+      await reloadWorkspace();
+      const nowIso = new Date().toISOString();
+      const updatedAccount: LinkedBusinessBankAccount = {
+        ...bankAccount,
+        lastSyncedAt: nowIso,
+      };
+      setBankAccount(updatedAccount);
+      await persistBankState(updatedAccount, bankDeposits);
+      setStatusMessage(
+        bankAccount.connected
+          ? `Synced ${bankAccount.institutionName} (••••${bankAccount.mask}) at ${new Date(nowIso).toLocaleTimeString()}.`
+          : 'Workspace synced. Link a business bank account or record a deposit to track incoming grant funds.',
+      );
+    } finally {
+      setSyncingBank(false);
+    }
+  }, [bankAccount, bankDeposits, persistBankState, reloadWorkspace]);
+
+  const activeUserId = userSession?.user?.id;
+  useEffect(() => {
+    setIntake(null); setVaultDocs([]); setProposals([]); setSummary('');
+    if (activeUserId) void reloadWorkspace();
+  }, [activeUserId, reloadWorkspace]);
+
+  const uploadVaultFile = async (
+    file: File,
+    options: { categoryTag?: VaultDocument["categoryTag"]; slotKey?: string; autoCategorize?: boolean } = {},
+  ) => {
+    try {
+      setStatusMessage(`Uploading ${file.name} (Max 15MB)...`);
+      const categoryTag = options.autoCategorize ? options.categoryTag : options.categoryTag ?? uploadCategory;
+      const doc = await processDocumentUpload(file, {
+        ...(categoryTag ? { categoryTag } : {}),
+        ...(selectedGrant?.id ? { grantId: selectedGrant.id } : {}),
+        ...(options.slotKey ? { slotKey: options.slotKey } : uploadSlotKey ? { slotKey: uploadSlotKey } : {}),
+      });
+      setVaultDocs((prev) => [doc, ...prev]);
+      setStatusMessage(doc.metadataWarning ? `${doc.metadataWarning} Saved: ${doc.name}` : `Saved successfully: ${doc.name}`);
+      return true;
+    } catch (err) {
+      setStatusMessage(`Upload error: ${err instanceof Error ? err.message : "Unknown upload error."}`);
+      return false;
+    }
+  };
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await uploadVaultFile(file);
+    e.target.value = "";
+  };
+
+  const enableAutopilot = async () => {
+    if (!autopilotGate.allowed) {
+      setGateProjectName(intake?.project_name ?? "");
+      setShowAutopilotGate(true);
+      return;
+    }
+    if (!userSession) { setShowAuth(true); return; }
+    const { error } = await supabase.from("profiles").update({ autopilot: true }).eq("id", userSession.user.id);
+    if (error) { setStatusMessage(`Could not enable Autopilot: ${error.message}`); return; }
+    setAutopilot(true);
+    setStatusMessage("Autopilot preference enabled. Applications still require your review and portal submission.");
+  };
+
+  const saveGateProjectName = async () => {
+    const projectName = gateProjectName.trim();
+    if (!projectName || !userSession) {
+      setStatusMessage("Enter a Project Name and sign in before saving.");
+      return;
+    }
+    setSavingGateProject(true);
+    const { error } = await supabase.from("profiles")
+      .update({ project_name: projectName, updated_at: new Date().toISOString() })
+      .eq("id", userSession.user.id);
+    setSavingGateProject(false);
+    if (error) { setStatusMessage(`Project Name could not be saved: ${error.message}`); return; }
+    setIntake((current) => current ? { ...current, project_name: projectName } : current);
+    setStatusMessage("Project Name saved.");
+  };
+
+  const saveSettings = async () => {
+    if (!userSession) { setShowAuth(true); return; }
+    setSettingsSaving(true);
+    const goal = settingsFundingGoal.replace(/[^0-9.]/g, "");
+    const { error: profileError } = await supabase.from("profiles")
+      .update({
+        project_name: settingsProjectName.trim(),
+        location: settingsLocation.trim(),
+        funding_goal: goal,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userSession.user.id);
+    if (profileError) {
+      setSettingsSaving(false);
+      setStatusMessage(`Business settings could not be saved: ${profileError.message}`);
+      return;
+    }
+    setIntake((current) => current ? {
+      ...current,
+      project_name: settingsProjectName.trim(),
+      location: settingsLocation.trim(),
+      funding_goal: goal,
+    } : current);
+    setFundingGoal(Number(goal) || 0);
+    const { error: emailError } = await supabase.from("profiles")
+      .update({ email: settingsEmail.trim() || null, updated_at: new Date().toISOString() })
+      .eq("id", userSession.user.id);
+    if (emailError) {
+      setSettingsSaving(false);
+      setStatusMessage(`Notification email could not be saved: ${emailError.message}`);
+      return;
+    }
+    const { data, error: metadataError } = await supabase.auth.updateUser({
+      data: {
+        name: settingsName.trim(),
+        phone: settingsPhone.trim(),
+        notification_opt_in: notificationsEnabled,
+        business_bank_account: bankAccount,
+        business_bank_deposits: bankDeposits,
+      },
+    });
+    setSettingsSaving(false);
+    if (metadataError) {
+      setStatusMessage(`Notification email was saved, but name/preferences were not: ${metadataError.message}`);
+      return;
+    }
+    if (data.user) setUserSession((current) => current ? { ...current, user: data.user } : current);
+    setStatusMessage("Settings saved. Notification opt-in is recorded, but email alerts are not currently sent by AutoGrant.");
+  };
+
+  const deleteDocument = async (doc: VaultDocument) => {
+    if (!window.confirm(`Permanently delete "${doc.name}" from your Vault?`)) return;
+    setDeletingVaultId(doc.id);
+    try {
+      await deleteVaultDocument(doc);
+      const remaining = vaultDocs.filter
