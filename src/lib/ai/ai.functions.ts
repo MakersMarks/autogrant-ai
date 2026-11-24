@@ -218,23 +218,28 @@ export const copilotChat = createServerFn({ method: "POST" })
       throw new Error("The complete conversation must end with the current user message.");
     }
         const tools = {
-      search_site_grants: tool({
+     search_site_grants: tool({
         description:
-          "Search live Grants.gov opportunities and AutoGrant's regional program directory. Use before answering questions about current grants, amounts, deadlines, eligibility, or available programs.",
+          "Search non-federal small grants across AutoGrant's state, local, corporate, and foundation registries by default (and optionally include Grants.gov when includeFederal is true). Use before answering questions about available programs, amounts, deadlines, or eligibility.",
         inputSchema: z.object({
           query: z.string().trim().max(100).default(""),
           agency: z.string().trim().max(100).optional(),
           category: z.string().trim().max(30).optional(),
+          maxAward: z.number().positive().optional(),
+          includeFederal: z.boolean().optional(),
         }),
-        execute: async ({ query, agency, category }) =>
-       searchSiteGrantListings({
-         query,
-         agency,
-         category,
-         state: stateFromLocation(profile?.location ?? "") ?? undefined,
-         lifecycleStage: profile?.lifecycle_stage,
-         entityType: profile?.entity_type,
-       }),
+        execute: async ({ query, agency, category, maxAward, includeFederal }) =>
+          searchSiteGrantListings({
+            query,
+            agency,
+            category,
+            state: stateFromLocation(profile?.location ?? "") ?? undefined,
+            lifecycleStage: profile?.lifecycle_stage,
+            entityType: profile?.entity_type,
+            maxAward: maxAward ?? 25000,
+            includeFederal: includeFederal ?? false,
+          }),
+      }),
       }),
       add_budget_line_item: tool({
         description:
