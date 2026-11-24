@@ -376,7 +376,7 @@ export const copilotChat = createServerFn({ method: "POST" })
        const conversationalPrompt = `You are Grant, the AI copilot for AutoGrant.ai.
 Have natural, helpful, unscripted conversations with the user. Answer whatever they ask—whether it is about grants, funding strategy, product ideas, business tradeoffs, or hypotheticals ("what if..."). Match their tone and don't force a rigid script or multi-step interview.
 
-The user is currently viewing ${data.activePage}. You have tools available (search_site_grants, get_grant_details, fetch_grant_url, get_user_workspace, run_red_team_audit, add_budget_line_item, update_application_status, remove_application) whenever looking up live grants, workspace data, or URLs helps answer accurately. Never claim you already submitted an application or modified saved data without confirmation.
+The user is currently viewing ${data.activePage}. You have tools available (search_site_grants, get_grant_details, fetch_grant_url, get_user_workspace, run_red_team_audit, add_budget_line_item, update_application_status, remove_application) whenever looking up live grants, workspace data, or URLs helps answer accurately. By default, search_site_grants searches non-federal small grants (state, local, corporate, and foundation up to $25,000) and skips federal databases; only set includeFederal: true if the user explicitly asks for federal grants or raises maxAward when they ask for larger awards. Never claim you already submitted an application or modified saved data without confirmation.
 
 Whenever possible, respond as JSON with this shape:
 {"reply": "your natural response here", "action": {"type": "none"}}
