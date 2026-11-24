@@ -81,13 +81,13 @@ function IndexComponent() {
     return window.localStorage.getItem('autogrant.businessStage') === 'pre_launch' ? 'pre_launch' : 'established';
   });
   const [intake, setIntake] = useState<Intake | null>(null);
-  const [drafting] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [summary, setSummary] = useState('');
   const [voiceProfile, setVoiceProfile] = useState('');
   const [viewing, setViewing] = useState<VaultDocument | null>(null);
   const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
   const [uploadCategory, setUploadCategory] = useState<"legal_tax" | "license_permit" | "vendor_quote" | "financial">("legal_tax");
-  const [uploadSlotKey] = useState("");
+  const [uploadSlotKey, setUploadSlotKey] = useState("");
   const persistIntake = useServerFn(saveIntake);
   const persistApplicationStatus = useServerFn(updateApplicationStatus);
   const [copilotQuestion, setCopilotQuestion] = useState<{ id: number; text: string } | undefined>();
@@ -219,83 +219,3 @@ function IndexComponent() {
         `Recorded deposits: ${bankDeposits
           .map((d) => `$${d.amount.toLocaleString()} from "${d.sourceLabel}" (${new Date(d.postedAt).toLocaleDateString()})`)
           .join('; ')}`,
-      );
-    }
-    return parts.join(' | ');
-  }, [bankAccount, bankDeposits]);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserSession(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserSession(session);
-      if (session) setShowAuth(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const reloadWorkspace = useCallback(async () => {
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError) {
-      setStatusMessage(`Could not verify the current user while reloading: ${authError.message}`);
-      return;
-    }
-    const [profileResult, documentsResult, applicationsResult] = await Promise.all([
-      supabase.from('profiles').select('*').maybeSingle(),
-      supabase.from('vault_documents').select('*').order('created_at', { ascending: false }),
-      supabase.from('applications').select('*').order('created_at', { ascending: false }),
-    ]);
-    const loadErrors = [profileResult.error, documentsResult.error, applicationsResult.error].filter(Boolean);
-    if (loadErrors.length) {
-      setStatusMessage(`Workspace could not be fully loaded: ${loadErrors.map((error) => error?.message).join("; ")}`);
-      return;
-    }
-    const profile = profileResult.data;
-    const documents = documentsResult.data;
-    const applications = applicationsResult.data;
-
-    const metaBank = authData.user?.user_metadata?.['business_bank_account'] as LinkedBusinessBankAccount | undefined;
-    const metaDeposits = authData.user?.user_metadata?.['business_bank_deposits'] as BankDepositRecord[] | undefined;
-    if (metaBank) {
-      setBankAccount({ ...DEFAULT_BANK_ACCOUNT, ...metaBank });
-    } else if (typeof window !== 'undefined') {
-      const rawBank = window.localStorage.getItem('autogrant.bankAccount');
-      if (rawBank) {
-        try {
-          setBankAccount({ ...DEFAULT_BANK_ACCOUNT, ...JSON.parse(rawBank) });
-        } catch {
-          setBankAccount(DEFAULT_BANK_ACCOUNT);
-        }
-      }
-    }
-    if (Array.isArray(metaDeposits)) {
-      setBankDeposits(metaDeposits);
-    } else if (typeof window !== 'undefined') {
-      const rawDeposits = window.localStorage.getItem('autogrant.bankDeposits');
-      if (rawDeposits) {
-        try {
-          const parsed = JSON.parse(rawDeposits);
-          if (Array.isArray(parsed)) setBankDeposits(parsed);
-        } catch {
-          setBankDeposits([]);
-        }
-      }
-    }
-
-    if (profile) {
-      setIntake({ project_name: profile.project_name, industry: profile.industry, lifecycle_stage: profile.lifecycle_stage, sector_code: profile.sector_code, entity_type: profile.entity_type, funding_goal: profile.funding_goal, demographics: profile.demographics, location: profile.location, funding_purpose: profile.funding_purpose });
-      setShowQuestionnaire(profile.onboarded !== true);
-      setSelectedSector(profile.sector_code);
-      setEntityType(profile.entity_type as EntityType);
-      const persistedStage =
-        authData.user?.user_metadata?.["business_stage"] ??
-        window.localStorage.getItem('autogrant.businessStage');
-      if (persistedStage === 'pre_launch' || persistedStage === 'established') {
-        setBusinessStage(persistedStage);
-      } else {
-        const stage = profile.entity_type === 'Idea / Pre-Launch Founder' ? 'pre_launch' : 'established';
-        setBusinessStage(stage);
-        window.localStorage
