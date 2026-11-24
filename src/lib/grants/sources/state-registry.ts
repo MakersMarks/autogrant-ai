@@ -110,4 +110,28 @@ export const stateRegistry: UnifiedGrant[] = [
     isFreeToApply: true,
     summaryText: "New York state economic-development, expansion, and revitalization funding.",
   },
+  {
+    id: "ia-main-street-open-4-business",
+    grantTier: "State",
+    directoryOnly: false,
+    poolTier: "state_territory",
+    title: "Main Street Iowa Open 4 Business",
+    funderName: "Iowa Economic Development Authority (IEDA)",
+    funderType: "government",
+    awardFloor: 5000,
+    awardCeiling: 25000,
+    deadline: "Annual round (verify current window on IowaGrants.gov)",
+    isRolling: false,
+    costSharingRequired: true,
+    costSharingPercentage: 25,
+    minMonthsInBusiness: 12,
+    eligibleEntityTypes: ["for_profit"],
+    demographicSetAsides: [],
+    geographicScope: { level: "state_specific", allowedStates: ["IA"] },
+    applicationMethod: "online_portal",
+    directApplyUrl: "https://opportunityiowa.gov/topics/downtown",
+    isFreeToApply: true,
+    summaryText:
+      "$5,000–$25,000 state grants for for-profit businesses in designated Main Street Iowa districts (at least 1 year in operation; requires a 25% owner investment).",
+  }
 ];
