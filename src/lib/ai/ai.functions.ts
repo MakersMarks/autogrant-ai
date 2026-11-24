@@ -167,6 +167,16 @@ const copilotMessagesSchema = z.array(
   }),
 );
 
+const memoryFieldSchema = z.enum([
+  "project_name",
+  "industry",
+  "lifecycle_stage",
+  "entity_type",
+  "funding_goal",
+  "location",
+  "funding_purpose",
+]);
+
 function stripHtmlDocument(html: string) {
   return html
     .replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/giu, " ")
@@ -317,6 +327,41 @@ export const copilotChat = createServerFn({ method: "POST" })
             includeFederal: includeFederal ?? false,
           }),
       }),
+      update_user_memory: tool({
+        description:
+          "Save an explicit fact the user shared about their project or profile into their saved profile record.",
+        inputSchema: z.object({
+          field: memoryFieldSchema,
+          value: z.string().trim().min(1).max(500),
+        }),
+        execute: async ({ field, value }) => {
+          const { data: currentProfile, error: readErr } = await context.supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", context.userId)
+            .maybeSingle();
+          if (readErr || !currentProfile) {
+            throw new Error("Could not read your profile to save memory.");
+          }
+          const parsed = intakeSchema.safeParse({ ...currentProfile, [field]: value });
+          if (!parsed.success) {
+            throw new Error(`Invalid value for ${field}; memory was not saved.`);
+          }
+          const { error: updateErr } = await context.supabase
+            .from("profiles")
+            .update({ [field]: parsed.data[field], updated_at: new Date().toISOString() })
+            .eq("id", context.userId);
+          if (updateErr) {
+            throw new Error(`Could not save ${field} to profile: ${updateErr.message}`);
+          }
+          return {
+            status: "saved",
+            field,
+            value: parsed.data[field],
+            message: `Saved ${field} to your profile.`,
+          };
+        },
+      }),
       add_budget_line_item: tool({
         description:
           "Add a specific budget line item with its amount, vendor quote or estimate, and milestone goal to the user's project budget.",
@@ -456,10 +501,26 @@ export const copilotChat = createServerFn({ method: "POST" })
       }),
     };
 
+    const profileSummary = profile
+      ? [
+          `Project: ${profile.project_name || "Not stated"}`,
+          `Industry: ${profile.industry || sectorName(profile.sector_code) || "Not stated"}`,
+          `Entity type: ${profile.entity_type || "Not stated"}`,
+          `Lifecycle stage: ${profile.lifecycle_stage || "Not stated"}`,
+          `Location: ${profile.location || "Not stated"}`,
+          `Funding goal: ${profile.funding_goal || "Not stated"}`,
+          `Funding purpose: ${profile.funding_purpose || "Not stated"}`,
+          `Vault files uploaded: ${evidence.length}`,
+        ].join("\n")
+      : `Profile: None on file\nVault files uploaded: ${evidence.length}`;
+
     const conversationalPrompt = `You are Grant, the AI copilot for AutoGrant.ai.
 Have natural, helpful, unscripted conversations with the user. Answer whatever they ask—whether it is about grants, funding strategy, product ideas, business tradeoffs, or hypotheticals ("what if..."). Match their tone and don't force a rigid script or multi-step interview.
 
-The user is currently viewing ${data.activePage}. You have tools available (search_site_grants, get_grant_details, fetch_grant_url, get_user_workspace, run_red_team_audit, add_budget_line_item, update_application_status, remove_application) whenever looking up live grants, workspace data, or URLs helps answer accurately. By default, search_site_grants searches non-federal small grants (state, local, corporate, and foundation up to $25,000) and skips federal databases; only set includeFederal: true if the user explicitly asks for federal grants or raises maxAward when they ask for larger awards. Never claim you already submitted an application or modified saved data without confirmation.
+Saved User Context:
+${profileSummary}
+
+The user is currently viewing ${data.activePage}. You have tools available (search_site_grants, update_user_memory, get_grant_details, fetch_grant_url, get_user_workspace, run_red_team_audit, add_budget_line_item, update_application_status, remove_application) whenever looking up live grants, workspace data, or URLs helps answer accurately. By default, search_site_grants searches non-federal small grants (state, local, corporate, and foundation up to $25,000) and skips federal databases; only set includeFederal: true if the user explicitly asks for federal grants or raises maxAward when they ask for larger awards. Never claim you already submitted an application or modified saved data without confirmation.
 
 Whenever possible, respond as JSON with this shape:
 {"reply": "your natural response here", "action": {"type": "none"}}
