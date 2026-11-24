@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import type { VaultDocument } from "@/lib/vault";
 import {
   buildBudgetJustification,
   calculateBudget,
@@ -17,6 +18,8 @@ type InstitutionalDraft = { category: string; basis: string; amount: string; pur
 type BudgetBuilderProps = {
   awardCeiling?: number | null;
   costSharingPercentage?: number | null;
+  savedBudgetDocs?: VaultDocument[];
+  onOpenVaultDoc?: (doc: VaultDocument) => void;
   onChange?: (input: BudgetInput, calculation: BudgetCalculation | null) => void;
   onAskMissingDetails?: ((context?: string) => void) | undefined;
 };
@@ -27,7 +30,14 @@ const numberValue = (value: string) => value.trim() === "" ? Number.NaN : Number
 const validNumber = (value: string) => value.trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0;
 const formatMoney = (value: number) => `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange, onAskMissingDetails }: BudgetBuilderProps) {
+export function BudgetBuilder({
+  awardCeiling,
+  costSharingPercentage,
+  savedBudgetDocs = [],
+  onOpenVaultDoc,
+  onChange,
+  onAskMissingDetails,
+}: BudgetBuilderProps) {
   const [track, setTrack] = useState<"small_business" | "federal">("small_business");
   const [federalCosts, setFederalCosts] = useState<FederalBudgetCosts>(() =>
     Object.fromEntries(federalBudgetCategoryNames.map((name) => [name, Number.NaN])) as FederalBudgetCosts,
@@ -89,6 +99,34 @@ export function BudgetBuilder({ awardCeiling, costSharingPercentage, onChange, o
           Enter costs from quotes or documented estimates and terms from the official grant notice. This worksheet calculates the project total, grant request, and required match; it will not guess missing amounts.
         </p>
       </div>
+
+      {savedBudgetDocs.length > 0 && (
+        <section className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h5 className="font-semibold text-sm">Saved budget records in Vault</h5>
+            <span className="text-[11px] font-mono text-emerald-300">{savedBudgetDocs.length} saved</span>
+          </div>
+          <p className="text-xs text-slate-300">
+            Budget line items added in chat and saved budget justifications are stored in your Vault so they persist across sessions.
+          </p>
+          <div className="space-y-1.5">
+            {savedBudgetDocs.map((doc) => (
+              <div key={doc.id} className="flex items-center justify-between gap-2 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs">
+                <span className="truncate text-slate-200">{doc.name}</span>
+                {onOpenVaultDoc && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenVaultDoc(doc)}
+                    className="shrink-0 text-emerald-300 hover:underline font-medium"
+                  >
+                    View
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-4">
         <h5 className="font-semibold text-sm">Budget track</h5>
