@@ -323,6 +323,12 @@ export function CopilotDrawer({
                   aria-label="Message Grant"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void send(draft);
+                    }
+                  }}
                   rows={2}
                   maxLength={4000}
                   className="min-w-0 flex-1 resize-none rounded border border-slate-300 bg-white p-2 text-xs text-slate-900"
