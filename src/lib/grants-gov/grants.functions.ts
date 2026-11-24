@@ -275,6 +275,8 @@ type SiteGrantSearch = {
   state?: string;
   lifecycleStage?: string;
   entityType?: string;
+  includeFederal?: boolean;
+  maxAward?: number;
 };
 
 const registryGrants = [...stateRegistry, ...localRegistry, ...corporateRegistry];
@@ -284,70 +286,78 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
   const state = input.state?.toUpperCase() ?? "";
   const stage = input.lifecycleStage?.toLowerCase() ?? "";
   const entityType = input.entityType?.toLowerCase() ?? "";
+  const includeFederal = input.includeFederal === true;
+  const maxAwardCap = input.maxAward ?? 25000;
   const isFounderOrSmallBiz =
     /small.?business|for.?profit|llc|sole|founder|startup|idea|pre.?launch|new startup/i.test(
       `${entityType} ${stage}`,
     );
-  const explicitlyAskedForAcademic = /\b(university|universities|college|colleges|higher.?ed|cesu|cooperative ecosystem)\b/i.test(
-    query,
-  );
+  const explicitlyAskedForAcademic =
+    /\b(university|universities|college|colleges|higher.?ed|cesu|cooperative ecosystem)\b/i.test(
+      query,
+    );
   const academicOnlyPattern =
     /\b(cesu|cooperative ecosystem studies unit|institution of higher education|institutions of higher education)\b/i;
-  const response = await gov("search2", {
-    keyword: query,
-    rows: 10,
-    oppStatuses: "posted",
-    sortBy: "closeDate|asc",
-    fundingCategories: input.category ?? "",
-  });
-  if (!isJsonRecord(response)) {
-    throw new Error("Grants.gov returned an invalid search response.");
+
+  let federalResults: Array<Record<string, unknown> | null> = [];
+  if (includeFederal) {
+    const response = await gov("search2", {
+      keyword: query,
+      rows: 10,
+      oppStatuses: "posted",
+      sortBy: "closeDate|asc",
+      fundingCategories: input.category ?? "",
+    });
+    if (!isJsonRecord(response)) {
+      throw new Error("Grants.gov returned an invalid search response.");
+    }
+
+    const federal = (Array.isArray(response["oppHits"]) ? response["oppHits"] : [])
+      .filter(isJsonRecord)
+      .slice(0, MAX_DETAIL_LOOKUPS);
+
+    federalResults = await Promise.all(
+      federal.map(async (hit) => {
+        if (typeof hit["id"] !== "string" && typeof hit["id"] !== "number") return null;
+        const id = String(hit["id"]);
+        const grant = await detail(id);
+        const agency = String(hit["agency"] ?? hit["agencyCode"] ?? "");
+        if (input.agency && !agency.toLowerCase().includes(input.agency.toLowerCase())) return null;
+        const title = String(hit["title"] ?? "");
+        const closeDate = String(hit["closeDate"] ?? "");
+        if (daysUntil(closeDate) !== null && (daysUntil(closeDate) ?? -1) < 0) return null;
+        const combinedText = `${title}\n${grant.eligibility.join(" ")}\n${grant.description}\n${grant.eligibilityNotes}`;
+        if (isFounderOrSmallBiz && !explicitlyAskedForAcademic && academicOnlyPattern.test(combinedText)) {
+          return null;
+        }
+        if (grant.awardFloor !== null && grant.awardFloor > maxAwardCap) return null;
+        const limitations = `${title}\n${grant.description}\n${grant.eligibilityNotes}`;
+        if (
+          /new startup|idea|pre.?launch/i.test(stage) &&
+          /(?:2|two)\+?\s+years?\s+(?:in business|of operation)|\$100,?000.{0,30}revenue|revenue.{0,30}\$100,?000/i.test(
+            limitations,
+          )
+        ) {
+          return null;
+        }
+        return {
+          id,
+          source: "Grants.gov",
+          title,
+          funder: agency,
+          awardFloor: grant.awardFloor,
+          awardCeiling: grant.awardCeiling,
+          deadline: closeDate || "Not stated",
+          eligibility: grant.eligibility,
+          eligibilitySummary:
+            grant.eligibilityNotes || "Eligibility details are not stated in the listing summary.",
+          summary: grant.description,
+          url: grantUrl(id),
+          requirementsSource: "Grants.gov listing; verify the complete official opportunity notice.",
+        };
+      }),
+    );
   }
-
-  const federal = (Array.isArray(response["oppHits"]) ? response["oppHits"] : [])
-    .filter(isJsonRecord)
-    .slice(0, MAX_DETAIL_LOOKUPS);
-
-  const federalResults = await Promise.all(
-    federal.map(async (hit) => {
-      if (typeof hit["id"] !== "string" && typeof hit["id"] !== "number") return null;
-      const id = String(hit["id"]);
-      const grant = await detail(id);
-      const agency = String(hit["agency"] ?? hit["agencyCode"] ?? "");
-      if (input.agency && !agency.toLowerCase().includes(input.agency.toLowerCase())) return null;
-      const title = String(hit["title"] ?? "");
-      const closeDate = String(hit["closeDate"] ?? "");
-      if (daysUntil(closeDate) !== null && (daysUntil(closeDate) ?? -1) < 0) return null;
-      const combinedText = `${title}\n${grant.eligibility.join(" ")}\n${grant.description}\n${grant.eligibilityNotes}`;
-   if (isFounderOrSmallBiz && !explicitlyAskedForAcademic && academicOnlyPattern.test(combinedText)) {
-     return null;
-   }
-      const limitations = `${title}\n${grant.description}\n${grant.eligibilityNotes}`;
-      if (
-        /new startup|idea|pre.?launch/i.test(stage) &&
-        /(?:2|two)\+?\s+years?\s+(?:in business|of operation)|\$100,?000.{0,30}revenue|revenue.{0,30}\$100,?000/i.test(
-          limitations,
-        )
-      ) {
-        return null;
-      }
-      return {
-        id,
-        source: "Grants.gov",
-        title,
-        funder: agency,
-        awardFloor: grant.awardFloor,
-        awardCeiling: grant.awardCeiling,
-        deadline: closeDate || "Not stated",
-        eligibility: grant.eligibility,
-        eligibilitySummary:
-          grant.eligibilityNotes || "Eligibility details are not stated in the listing summary.",
-        summary: grant.description,
-        url: grantUrl(id),
-        requirementsSource: "Grants.gov listing; verify the complete official opportunity notice.",
-      };
-    }),
-  );
 
   const queryTerms = query
     .toLowerCase()
@@ -357,10 +367,11 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
   const regional = registryGrants
     .filter((grant) => {
       const regionalText = `${grant.title} ${grant.summaryText} ${grant.eligibleEntityTypes.join(" ")}`;
-   if (isFounderOrSmallBiz && !explicitlyAskedForAcademic && academicOnlyPattern.test(regionalText)) {
-     return false;
-   }
+      if (isFounderOrSmallBiz && !explicitlyAskedForAcademic && academicOnlyPattern.test(regionalText)) {
+        return false;
+      }
       if (grant.directoryOnly || !isUnifiedGrantOpen(grant)) return false;
+      if (grant.awardFloor > maxAwardCap) return false;
       if (input.agency && !grant.funderName.toLowerCase().includes(input.agency.toLowerCase())) {
         return false;
       }
@@ -386,7 +397,8 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
 
       return !queryTerms.length || queryTerms.some((term) => searchableText.includes(term));
     })
-    .slice(0, 8)
+    .sort((a, b) => (a.awardCeiling || 0) - (b.awardCeiling || 0))
+    .slice(0, 12)
     .map((grant) => ({
       id: grant.id,
       source: "AutoGrant program directory",
@@ -404,6 +416,7 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
     }));
 
   return [...federalResults.filter((grant) => grant !== null), ...regional];
+}
 }
 
 export async function getSiteGrantDetails(grantId: string) {
