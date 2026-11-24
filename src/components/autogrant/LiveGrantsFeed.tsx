@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { supabase } from "@/integrations/supabase/client";
 import {
   searchLiveGrants,
   searchSbirSolicitations,
@@ -25,6 +26,75 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 type Detail = Awaited<ReturnType<typeof getGrantDetail>>;
+
+interface SiteGrantRow {
+  id: string;
+  pool_tier: UnifiedGrant["poolTier"] | null;
+  grant_tier: UnifiedGrant["grantTier"] | null;
+  title: string;
+  funder_name: string;
+  funder_type: UnifiedGrant["funderType"] | null;
+  award_floor: number | null;
+  award_ceiling: number | null;
+  min_months_in_business: number | null;
+  eligible_states: string[] | null;
+  application_time_minutes: number | null;
+  deadline: string | null;
+  open_date: string | null;
+  close_date: string | null;
+  is_rolling: boolean | null;
+  cost_sharing_required: boolean | null;
+  cost_sharing_percentage: number | null;
+  eligible_entity_types: string[] | null;
+  demographic_set_asides: string[] | null;
+  geographic_restriction: string | null;
+  geographic_scope: UnifiedGrant["geographicScope"] | null;
+  application_method: string | null;
+  direct_apply_url: string;
+  official_application_url: string | null;
+  portal_url: string | null;
+  source_solicitation_url: string | null;
+  is_free_to_apply: boolean | null;
+  directory_only: boolean | null;
+  summary_text: string;
+  prerequisites: string[] | null;
+}
+
+function mapSiteGrantToUnified(row: SiteGrantRow): UnifiedGrant {
+  return {
+    id: row.id,
+    poolTier: row.pool_tier ?? "state_territory",
+    grantTier: row.grant_tier ?? "State",
+    title: row.title,
+    funderName: row.funder_name,
+    funderType: row.funder_type ?? "government",
+    awardFloor: Number(row.award_floor ?? 0),
+    awardCeiling: Number(row.award_ceiling ?? 0),
+    minMonthsInBusiness: row.min_months_in_business ?? undefined,
+    eligibleStates: row.eligible_states ?? ["ALL"],
+    applicationTimeMinutes: row.application_time_minutes ?? undefined,
+    deadline: row.deadline ?? "Rolling",
+    openDate: row.open_date ?? undefined,
+    closeDate: row.close_date ?? undefined,
+    isRolling: row.is_rolling ?? true,
+    costSharingRequired: row.cost_sharing_required ?? false,
+    costSharingPercentage: row.cost_sharing_percentage ?? undefined,
+    eligibleEntityTypes: (row.eligible_entity_types ?? ["for_profit"]) as UnifiedGrant["eligibleEntityTypes"],
+    demographicSetAsides: (row.demographic_set_asides ?? []) as UnifiedGrant["demographicSetAsides"],
+    geographicRestriction: (row.geographic_restriction ?? "state") as UnifiedGrant["geographicRestriction"],
+    geographicScope: row.geographic_scope ?? { level: "state_specific", allowedStates: row.eligible_states ?? ["IA"] },
+    applicationMethod: (row.application_method ?? "online_portal") as UnifiedGrant["applicationMethod"],
+    directApplyUrl: row.direct_apply_url,
+    officialApplicationUrl: row.official_application_url ?? row.direct_apply_url,
+    portalUrl: row.portal_url ?? undefined,
+    sourceSolicitationUrl: row.source_solicitation_url ?? undefined,
+    isFreeToApply: row.is_free_to_apply ?? true,
+    directoryOnly: row.directory_only ?? false,
+    summaryText: row.summary_text,
+    prerequisites: row.prerequisites ?? [],
+  } as UnifiedGrant;
+}
+
 const DEADLINES = [
   { value: "any", label: "Any deadline" },
   { value: "last", label: "Last Chance (2–7 days)" },
@@ -113,10 +183,44 @@ export function LiveGrantsFeed({
   const [summarizing, setSummarizing] = useState(false);
   const pool = useServerFn(getMultiPoolRegistry);
   const [poolGrants, setPoolGrants] = useState<UnifiedGrant[]>([]);
+  const [siteGrants, setSiteGrants] = useState<UnifiedGrant[]>([]);
   const [sbirGrants, setSbirGrants] = useState<UnifiedGrant[]>([]);
   const [sbirError, setSbirError] = useState("");
   const [poolError, setPoolError] = useState("");
-  const matchingPoolGrants = useMemo(() => [...poolGrants, ...sbirGrants], [poolGrants, sbirGrants]);
+
+  const matchingPoolGrants = useMemo(() => {
+    const merged = [...siteGrants, ...poolGrants, ...sbirGrants];
+    const seen = new Set<string>();
+    return merged.filter((grant) => {
+      if (seen.has(grant.id)) return false;
+      seen.add(grant.id);
+      return true;
+    });
+  }, [siteGrants, poolGrants, sbirGrants]);
+
+  useEffect(() => {
+    let active = true;
+    const targetStates = registryStateCode ? [registryStateCode, "ALL"] : ["IA", "ALL"];
+
+    void (supabase as any)
+      .from("site_grants")
+      .select("*")
+      .overlaps("eligible_states", targetStates)
+      .then(({ data, error: dbError }: { data: SiteGrantRow[] | null; error: { message: string } | null }) => {
+        if (!active) return;
+        if (dbError) {
+          setSiteGrants([]);
+          setPoolError((prev) => prev || dbError.message);
+          return;
+        }
+        setSiteGrants((data ?? []).map(mapSiteGrantToUnified));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [registryStateCode]);
+
   useEffect(() => {
     void pool({ data: { state: registryStateCode, lifecycleStage: profile?.lifecycleStage ?? "" } })
       .then((result) => {
@@ -132,7 +236,7 @@ export function LiveGrantsFeed({
         setPoolGrants([]);
         setPoolError(e instanceof Error ? e.message : "Could not load the program directory.");
       });
-  }, [signedIn, registryStateCode, pool]);
+  }, [signedIn, registryStateCode, pool, profile?.lifecycleStage]);
 
   const run = useCallback(async (keywords?: string[]) => {
     if (!signedIn) return;
@@ -177,6 +281,7 @@ export function LiveGrantsFeed({
       return [grant.id, scoreGrantOpportunity({ opportunity, profile: scoringProfile, evidence })] as const;
     }));
   }, [grants, matchingPoolGrants, profile, evidence]);
+
   const shown = useMemo(() => grants.filter((g) => {
     if (!scoreById.get(g.id)?.eligible) return false;
     if (tierFilter !== "All" && tierFilter !== "Federal") return false;
@@ -187,6 +292,7 @@ export function LiveGrantsFeed({
     if (localOnly && g.geographicRestriction !== "national" && isOtherStateOnly(g.title, userState)) return false;
     return matchesAmount(g, Number(minAmt) || 0, Number(maxAmt) || 0);
   }).sort((a, b) => (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999)), [grants, deadline, awardScaleOnly, minAmt, maxAmt, localOnly, userState, scoreById, tierFilter, lowCompOnly]);
+
   const eligiblePoolGrants = matchingPoolGrants.filter((grant) => {
     const score = scoreById.get(grant.id);
     if (!score?.eligible) return false;
@@ -196,6 +302,7 @@ export function LiveGrantsFeed({
       (grant.poolTier === "state_territory" ? "State" : grant.poolTier === "corporate_diversity" ? "Corporate" : "Foundation");
     return tier === tierFilter;
   });
+
   const allEligibleGrants = [...shown, ...eligiblePoolGrants].sort(
     (a, b) => {
       const scoreA = scoreById.get(a.id);
@@ -206,6 +313,7 @@ export function LiveGrantsFeed({
       );
     },
   );
+
   const closestMatches = [...grants, ...matchingPoolGrants]
     .filter((grant) => !scoreById.get(grant.id)?.eligible)
     .sort((a, b) => (scoreById.get(b.id)?.eligibilityScore ?? 0) - (scoreById.get(a.id)?.eligibilityScore ?? 0))
@@ -264,7 +372,7 @@ export function LiveGrantsFeed({
       </div>
 
       <details className="rounded-lg border border-slate-800 bg-slate-950 p-3">
-        <summary className="cursor-pointer text-xs font-semibold text-slate-200">More Filters &amp; Registration Check</summary>
+        <summary className="cursor-pointer text-xs font-semibold text-slate-200">More Filters & Registration Check</summary>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <select aria-label="Sector" className={field} value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="">All sectors</option>
