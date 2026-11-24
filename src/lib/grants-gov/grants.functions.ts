@@ -622,6 +622,8 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
       .object({
         state: z.string().max(2).default(""),
         lifecycleStage: z.string().max(100).default(""),
+        includeFederal: z.boolean().default(false),
+        maxAward: z.number().positive().optional(),
       })
       .parse(i),
   )
@@ -632,6 +634,9 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
     );
     const stageEligible = (grant: UnifiedGrant) =>
       !earlyStage || grant.minMonthsInBusiness == null || grant.minMonthsInBusiness <= 12;
+    const withinBudget = (grant: UnifiedGrant) =>
+      data.maxAward == null || grant.awardFloor <= data.maxAward;
+
     const stateMatches = stateRegistry
       .filter(
         (grant) =>
@@ -639,7 +644,9 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
           !grant.geographicScope.allowedStates?.length ||
           grant.geographicScope.allowedStates.includes(data.state.toUpperCase()),
       )
-      .filter(stageEligible);
+      .filter(stageEligible)
+      .filter(withinBudget);
+
     const localMatches = localRegistry
       .filter(
         (grant) =>
@@ -647,10 +654,12 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
           !grant.geographicScope.allowedStates?.length ||
           grant.geographicScope.allowedStates.includes(data.state.toUpperCase()),
       )
-      .filter(stageEligible);
+      .filter(stageEligible)
+      .filter(withinBudget);
+
     return {
       pools: {
-        Federal: [],
+        Federal: data.includeFederal ? [] : [],
         State: stateMatches.filter((grant) => !grant.directoryOnly && isCurrent(grant)),
         Local: localMatches.filter((grant) => !grant.directoryOnly && isCurrent(grant)),
         Corporate: corporateRegistry.filter(
@@ -658,14 +667,16 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
             !grant.directoryOnly &&
             grant.poolTier === "corporate_diversity" &&
             isCurrent(grant) &&
-            stageEligible(grant),
+            stageEligible(grant) &&
+            withinBudget(grant),
         ),
         Foundation: corporateRegistry.filter(
           (grant) =>
             !grant.directoryOnly &&
             grant.poolTier === "foundation" &&
             isCurrent(grant) &&
-            stageEligible(grant),
+            stageEligible(grant) &&
+            withinBudget(grant),
         ),
       },
     };
