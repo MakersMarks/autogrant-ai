@@ -163,7 +163,7 @@ const copilotActionInputSchema = z.discriminatedUnion("type", [
 const copilotMessagesSchema = z.array(
   z.object({
     role: z.enum(["user", "assistant"]),
-    content: z.string().max(4000),
+    content: z.string().max(50000),
   }),
 );
 
@@ -256,7 +256,7 @@ export const copilotChat = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z
       .object({
-        message: z.string().trim().min(1).max(4000),
+        message: z.string().trim().min(1).max(2000),
         messages: copilotMessagesSchema,
         activePage: z.string().trim().min(1).max(100),
       })
