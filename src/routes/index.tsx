@@ -647,7 +647,7 @@ function IndexComponent() {
 
           <section className={cockpitView === "Profile" ? "space-y-4" : "hidden"}>
             <div>
-              <h2 className="text-lg font-bold">Profile &amp; intake</h2>
+              <h2 className="text-lg font-bold">Profile & intake</h2>
               <p className="text-xs text-slate-400">Update your applicant details; these guide grant matching and AI drafts.</p>
             </div>
             {!intakeComplete && (
@@ -784,21 +784,42 @@ function IndexComponent() {
 
           <section className={cockpitView === "Tracker" ? "space-y-4 min-w-0" : "hidden"}>
             <div><h2 className="text-lg font-bold">Application tracker</h2><p className="text-xs text-slate-400">Track drafts and record external submissions; AutoGrant does not submit to funder portals.</p></div>
-            <ApplicationTracker proposals={proposals} onStatusChange={async (id, status, details) => {
-              try {
-                await persistApplicationStatus({ data: { applicationId: id, status, ...details } });
-              } catch (error) {
-                const message = error instanceof Error ? error.message : "Application status could not be saved.";
-                setStatusMessage(message);
-                throw new Error(message);
-              }
-              setStatusMessage(status === "submitted"
-                ? "External submission confirmation saved."
-                : status === "submission_ready"
-                  ? "Human review sign-off saved. You still submit through the official portal."
-                  : "Application moved back to draft.");
-              await reloadWorkspace();
-            }} />
+            <ApplicationTracker
+              proposals={proposals}
+              onStatusChange={async (id, status, details) => {
+                try {
+                  await persistApplicationStatus({ data: { applicationId: id, status, ...details } });
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : "Application status could not be saved.";
+                  setStatusMessage(message);
+                  throw new Error(message);
+                }
+                setStatusMessage(status === "submitted"
+                  ? "External submission confirmation saved."
+                  : status === "submission_ready"
+                    ? "Human review sign-off saved. You still submit through the official portal."
+                    : "Application moved back to draft.");
+                await reloadWorkspace();
+              }}
+              onDeleteProposal={async (id) => {
+                if (!userSession) {
+                  setShowAuth(true);
+                  throw new Error("Sign in before deleting an application.");
+                }
+                const { error } = await supabase
+                  .from('applications')
+                  .delete()
+                  .eq('id', id)
+                  .eq('user_id', userSession.user.id);
+                if (error) {
+                  const message = `Could not delete application: ${error.message}`;
+                  setStatusMessage(message);
+                  throw new Error(message);
+                }
+                setStatusMessage("Application removed from tracker.");
+                await reloadWorkspace();
+              }}
+            />
           </section>
 
           <section className={cockpitView === "Settings" ? "space-y-4" : "hidden"}>
