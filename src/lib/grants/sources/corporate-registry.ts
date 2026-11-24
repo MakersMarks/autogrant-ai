@@ -1,4 +1,7 @@
-{
+import type { UnifiedGrant } from "../../grants";
+
+export const corporateRegistry: UnifiedGrant[] = [
+  {
     id: "amber-grant-for-women",
     directoryOnly: false,
     grantTier: "Foundation",
@@ -25,7 +28,7 @@
   {
     id: "verizon-digital-ready-grant",
     directoryOnly: false,
-    grantTier: "Corporate",
+    grantTier: "Foundation",
     poolTier: "corporate_diversity",
     title: "Verizon Small Business Digital Ready Grant",
     funderName: "Verizon / LISC",
@@ -47,7 +50,7 @@
   {
     id: "hello-alice-growth-fund",
     directoryOnly: false,
-    grantTier: "Corporate",
+    grantTier: "Foundation",
     poolTier: "corporate_diversity",
     title: "Hello Alice Small Business Growth Fund",
     funderName: "Hello Alice & Corporate Partners",
@@ -105,37 +108,16 @@
     demographicSetAsides: [],
     geographicScope: { level: "national" },
     applicationMethod: "online_portal",
-    directApplyUrl: "https://www.nase.org/become-a-member/member-benefits/business-resources/growth-grants",
+    directApplyUrl:
+      "https://www.nase.org/become-a-member/member-benefits/business-resources/growth-grants",
     isFreeToApply: false,
     summaryText:
       "Up to $4,000 quarterly grants for equipment, software, marketing, or part-time help; requires active NASE membership in good standing.",
   },
   {
-    id: "black-ambition-prize",
-    directoryOnly: false,
-    grantTier: "Corporate",
-    poolTier: "corporate_diversity",
-    title: "Black Ambition Prize",
-    funderName: "Black Ambition",
-    funderType: "corporate",
-    awardFloor: 10000,
-    awardCeiling: 100000,
-    deadline: "Annual cycle (confirm current window)",
-    isRolling: true,
-    costSharingRequired: false,
-    eligibleEntityTypes: ["for_profit"],
-    demographicSetAsides: ["african_diaspora"],
-    geographicScope: { level: "national" },
-    applicationMethod: "online_portal",
-    directApplyUrl: "https://blackambitionprize.com/",
-    isFreeToApply: true,
-    summaryText: "Non-dilutive funding and mentorship for Black and Hispanic/Latino founders.",
-    publicWinnerHistoryUrl: "https://blackambitionprize.com/prize_winners/expert-iep/",
-  },
-  {
     id: "tory-burch-fellows",
     directoryOnly: false,
-    grantTier: "Corporate",
+    grantTier: "Foundation",
     poolTier: "corporate_diversity",
     title: "Tory Burch Fellows",
     funderName: "Tory Burch Foundation",
@@ -154,9 +136,32 @@
     summaryText: "Capital, education, and peer support for women entrepreneurs.",
   },
   {
+    id: "black-ambition-prize",
+    directoryOnly: true,
+    grantTier: "Foundation",
+    poolTier: "corporate_diversity",
+    title: "Black Ambition Prize",
+    funderName: "Black Ambition",
+    funderType: "corporate",
+    awardFloor: 10000,
+    awardCeiling: 100000,
+    deadline: "Annual cycle (confirm current window)",
+    isRolling: true,
+    costSharingRequired: false,
+    eligibleEntityTypes: ["for_profit"],
+    demographicSetAsides: ["african_diaspora"],
+    geographicScope: { level: "national" },
+    applicationMethod: "online_portal",
+    directApplyUrl: "https://blackambitionprize.com/",
+    isFreeToApply: true,
+    summaryText:
+      "Non-dilutive funding and mentorship for Black and Hispanic/Latino founders (marked directoryOnly as above the $25k micro-grant tier).",
+    publicWinnerHistoryUrl: "https://blackambitionprize.com/prize_winners/expert-iep/",
+  },
+  {
     id: "fedex-small-business",
-    directoryOnly: false,
-    grantTier: "Corporate",
+    directoryOnly: true,
+    grantTier: "Foundation",
     poolTier: "corporate_diversity",
     title: "FedEx Small Business Grant",
     funderName: "FedEx",
@@ -172,12 +177,13 @@
     applicationMethod: "online_portal",
     directApplyUrl: "https://www.fedex.com/en-us/small-business/grant.html",
     isFreeToApply: true,
-    summaryText: "Prizes for innovative small businesses; confirm current cycle dates and eligibility.",
+    summaryText:
+      "Prizes for innovative small businesses; confirm current cycle dates and eligibility (marked directoryOnly above the $25k micro-grant tier).",
   },
   {
     id: "fast-break-for-small-business",
     directoryOnly: true,
-    grantTier: "Corporate",
+    grantTier: "Foundation",
     poolTier: "corporate_diversity",
     title: "Fast Break for Small Business",
     funderName: "Accion Opportunity Fund / LegalZoom / NBA & WNBA",
@@ -193,7 +199,8 @@
     applicationMethod: "online_portal",
     directApplyUrl: "https://www.legalzoom.com/fast-break-for-small-business",
     isFreeToApply: true,
-    summaryText: "Marked directoryOnly because Accion Opportunity Fund ended the Fast Break program after 2024.",
+    summaryText:
+      "Marked directoryOnly because Accion Opportunity Fund ended the Fast Break program after 2024.",
   },
   {
     id: "bob-woodruff-venture",
@@ -214,5 +221,7 @@
     applicationMethod: "online_portal",
     directApplyUrl: "https://bobwoodrufffoundation.org/grants/",
     isFreeToApply: true,
-    summaryText: "Funding and service support for veterans, families, and communities.",
-  }
+    summaryText:
+      "Funding and service support for veterans, families, and communities (marked directoryOnly above the $25k micro-grant tier).",
+  },
+];
