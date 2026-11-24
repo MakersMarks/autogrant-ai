@@ -1,7 +1,7 @@
 import type { UnifiedGrant } from "../../grants";
 
 export const localRegistry: UnifiedGrant[] = [
-  {
+ {
     id: "metro-arts-nashville-microgrant",
     grantTier: "Local",
     directoryOnly: false,
@@ -22,4 +22,49 @@ export const localRegistry: UnifiedGrant[] = [
     isFreeToApply: true,
     summaryText: "Metro Arts microgrant funding for Nashville artists and arts organizations.",
   },
+  {
+    id: "nashville-workforce-advancement-incentive",
+    grantTier: "Local",
+    directoryOnly: false,
+    poolTier: "state_territory",
+    title: "Nashville Workforce Advancement Incentive",
+    funderName: "Nashville Mayor's Office of Economic Opportunity",
+    funderType: "government",
+    awardFloor: 1000,
+    awardCeiling: 10000,
+    deadline: "Verify current application window on Nashville.gov",
+    isRolling: true,
+    costSharingRequired: false,
+    eligibleEntityTypes: ["for_profit"],
+    demographicSetAsides: [],
+    geographicScope: { level: "local_county", allowedStates: ["TN"] },
+    applicationMethod: "online_portal",
+    directApplyUrl:
+      "https://www.nashville.gov/departments/mayor/economic-opportunity/small-business-growth-incentives",
+    isFreeToApply: true,
+    summaryText:
+      "Up to $10,000 ($1,000 per employee for up to 10 employees) for Davidson County businesses with under 100 employees globally.",
+  },
+  {
+    id: "ia-greene-county-small-business-grant",
+    grantTier: "Local",
+    directoryOnly: false,
+    poolTier: "state_territory",
+    title: "Greene County Small Business Community Grant Program",
+    funderName: "Greene County Development Corporation & Grow Greene County",
+    funderType: "nonprofit",
+    awardFloor: 500,
+    awardCeiling: 25000,
+    deadline: "Check funder cycle",
+    isRolling: true,
+    costSharingRequired: false,
+    eligibleEntityTypes: ["for_profit"],
+    demographicSetAsides: [],
+    geographicScope: { level: "local_county", allowedStates: ["IA"] },
+    applicationMethod: "online_portal",
+    directApplyUrl: "https://grantedai.com/grants/small-business-community-grant-program-greene-county-greene-county-development-corporation-gc-66d6a6c8",
+    isFreeToApply: true,
+    summaryText:
+      "Local small-business grant support for businesses in Greene County, Iowa communities around Jefferson.",
+  }
 ];
