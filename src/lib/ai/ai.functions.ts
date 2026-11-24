@@ -256,7 +256,7 @@ export const copilotChat = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z
       .object({
-        message: z.string().trim().min(1).max(2000),
+        message: z.string().trim().min(1).max(200000),
         messages: copilotMessagesSchema,
         activePage: z.string().trim().min(1).max(100),
       })
