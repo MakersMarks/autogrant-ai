@@ -379,14 +379,57 @@ export const copilotChat = createServerFn({ method: "POST" })
           vendorQuoteOrEstimate,
           milestoneSupported,
         }) => {
+          const quoteText = vendorQuoteOrEstimate ?? "Estimate provided by user";
+          const entryText = [
+            `Category: ${category}`,
+            `Item: ${description}`,
+            `Amount: $${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Source / Quote: ${quoteText}`,
+            `Milestone Supported: ${milestoneSupported}`,
+            `Recorded At: ${new Date().toISOString()}`,
+          ].join("\n");
+          const itemId = crypto.randomUUID();
+          const path = `${context.userId}/budget-item-${itemId}.txt`;
+          const bytes = new TextEncoder().encode(entryText);
+          const { error: uploadError } = await context.supabase.storage
+            .from("vault")
+            .upload(path, bytes, { contentType: "text/plain" });
+          if (uploadError) {
+            throw new Error(`Could not save budget line item to Vault storage: ${uploadError.message}`);
+          }
+          const safeSlug = description
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "")
+            .slice(0, 40);
+          const { data: doc, error: insertError } = await context.supabase
+            .from("vault_documents")
+            .insert({
+              user_id: context.userId,
+              file_name: `Budget Item - ${safeSlug || category.toLowerCase()}.txt`,
+              storage_path: path,
+              slot_key: `budget-item-${itemId}`,
+              mime_type: "text/plain",
+              size_bytes: bytes.length,
+            })
+            .select("id, file_name")
+            .single();
+          if (insertError || !doc) {
+            await context.supabase.storage.from("vault").remove([path]);
+            throw new Error(
+              `Could not index budget line item in Vault: ${insertError?.message ?? "insert failed"}`,
+            );
+          }
           return {
-            status: "added",
+            status: "saved",
+            documentId: doc.id,
+            fileName: doc.file_name,
             category,
             description,
             amount,
-            vendorQuoteOrEstimate: vendorQuoteOrEstimate ?? "Estimate provided by user",
+            vendorQuoteOrEstimate: quoteText,
             milestoneSupported,
-            message: `Recorded budget line item: $${amount.toLocaleString()} for ${description} under ${category}.`,
+            message: `Saved budget line item ($${amount.toLocaleString()} for ${description} under ${category}) to your Vault (${doc.file_name}).`,
           };
         },
       }),
@@ -706,7 +749,7 @@ export const executeCopilotAction = createServerFn({ method: "POST" })
         throw new Error(`Could not save revised document: ${upload.error.message}`);
       const update = await context.supabase
         .from("vault_documents")
-        .update({ size_bytes: bytes.byteLength })
+        .update({ size_bytes: bytes.length })
         .eq("id", document.id)
         .eq("user_id", context.userId)
         .select("id")
