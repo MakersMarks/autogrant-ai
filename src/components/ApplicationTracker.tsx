@@ -20,9 +20,14 @@ interface ApplicationTrackerProps {
     newStatus: "draft" | "submission_ready" | "submitted",
     details?: StatusDetails,
   ) => Promise<void>;
+  onDeleteProposal?: (id: string) => Promise<void>;
 }
 
-export const ApplicationTracker = ({ proposals, onStatusChange }: ApplicationTrackerProps) => {
+export const ApplicationTracker = ({
+  proposals,
+  onStatusChange,
+  onDeleteProposal,
+}: ApplicationTrackerProps) => {
   const [selectedProposal, setSelectedProposal] = useState<ProposalDraft | null>(null);
   const [confirmSubmission, setConfirmSubmission] = useState(false);
   const [confirmation, setConfirmation] = useState("");
@@ -34,6 +39,7 @@ export const ApplicationTracker = ({ proposals, onStatusChange }: ApplicationTra
   const [freshEyesConfirmed, setFreshEyesConfirmed] = useState(false);
   const [externalSubmissionConfirmed, setExternalSubmissionConfirmed] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState("");
 
   const handleExportMarkdown = (proposal: ProposalDraft) => {
@@ -75,6 +81,30 @@ export const ApplicationTracker = ({ proposals, onStatusChange }: ApplicationTra
     }
   };
 
+  const handleDelete = async (proposal: ProposalDraft) => {
+    if (!onDeleteProposal) {
+      setStatusError("Application deletion is unavailable.");
+      return;
+    }
+    if (!window.confirm(`Delete "${proposal.grantTitle}" from your Application Tracker?`)) {
+      return;
+    }
+    setDeletingId(proposal.id);
+    setStatusError("");
+    try {
+      await onDeleteProposal(proposal.id);
+      if (selectedProposal?.id === proposal.id) {
+        setSelectedProposal(null);
+      }
+    } catch (error) {
+      setStatusError(
+        error instanceof Error ? error.message : "Application could not be deleted.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="p-4 bg-slate-900 text-white rounded-lg border border-slate-800 font-sans shadow-lg">
       <h2 className="text-xl font-bold mb-4">Application Tracker</h2>
@@ -85,29 +115,44 @@ export const ApplicationTracker = ({ proposals, onStatusChange }: ApplicationTra
       ) : (
         <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
           {proposals.map((proposal) => (
-            <button
-              type="button"
+            <div
               key={proposal.id}
-              onClick={() => {
-                setSelectedProposal(proposal);
-                setStatusError("");
-                setConfirmReady(false);
-                setConfirmSubmission(false);
-              }}
-              className="w-full text-left p-3 bg-slate-800 hover:bg-slate-700 cursor-pointer rounded flex justify-between items-center transition"
+              className="p-3 bg-slate-800 hover:bg-slate-700 rounded flex justify-between items-center gap-3 transition"
             >
-              <div>
-                <p className="font-semibold text-sm">{proposal.grantTitle}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProposal(proposal);
+                  setStatusError("");
+                  setConfirmReady(false);
+                  setConfirmSubmission(false);
+                }}
+                className="min-w-0 flex-1 text-left cursor-pointer"
+              >
+                <p className="font-semibold text-sm truncate">{proposal.grantTitle}</p>
                 <p className="text-xs text-slate-400">
                   Drafted: {new Date(proposal.createdAt).toLocaleDateString()}
                 </p>
+              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <span
+                  className={`px-2 py-1 text-xs rounded uppercase font-medium ${proposal.status === "submitted" ? "bg-emerald-600" : "bg-blue-600"}`}
+                >
+                  {proposal.status === "submission_ready" ? "Submission-ready" : proposal.status}
+                </span>
+                {onDeleteProposal && (
+                  <button
+                    type="button"
+                    aria-label={`Delete ${proposal.grantTitle}`}
+                    disabled={deletingId === proposal.id || savingStatus}
+                    onClick={() => void handleDelete(proposal)}
+                    className="px-2 py-1 text-xs rounded border border-red-800 text-red-300 hover:bg-red-950 disabled:opacity-50"
+                  >
+                    {deletingId === proposal.id ? "Deleting…" : "Delete"}
+                  </button>
+                )}
               </div>
-              <span
-                className={`px-2 py-1 text-xs rounded uppercase font-medium ${proposal.status === "submitted" ? "bg-emerald-600" : "bg-blue-600"}`}
-              >
-                {proposal.status === "submission_ready" ? "Submission-ready" : proposal.status}
-              </span>
-            </button>
+            </div>
           ))}
         </div>
       )}
