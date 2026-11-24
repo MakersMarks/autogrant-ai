@@ -9,6 +9,28 @@ type Message = {
   actionStatus?: string;
 };
 
+const COPILOT_STORAGE_KEY = "autogrant.copilot.messages.v1";
+
+function loadStoredMessages(): Message[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(COPILOT_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is Message => {
+      if (typeof item !== "object" || item === null) return false;
+      const record = item as Record<string, unknown>;
+      return (
+        (record["role"] === "user" || record["role"] === "assistant") &&
+        typeof record["content"] === "string"
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
 export function CopilotDrawer({
   isAuthenticated,
   onSignIn,
@@ -27,7 +49,7 @@ export function CopilotDrawer({
   const askCopilot = useServerFn(copilotChat);
   const runAction = useServerFn(executeCopilotAction);
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => loadStoredMessages());
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -43,11 +65,24 @@ export function CopilotDrawer({
   }, [initialQuestion]);
 
   useEffect(() => {
-    if (isAuthenticated) return;
-    setMessages([]);
-    setDraft("");
-    setError("");
-  }, [isAuthenticated]);
+    if (!isAuthenticated) {
+      setMessages([]);
+      setDraft("");
+      setError("");
+      actionLocks.current.clear();
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(COPILOT_STORAGE_KEY);
+      }
+      return;
+    }
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(COPILOT_STORAGE_KEY, JSON.stringify(messages));
+      } catch {
+        // Ignore storage quota or private-mode errors.
+      }
+    }
+  }, [isAuthenticated, messages]);
 
   const send = async (message: string, fromUpload = false) => {
     const text = message.trim();
@@ -198,7 +233,7 @@ export function CopilotDrawer({
             <div>
               <h2 className="text-sm font-bold">Grant</h2>
               <p className="text-[11px] text-slate-300">
-                Private profile, tracker &amp; Vault context
+                Private profile, tracker & Vault context
               </p>
             </div>
             <button
