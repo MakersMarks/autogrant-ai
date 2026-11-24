@@ -1,10 +1,10 @@
 // src/routes/index.tsx
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { ApplicationTracker } from '../components/ApplicationTracker';
 import { AuthModal } from '../components/AuthModal';
 import { deleteVaultDocument, processDocumentUpload } from '../lib/vault';
-import { Grant, OFFICIAL_SECTORS, type UnifiedGrant } from '../lib/grants';
+import { Grant, type UnifiedGrant } from '../lib/grants';
 import { LiveGrantsFeed } from '@/components/autogrant/LiveGrantsFeed';
 import { applicationToProposal } from '../lib/autopilot';
 import { useServerFn } from '@tanstack/react-start';
@@ -24,6 +24,40 @@ import { evaluateAutopilotGate } from '@/lib/grants-gov/scoring';
 import { CopilotDrawer } from '@/components/autogrant/CopilotDrawer';
 import { Onboarding, type ProfileInput } from '@/components/autogrant/Onboarding';
 import type { CopilotAction } from '@/lib/ai/ai.functions';
+
+export interface LinkedBusinessBankAccount {
+  connected: boolean;
+  provider: 'manual' | 'plaid_ready';
+  institutionName: string;
+  accountType: 'checking' | 'savings';
+  mask: string;
+  routingLast4: string;
+  lastSyncedAt: string | null;
+}
+
+export interface BankDepositRecord {
+  id: string;
+  amount: number;
+  sourceLabel: string;
+  postedAt: string;
+  matchedApplicationId?: string;
+}
+
+const DEFAULT_BANK_ACCOUNT: LinkedBusinessBankAccount = {
+  connected: false,
+  provider: 'plaid_ready',
+  institutionName: '',
+  accountType: 'checking',
+  mask: '',
+  routingLast4: '',
+  lastSyncedAt: null,
+};
+
+function parseAmountNumber(raw: string | undefined): number {
+  if (!raw) return 0;
+  const cleaned = Number(String(raw).replace(/[^0-9.]/g, ''));
+  return Number.isFinite(cleaned) && cleaned > 0 ? cleaned : 0;
+}
 
 export const Route = createFileRoute('/')({
   ssr: false,
@@ -61,6 +95,11 @@ function IndexComponent() {
   const [fundingGoal, setFundingGoal] = useState<number>(0);
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalDraft, setGoalDraft] = useState('');
+
+  const [bankAccount, setBankAccount] = useState<LinkedBusinessBankAccount>(DEFAULT_BANK_ACCOUNT);
+  const [bankDeposits, setBankDeposits] = useState<BankDepositRecord[]>([]);
+  const [syncingBank, setSyncingBank] = useState(false);
+
   const saveGoal = async () => {
     if (!editingGoal) return;
     setEditingGoal(false);
@@ -107,6 +146,105 @@ function IndexComponent() {
     evidence: vaultDocs.map((doc) => ({ slotKey: doc.slotKey ?? "" })),
   });
 
+  const persistBankState = useCallback(
+    async (nextAccount: LinkedBusinessBankAccount, nextDeposits: BankDepositRecord[]) => {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('autogrant.bankAccount', JSON.stringify(nextAccount));
+        window.localStorage.setItem('autogrant.bankDeposits', JSON.stringify(nextDeposits));
+      }
+      if (userSession) {
+        await supabase.auth.updateUser({
+          data: {
+            business_bank_account: nextAccount,
+            business_bank_deposits: nextDeposits,
+          },
+        }).catch(() => undefined);
+      }
+    },
+    [userSession],
+  );
+
+  const linkBusinessBankAccount = useCallback(
+    async (details: Omit<LinkedBusinessBankAccount, 'connected' | 'lastSyncedAt'>) => {
+      const updated: LinkedBusinessBankAccount = {
+        ...details,
+        connected: Boolean(details.institutionName.trim() && details.mask.trim()),
+        lastSyncedAt: new Date().toISOString(),
+      };
+      setBankAccount(updated);
+      await persistBankState(updated, bankDeposits);
+      setStatusMessage(
+        updated.connected
+          ? `Linked ${updated.institutionName} (${updated.accountType} ••••${updated.mask}).`
+          : 'Saved bank profile details.',
+      );
+    },
+    [bankDeposits, persistBankState],
+  );
+
+  const recordBankDeposit = useCallback(
+    async (input: { amount: number; sourceLabel: string; matchedApplicationId?: string }) => {
+      if (!Number.isFinite(input.amount) || input.amount <= 0) return;
+      const newRecord: BankDepositRecord = {
+        id: crypto.randomUUID(),
+        amount: input.amount,
+        sourceLabel: input.sourceLabel.trim() || 'Grant Deposit',
+        postedAt: new Date().toISOString(),
+        ...(input.matchedApplicationId ? { matchedApplicationId: input.matchedApplicationId } : {}),
+      };
+      const updatedDeposits = [newRecord, ...bankDeposits];
+      const updatedAccount: LinkedBusinessBankAccount = {
+        ...bankAccount,
+        lastSyncedAt: new Date().toISOString(),
+      };
+      setBankDeposits(updatedDeposits);
+      setBankAccount(updatedAccount);
+      await persistBankState(updatedAccount, updatedDeposits);
+      setStatusMessage(
+        `Recorded $${input.amount.toLocaleString()} deposit (${newRecord.sourceLabel}) and updated awarded funds.`,
+      );
+    },
+    [bankAccount, bankDeposits, persistBankState],
+  );
+
+  const syncBankDeposits = useCallback(async () => {
+    setSyncingBank(true);
+    try {
+      await reloadWorkspace();
+      const nowIso = new Date().toISOString();
+      const updatedAccount: LinkedBusinessBankAccount = {
+        ...bankAccount,
+        lastSyncedAt: nowIso,
+      };
+      setBankAccount(updatedAccount);
+      await persistBankState(updatedAccount, bankDeposits);
+      setStatusMessage(
+        bankAccount.connected
+          ? `Synced ${bankAccount.institutionName} (••••${bankAccount.mask}) at ${new Date(nowIso).toLocaleTimeString()}.`
+          : 'Workspace synced. Link a business bank account or record a deposit to track incoming grant funds.',
+      );
+    } finally {
+      setSyncingBank(false);
+    }
+  }, [bankAccount, bankDeposits, persistBankState]);
+
+  const bankContextSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (bankAccount.institutionName || bankAccount.mask) {
+      parts.push(
+        `Bank: ${bankAccount.institutionName || 'Unspecified'} (${bankAccount.accountType}, ending in ${bankAccount.mask || 'N/A'}, routing last 4: ${bankAccount.routingLast4 || 'N/A'}, status: ${bankAccount.connected ? 'Linked' : 'Unlinked'})`,
+      );
+    }
+    if (bankDeposits.length > 0) {
+      parts.push(
+        `Recorded deposits: ${bankDeposits
+          .map((d) => `$${d.amount.toLocaleString()} from "${d.sourceLabel}" (${new Date(d.postedAt).toLocaleDateString()})`)
+          .join('; ')}`,
+      );
+    }
+    return parts.join(' | ');
+  }, [bankAccount, bankDeposits]);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserSession(session);
@@ -140,6 +278,35 @@ function IndexComponent() {
     const profile = profileResult.data;
     const documents = documentsResult.data;
     const applications = applicationsResult.data;
+
+    const metaBank = authData.user?.user_metadata?.['business_bank_account'] as LinkedBusinessBankAccount | undefined;
+    const metaDeposits = authData.user?.user_metadata?.['business_bank_deposits'] as BankDepositRecord[] | undefined;
+    if (metaBank) {
+      setBankAccount({ ...DEFAULT_BANK_ACCOUNT, ...metaBank });
+    } else if (typeof window !== 'undefined') {
+      const rawBank = window.localStorage.getItem('autogrant.bankAccount');
+      if (rawBank) {
+        try {
+          setBankAccount({ ...DEFAULT_BANK_ACCOUNT, ...JSON.parse(rawBank) });
+        } catch {
+          setBankAccount(DEFAULT_BANK_ACCOUNT);
+        }
+      }
+    }
+    if (Array.isArray(metaDeposits)) {
+      setBankDeposits(metaDeposits);
+    } else if (typeof window !== 'undefined') {
+      const rawDeposits = window.localStorage.getItem('autogrant.bankDeposits');
+      if (rawDeposits) {
+        try {
+          const parsed = JSON.parse(rawDeposits);
+          if (Array.isArray(parsed)) setBankDeposits(parsed);
+        } catch {
+          setBankDeposits([]);
+        }
+      }
+    }
+
     if (profile) {
       setIntake({ project_name: profile.project_name, industry: profile.industry, lifecycle_stage: profile.lifecycle_stage, sector_code: profile.sector_code, entity_type: profile.entity_type, funding_goal: profile.funding_goal, demographics: profile.demographics, location: profile.location, funding_purpose: profile.funding_purpose });
       setShowQuestionnaire(profile.onboarded !== true);
@@ -289,7 +456,13 @@ function IndexComponent() {
       return;
     }
     const { data, error: metadataError } = await supabase.auth.updateUser({
-      data: { name: settingsName.trim(), phone: settingsPhone.trim(), notification_opt_in: notificationsEnabled },
+      data: {
+        name: settingsName.trim(),
+        phone: settingsPhone.trim(),
+        notification_opt_in: notificationsEnabled,
+        business_bank_account: bankAccount,
+        business_bank_deposits: bankDeposits,
+      },
     });
     setSettingsSaving(false);
     if (metadataError) {
@@ -342,7 +515,13 @@ function IndexComponent() {
     }
   };
 
-  const totalAwarded = 0;
+  const totalAwarded = useMemo(() => {
+    const recordedDepositSum = bankDeposits.reduce((sum, deposit) => sum + parseAmountNumber(String(deposit.amount)), 0);
+    if (recordedDepositSum > 0) return recordedDepositSum;
+    return proposals
+      .filter((proposal) => proposal.status === 'submitted')
+      .reduce((sum, proposal) => sum + parseAmountNumber(proposal.amount), 0);
+  }, [bankDeposits, proposals]);
   const remainingNeeded = Math.max(fundingGoal - totalAwarded, 0);
   const fundingProgress = fundingGoal > 0 ? Math.min(Math.round((totalAwarded / fundingGoal) * 100), 100) : 0;
 
@@ -544,7 +723,7 @@ function IndexComponent() {
       <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-800 bg-slate-900 p-3 sm:grid-cols-5" aria-label="Funding summary">
         <div><p className="text-[10px] uppercase text-slate-400">Stage</p><p className="text-xs font-bold">{businessStage === 'pre_launch' ? 'Pre-Launch' : 'Established'}</p></div>
         <div><p className="text-[10px] uppercase text-slate-400">Funding Goal</p><p className="text-xs font-bold">${fundingGoal.toLocaleString()}</p></div>
-        <div><p className="text-[10px] uppercase text-slate-400">Awarded</p><p className="text-xs font-bold">$0</p></div>
+        <div><p className="text-[10px] uppercase text-slate-400">Awarded</p><p className="text-xs font-bold">${totalAwarded.toLocaleString()}</p></div>
         <div><p className="text-[10px] uppercase text-slate-400">Remaining</p><p className="text-xs font-bold">${remainingNeeded.toLocaleString()}</p></div>
         <div><p className="text-[10px] uppercase text-slate-400">Progress</p><p className="text-xs font-bold">{fundingProgress}%</p></div>
       </div>
@@ -614,8 +793,40 @@ function IndexComponent() {
                   <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${fundingProgress}%` }} />
                 </div>
               </div>
-              <p className="text-[11px] text-slate-400">Submitted grant requests are not counted as awards. This account does not yet store verified award amounts, so awarded funds remain $0 and progress is not evidence of funding received.</p>
+              <p className="text-[11px] text-slate-400 col-span-full">Awarded funds reflect recorded deposits or confirmed submissions; connect a live bank feed webhook/aggregator for automated deposit pulls.</p>
             </div>
+
+            <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-sm">Linked business bank & deposit sync</h3>
+                  <p className="text-xs text-slate-400">
+                    {bankAccount.connected
+                      ? `${bankAccount.institutionName} (${bankAccount.accountType} ••••${bankAccount.mask})${bankAccount.lastSyncedAt ? ` · Last synced ${new Date(bankAccount.lastSyncedAt).toLocaleString()}` : ''}`
+                      : 'No business bank link active yet. Configure your bank profile in Settings or record a grant deposit below.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={syncingBank}
+                  onClick={() => void syncBankDeposits()}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-bold disabled:opacity-50"
+                >
+                  {syncingBank ? 'Syncing…' : 'Sync deposits'}
+                </button>
+              </div>
+              {bankDeposits.length > 0 && (
+                <ul className="space-y-1 text-xs text-slate-300 border-t border-slate-800 pt-2">
+                  {bankDeposits.map((deposit) => (
+                    <li key={deposit.id} className="flex justify-between gap-2">
+                      <span>{deposit.sourceLabel} ({new Date(deposit.postedAt).toLocaleDateString()})</span>
+                      <span className="font-mono text-emerald-400">+${deposit.amount.toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
             {!intakeComplete && (
               <section role="alert" className="border border-amber-700 bg-amber-950/40 rounded-xl p-4 text-xs text-amber-200">
                 Complete these profile fields before drafting: {profileMissingFields.join(", ")}.
@@ -678,7 +889,7 @@ function IndexComponent() {
                 fundingPurpose: intake.funding_purpose,
                 fundingGoal: intake.funding_goal,
                 demographics: intake.demographics,
-                problemStatement: summary,
+                problemStatement: [summary, bankContextSummary].filter(Boolean).join(' | '),
                 solutionArchitecture: summary,
               } : undefined}
               evidence={vaultDocs.map((doc) => ({
@@ -719,7 +930,10 @@ function IndexComponent() {
               <p className="text-xs text-slate-400">Build and review an equipment or operational budget before attaching it to a proposal.</p>
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-              <BudgetBuilder />
+              <BudgetBuilder
+                savedBudgetDocs={vaultDocs.filter((doc) => /budget/i.test(`${doc.name} ${doc.slotKey ?? ''}`))}
+                onOpenVaultDoc={(doc) => setViewing(doc)}
+              />
             </div>
           </section>
 
@@ -853,6 +1067,78 @@ function IndexComponent() {
                 <span>Notification email</span>
                 <input type="email" value={settingsEmail} onChange={(event) => setSettingsEmail(event.target.value)} maxLength={254} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
               </label>
+              <div className="border-t border-slate-800 pt-4 space-y-3">
+                <p className="text-xs font-bold text-slate-200">Business Bank Account (for grant payout tracking & form reference)</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block space-y-1 text-xs">
+                    <span>Bank / Institution name</span>
+                    <input
+                      value={bankAccount.institutionName}
+                      onChange={(event) => setBankAccount((cur) => ({ ...cur, institutionName: event.target.value, connected: Boolean(event.target.value.trim() && cur.mask.trim()) }))}
+                      placeholder="e.g., Chase Business Checking"
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-xs">
+                    <span>Account type</span>
+                    <select
+                      value={bankAccount.accountType}
+                      onChange={(event) => setBankAccount((cur) => ({ ...cur, accountType: event.target.value as 'checking' | 'savings' }))}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    >
+                      <option value="checking">Business Checking</option>
+                      <option value="savings">Business Savings</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1 text-xs">
+                    <span>Account last 4 digits</span>
+                    <input
+                      value={bankAccount.mask}
+                      maxLength={4}
+                      inputMode="numeric"
+                      onChange={(event) => {
+                        const mask = event.target.value.replace(/\D/g, '').slice(0, 4);
+                        setBankAccount((cur) => ({ ...cur, mask, connected: Boolean(cur.institutionName.trim() && mask) }));
+                      }}
+                      placeholder="1234"
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-mono"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-xs">
+                    <span>Routing last 4 digits (optional)</span>
+                    <input
+                      value={bankAccount.routingLast4}
+                      maxLength={4}
+                      inputMode="numeric"
+                      onChange={(event) => setBankAccount((cur) => ({ ...cur, routingLast4: event.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                      placeholder="0000"
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-mono"
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void linkBusinessBankAccount(bankAccount)}
+                    className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-semibold"
+                  >
+                    Save & link bank profile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rawAmt = window.prompt('Enter incoming grant deposit amount ($):');
+                      const amount = rawAmt ? Number(rawAmt.replace(/[^0-9.]/g, '')) : 0;
+                      if (!amount || amount <= 0) return;
+                      const sourceLabel = window.prompt('Enter grant / deposit source label:') ?? 'Grant Deposit';
+                      void recordBankDeposit({ amount, sourceLabel });
+                    }}
+                    className="px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-xs font-semibold"
+                  >
+                    Record grant deposit
+                  </button>
+                </div>
+              </div>
               <label className="flex items-start gap-2 text-xs">
                 <input type="checkbox" checked={notificationsEnabled} onChange={(event) => setNotificationsEnabled(event.target.checked)} />
                 <span>Opt in to future AutoGrant email alerts. AutoGrant does not currently send these alerts.</span>
@@ -879,7 +1165,7 @@ function IndexComponent() {
           onSaved={() => void reloadWorkspace()}
           onAskMissingDetails={(context = "budget line item") => setCopilotQuestion((current) => ({
             id: (current?.id ?? 0) + 1,
-            text: `I am adding a ${context}. Ask me for the missing details one at a time: what the money is for, the amount or quote/estimate, and the goal or milestone it supports. Do not guess or supply answers for me.`,
+            text: `I am adding a ${context}${bankContextSummary ? ` (Context: ${bankContextSummary})` : ''}. Ask me for the missing details one at a time: what the money is for, the amount or quote/estimate, and the goal or milestone it supports. Do not guess or supply answers for me.`,
           }))}
         />
       )}
