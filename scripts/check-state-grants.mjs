@@ -43,26 +43,48 @@ async function run() {
 
   for (const target of targets) {
     const prevEntry = previous[target.id] ?? null;
-    try {
+       try {
       const res = await fetch(target.url, {
         signal: AbortSignal.timeout(15000),
-        headers: { "User-Agent": "AutoGrant-State-Monitor/1.0" },
+        headers: { 
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" 
+        },
       });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
       const html = await res.text();
-      const hash = sha256(normalizeText(html));
+      const clean = normalizeText(html).toLowerCase();
+      const hash = sha256(clean);
       const hasChanged = prevEntry !== null && prevEntry.hash !== hash;
 
+      // Automated deadline & active state detection
+      const isClosed = 
+        clean.includes("applications are closed") ||
+        clean.includes("applications closed") ||
+        clean.includes("grant cycle has closed") ||
+        clean.includes("not accepting applications") ||
+        clean.includes("program has ended");
+
+      const isOpen = 
+        clean.includes("applications are now open") ||
+        clean.includes("apply now") ||
+        clean.includes("submit your application") ||
+        clean.includes("open rolling") ||
+        clean.includes("now accepting applications");
+
+      const status = isClosed ? "closed" : (isOpen ? "open" : "active");
+
       next[target.id] = {
-        state: target.state,
+        state: target.state ?? "National",
+        category: target.category ?? "state",
         label: target.label,
         url: target.url,
+        directApplyUrl: target.directApplyUrl || target.url,
         hash,
         lastChecked: new Date().toISOString(),
         lastChangedAt: hasChanged ? new Date().toISOString() : prevEntry?.lastChangedAt ?? null,
-        status: "ok",
+        status,
       };
 
       if (hasChanged) {
