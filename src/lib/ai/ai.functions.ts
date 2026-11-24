@@ -25,7 +25,7 @@ import {
 } from "./proposal-policy";
 import { extractDocumentText } from "./documents.server";
 import { evaluateProposalRedTeam } from "./red-team";
-import type { GrantRequirementBOM } from "./rfp-parser";
+import { grantRequirementBOMSchema, type GrantRequirementBOM } from "./rfp-parser";
 import type { Tables } from "@/integrations/supabase/types";
 
 const grantSchema = z.object({
