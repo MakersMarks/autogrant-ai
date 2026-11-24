@@ -28,6 +28,6 @@ describe("Copilot drawer access", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in to chat or upload" }));
 
     expect(onSignIn).toHaveBeenCalledOnce();
-    expect(screen.getByText(/Sign in to chat with AutoGrant Agent/)).toBeInTheDocument();
+    expect(screen.getByText(/Sign in to chat with Grant/)).toBeInTheDocument();
   });
 });
