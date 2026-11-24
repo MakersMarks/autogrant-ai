@@ -37,6 +37,7 @@ export function CopilotDrawer({
   activePage = "Dashboard",
   onUploadFile,
   onActionComplete,
+  onReplyComplete,
   initialQuestion,
 }: {
   isAuthenticated: boolean;
@@ -44,6 +45,7 @@ export function CopilotDrawer({
   activePage?: string;
   onUploadFile: (file: File) => Promise<boolean>;
   onActionComplete: (action: Exclude<CopilotAction, { type: "none" }>) => void;
+  onReplyComplete?: () => void;
   initialQuestion?: { id: number; text: string } | undefined;
 }) {
   const askCopilot = useServerFn(copilotChat);
@@ -108,6 +110,7 @@ export function CopilotDrawer({
         ...nextMessages,
         { role: "assistant", content: result.reply, action: result.action },
       ]);
+      onReplyComplete?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Grant could not respond.");
       setMessages(nextMessages);
