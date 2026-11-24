@@ -1,20 +1,94 @@
 {
+  "amber-grant-women": {
+    "state": "National",
+    "category": "foundation",
+    "label": "Amber Grant for Women ($10k-$25k Monthly)",
+    "url": "https://ambergrantsforwomen.com/get-an-amber-grant/apply-now/",
+    "directApplyUrl": "https://ambergrantsforwomen.com/get-an-amber-grant/apply-now/",
+    "hash": "39b8ed3be6caf205bf7996ec5399395a8095bbdd40261213a34eea59990fd022",
+    "lastChecked": "2026-11-24T04:59:36.647Z",
+    "lastChangedAt": null,
+    "status": "open"
+  },
+  "fedex-small-business": {
+    "state": "National",
+    "category": "corporate",
+    "label": "FedEx Small Business Grant ($30k-$50k)",
+    "url": "https://www.fedex.com/en-us/small-business/grants.html",
+    "directApplyUrl": "https://www.fedex.com/en-us/small-business/grants.html",
+    "hash": "9129c92c72aa47b5066ef4412ab9f562ff4128dfa31f70689847c3ae34444bf3",
+    "lastChecked": "2026-11-24T04:59:36.837Z",
+    "lastChangedAt": null,
+    "status": "active"
+  },
+  "verizon-digital-ready": {
+    "state": "National",
+    "category": "corporate",
+    "label": "Verizon Small Business Digital Ready ($10k)",
+    "url": "https://www.verizon.com/about/responsibility/digital-inclusion/small-business-training",
+    "directApplyUrl": "https://www.verizon.com/about/responsibility/digital-inclusion/small-business-training",
+    "hash": "df5181c7e65c40da283fdc0acacc824bcea466cac1f1c0de4999e073c92f30cb",
+    "lastChecked": "2026-11-24T04:59:37.607Z",
+    "lastChangedAt": null,
+    "status": "active"
+  },
+  "hello-alice-small-biz": {
+    "label": "Hello Alice Grant Opportunities Portal",
+    "url": "https://helloalice.com/grants/",
+    "hash": null,
+    "lastChangedAt": null,
+    "lastChecked": "2026-11-24T04:59:37.779Z",
+    "status": "error"
+  },
   "tn-tda-taep": {
     "state": "TN",
     "label": "Tennessee Agricultural Enhancement Program",
     "url": "https://www.tn.gov/agriculture/farms/taep.html",
     "hash": null,
     "lastChangedAt": null,
-    "lastChecked": "2026-11-23T14:12:51.713Z",
+    "lastChecked": "2026-11-24T04:59:37.893Z",
     "status": "error"
   },
-  "ia-choose-iowa-value-added": {
+  "tn-launchtn-matching": {
+    "state": "TN",
+    "label": "LaunchTN SBIR/STTR Matching Grant",
+    "url": "https://launchtn.org/commercialization/sbir-matching/",
+    "hash": null,
+    "lastChangedAt": null,
+    "lastChecked": "2026-11-24T04:59:38.007Z",
+    "status": "error"
+  },
+  "ia-choose-iowa": {
     "state": "IA",
+    "category": "state",
     "label": "Choose Iowa Value-Added Grants",
     "url": "https://www.chooseiowa.com/grants/valueadded",
-    "hash": "402ba36dea023d2ad400f0a0ab25c66f9fda1280a1bb26677ba1ab9cfd0fb049",
-    "lastChecked": "2026-11-23T14:12:52.013Z",
-    "lastChangedAt": "2026-11-23T14:12:52.013Z",
-    "status": "ok"
+    "directApplyUrl": "https://www.chooseiowa.com/grants/valueadded",
+    "hash": "dc8920026d419dd8600932bdb093dccb289503277b12470d8ab6809cded89e9d",
+    "lastChecked": "2026-11-24T04:59:38.296Z",
+    "lastChangedAt": null,
+    "status": "active"
+  },
+  "ia-eda-targeted-small-biz": {
+    "state": "IA",
+    "category": "state",
+    "label": "Iowa EDA Targeted Small Business Loans & Grants",
+    "url": "https://www.iowaeda.com/small-business/targeted-small-business/",
+    "directApplyUrl": "https://www.iowaeda.com/small-business/targeted-small-business/",
+    "hash": "1f07bec497a123b3daa8e6a086b8ba824488d661f75be8f2abfc961a914d51ca",
+    "lastChecked": "2026-11-24T04:59:38.620Z",
+    "lastChangedAt": null,
+    "status": "active"
+  },
+  "tx-edc-small-biz": {
+    "state": "TX",
+    "category": "state",
+    "label": "Texas Economic Development Small Business Portal",
+    "url": "https://gov.texas.gov/business/page/small-business",
+    "directApplyUrl": "https://gov.texas.gov/business/page/small-business",
+    "hash": "5c764fc6458412876e995d1392af67ea4bdf6f1297c4362e392ffeb632e1c405",
+    "lastChecked": "2026-11-24T04:59:38.804Z",
+    "lastChangedAt": null,
+    "status": "active"
   }
 }
