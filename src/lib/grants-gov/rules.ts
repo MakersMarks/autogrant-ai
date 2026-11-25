@@ -253,4 +253,45 @@ export function scoutKeywords(p: {
 
   if (/\b(food|hospitality|restaurant|cater|kitchen|agriculture)\b/i.test(text)) {
     out.push("food service", "kitchen equipment", "agriculture", "supply chain");
-  } else if (/\b(mining|mineral|industrial|extraction)\b/
+  } else if (/\b(mining|mineral|industrial|extraction)\b/i.test(text)) {
+    out.push("mineral exploration", "industrial machinery", "clean extraction", "export");
+  } else if (/\b(arts?|humanities|cultural|oral history|performing)\b/i.test(text)) {
+    out.push("cultural preservation", "veteran recognition", "performing arts", "youth mentorship");
+  }
+
+  const anchors = `${safeProblem} ${safeSolution}`
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .split(/\s+/u)
+    .filter((word) => word.length >= 4 && !KEYWORD_STOP_WORDS.has(word));
+  out.push(...anchors.slice(0, 3));
+
+  if (TECH.test(text)) {
+    out.push(
+      "artificial intelligence",
+      entityMode(p.entityType) === "forprofit" ? "SBIR" : "technology capacity",
+      "software",
+    );
+  } else if (entityMode(p.entityType) === "forprofit") {
+    out.push("small business", "small business grants");
+  } else {
+    out.push("community", "community grants");
+  }
+  return [...new Set(out.map((k) => k.toLowerCase()))].slice(0, 4);
+}
+
+/** Tech profiles also search Science & Technology alongside their sector. */
+export function scoutCategories(sector: string | null | undefined, industry: string | null | undefined): string {
+  const safeSector = typeof sector === "string" ? sector : "";
+  const safeIndustry = typeof industry === "string" ? industry : "";
+  const set = new Set([safeSector, ...(TECH.test(safeIndustry) ? ["ST"] : [])].filter(Boolean));
+  return [...set].join("|");
+}
+
+const INSTITUTION_ONLY =
+  /\b(colleges?|universit(y|ies)|tribal|tribes?|hispanic[- ]serving|HBCUs?|invasive species)\b/i;
+/** Blocks university/tribal-only programs that slip into for-profit feeds via "Others". */
+export function isInstitutionOnlyTitle(title: string | null | undefined, mode: EntityMode): boolean {
+  if (typeof title !== "string") return false;
+  return mode === "forprofit" && INSTITUTION_ONLY.test(title);
+}
