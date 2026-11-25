@@ -41,11 +41,12 @@ export const ELIGIBILITY_OPTIONS = [
 
 /** Parse Grants.gov MM/DD/YYYY. */
 export function parseGovDate(s: string | null | undefined): Date | null {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s ?? "");
+  if (typeof s !== "string") return null;
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s.trim());
   return m ? new Date(Date.UTC(+m[3]!, +m[1]! - 1, +m[2]!)) : null;
 }
 
-export function daysUntil(close: string, now = new Date()): number | null {
+export function daysUntil(close: string | null | undefined, now = new Date()): number | null {
   const d = parseGovDate(close);
   if (!d) return null;
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
@@ -148,8 +149,9 @@ const STATES: Record<string, string> = {
   DC: "District of Columbia",
 };
 
-/** Resolve the user's state name from free-text location like "Nashville, TN". */
-export function stateFromLocation(location: string): string | null {
+/** Resolve the user's state name from free-text location like "Nashville, TN" or "Des Moines, IA". */
+export function stateFromLocation(location: string | null | undefined): string | null {
+  if (typeof location !== "string") return null;
   const t = location.trim();
   if (!t) return null;
   const abbr = /\b([A-Z]{2})\b/.exec(
@@ -164,14 +166,14 @@ export function stateFromLocation(location: string): string | null {
   return Object.values(STATES).find((s) => low.includes(s.toLowerCase())) ?? null;
 }
 
-export function stateCodeFromLocation(location: string): string {
+export function stateCodeFromLocation(location: string | null | undefined): string {
   const state = stateFromLocation(location);
   return state ? (Object.entries(STATES).find(([, name]) => name === state)?.[0] ?? "") : "";
 }
 
 /** True when a grant title is restricted to a different named state than the user's. */
-export function isOtherStateOnly(title: string, userState: string | null): boolean {
-  if (!userState) return false;
+export function isOtherStateOnly(title: string | null | undefined, userState: string | null): boolean {
+  if (!userState || typeof title !== "string" || !title.trim()) return false;
   const named = Object.values(STATES).filter((s) => new RegExp(`\\b${s}\\b`, "i").test(title));
   if (named.length === 0) return false;
   if (userState === "Virginia" && named.every((s) => s === "West Virginia")) return true;
@@ -179,7 +181,8 @@ export function isOtherStateOnly(title: string, userState: string | null): boole
 }
 
 export type EntityMode = "forprofit" | "nonprofit";
-export function entityMode(entityType: string): EntityMode {
+export function entityMode(entityType: string | null | undefined): EntityMode {
+  if (typeof entityType !== "string") return "forprofit";
   return /non-?profit|501|charit|foundation/i.test(entityType) ? "nonprofit" : "forprofit";
 }
 export function eligibilityCodesFor(mode: EntityMode): string {
@@ -187,10 +190,12 @@ export function eligibilityCodesFor(mode: EntityMode): string {
 }
 
 /** Hard gate: only retain grants that explicitly include the user's entity type. */
-export function isEntityEligible(applicantTypes: string[], mode: EntityMode): boolean {
-  if (applicantTypes.length === 0) return false;
+export function isEntityEligible(applicantTypes: string[] | null | undefined, mode: EntityMode): boolean {
+  if (!Array.isArray(applicantTypes) || applicantTypes.length === 0) return false;
   return applicantTypes.some((type) => {
+    if (typeof type !== "string") return false;
     const applicantType = type.trim();
+    if (!applicantType) return false;
     if (/unrestricted/i.test(applicantType)) return true;
     if (mode === "forprofit") return /small businesses?|for[- ]profit/i.test(applicantType);
     return /non-?profit/i.test(applicantType) && !/other than non-?profit/i.test(applicantType);
@@ -209,25 +214,29 @@ const KEYWORD_STOP_WORDS = new Set([
 
 /** Derive targeted Grants.gov keywords from profile and project intent (max 4). */
 export function scoutKeywords(p: {
-  industry: string;
-  fundingPurpose?: string;
-  entityType: string;
-  problemStatement?: string;
-  solutionArchitecture?: string;
-  fundingGoal?: string;
+  industry?: string | null;
+  fundingPurpose?: string | null;
+  entityType?: string | null;
+  problemStatement?: string | null;
+  solutionArchitecture?: string | null;
+  fundingGoal?: string | null;
 }): string[] {
-  const text = `${p.industry} ${p.fundingPurpose ?? ""} ${p.problemStatement ?? ""} ${p.solutionArchitecture ?? ""}`;
+  const safeIndustry = typeof p.industry === "string" ? p.industry : "";
+  const safePurpose = typeof p.fundingPurpose === "string" ? p.fundingPurpose : "";
+  const safeProblem = typeof p.problemStatement === "string" ? p.problemStatement : "";
+  const safeSolution = typeof p.solutionArchitecture === "string" ? p.solutionArchitecture : "";
+  const text = `${safeIndustry} ${safePurpose} ${safeProblem} ${safeSolution}`;
   const out: string[] = [];
-  const ind = p.industry
+  const ind = safeIndustry
     .trim()
     .replace(/[^\w\s&-]/g, " ")
     .replace(/\s+/g, " ")
     .slice(0, 60);
   if (ind) out.push(ind);
-  const purpose = p.fundingPurpose?.trim().replace(/[^\w\s&-]/g, " ").replace(/\s+/g, " ").slice(0, 60);
+  const purpose = safePurpose.trim().replace(/[^\w\s&-]/g, " ").replace(/\s+/g, " ").slice(0, 60);
   if (purpose) out.push(purpose);
 
-  const intent = `${p.problemStatement ?? ""} ${p.solutionArchitecture ?? ""}`.toLowerCase();
+  const intent = `${safeProblem} ${safeSolution}`.toLowerCase();
   const intentPhrases = [
     "commercial kitchen",
     "kitchen equipment",
@@ -244,42 +253,4 @@ export function scoutKeywords(p: {
 
   if (/\b(food|hospitality|restaurant|cater|kitchen|agriculture)\b/i.test(text)) {
     out.push("food service", "kitchen equipment", "agriculture", "supply chain");
-  } else if (/\b(mining|mineral|industrial|extraction)\b/i.test(text)) {
-    out.push("mineral exploration", "industrial machinery", "clean extraction", "export");
-  } else if (/\b(arts?|humanities|cultural|oral history|performing)\b/i.test(text)) {
-    out.push("cultural preservation", "veteran recognition", "performing arts", "youth mentorship");
-  }
-
-  const anchors = `${p.problemStatement ?? ""} ${p.solutionArchitecture ?? ""}`
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
-    .split(/\s+/u)
-    .filter((word) => word.length >= 4 && !KEYWORD_STOP_WORDS.has(word));
-  out.push(...anchors.slice(0, 3));
-
-  if (TECH.test(text)) {
-    out.push(
-      "artificial intelligence",
-      entityMode(p.entityType) === "forprofit" ? "SBIR" : "technology capacity",
-      "software",
-    );
-  } else if (entityMode(p.entityType) === "forprofit") {
-    out.push("small business", "small business grants");
-  } else {
-    out.push("community", "community grants");
-  }
-  return [...new Set(out.map((k) => k.toLowerCase()))].slice(0, 4);
-}
-
-/** Tech profiles also search Science & Technology alongside their sector. */
-export function scoutCategories(sector: string, industry: string): string {
-  const set = new Set([sector, ...(TECH.test(industry) ? ["ST"] : [])].filter(Boolean));
-  return [...set].join("|");
-}
-
-const INSTITUTION_ONLY =
-  /\b(colleges?|universit(y|ies)|tribal|tribes?|hispanic[- ]serving|HBCUs?|invasive species)\b/i;
-/** Blocks university/tribal-only programs that slip into for-profit feeds via "Others". */
-export function isInstitutionOnlyTitle(title: string, mode: EntityMode): boolean {
-  return mode === "forprofit" && INSTITUTION_ONLY.test(title);
-}
+  } else if (/\b(mining|mineral|industrial|extraction)\b/
