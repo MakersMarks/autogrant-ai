@@ -6,6 +6,67 @@ import { createClient } from "@supabase/supabase-js";
 const SNAPSHOT_PATH = path.resolve(process.cwd(), ".github/iowa-grants-snapshot.json");
 const nowIso = new Date().toISOString();
 
+function normalizeGrantRecord(item, { isClosed = false } = {}) {
+  const states =
+    Array.isArray(item.states) && item.states.length > 0
+      ? item.states
+      : Array.isArray(item.eligible_states) && item.eligible_states.length > 0
+        ? item.eligible_states
+        : ["NATIONAL"];
+
+  const amountMin =
+    typeof item.amount_min === "number"
+      ? item.amount_min
+      : typeof item.award_floor === "number"
+        ? item.award_floor
+        : 0;
+
+  const amountMax =
+    typeof item.amount_max === "number"
+      ? item.amount_max
+      : typeof item.award_ceiling === "number"
+        ? item.award_ceiling
+        : 0;
+
+  const stageTags = Array.isArray(item.stage_tags)
+    ? item.stage_tags
+    : [
+        ...(item.is_rolling ? ["rolling"] : []),
+        ...(amountMax > 0 && amountMax <= 25000 ? ["microgrant"] : []),
+      ];
+
+  const resolvedStatus = isClosed
+    ? "closed"
+    : item.status === "open" || item.status === "closed" || item.status === "unknown"
+      ? item.status
+      : item.is_rolling || Boolean(item.deadline)
+        ? "open"
+        : "unknown";
+
+  const resolvedPortalUrl =
+    item.direct_apply_url ||
+    item.official_application_url ||
+    item.portal_url ||
+    item.source_solicitation_url ||
+    "";
+
+  return {
+    ...item,
+    funder: item.funder ?? item.funder_name ?? "",
+    amount_min: amountMin,
+    amount_max: amountMax,
+    eligible_entity_types: Array.isArray(item.eligible_entity_types)
+      ? item.eligible_entity_types
+      : [],
+    states,
+    stage_tags: stageTags,
+    deadline: isClosed ? "Closed / Inactive" : item.deadline || "Check Current Cycle",
+    status: resolvedStatus,
+    portal_url: resolvedPortalUrl,
+    directory_only: isClosed || Boolean(item.directory_only),
+  };
+}
+
 const CURATED_IOWA_GRANTS = [
   {
     id: "ia-ieda-pocr",
@@ -34,7 +95,8 @@ const CURATED_IOWA_GRANTS = [
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
     official_application_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
-    portal_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+    portal_url:
+      "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
     source_solicitation_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
     is_free_to_apply: true,
@@ -76,7 +138,8 @@ const CURATED_IOWA_GRANTS = [
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
     official_application_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
-    portal_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+    portal_url:
+      "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
     source_solicitation_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
     is_free_to_apply: true,
@@ -123,7 +186,8 @@ const CURATED_IOWA_GRANTS = [
       "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
     official_application_url:
       "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
-    portal_url: "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+    portal_url:
+      "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
     source_solicitation_url:
       "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
     is_free_to_apply: true,
@@ -199,7 +263,8 @@ const CURATED_IOWA_GRANTS = [
       "https://opportunityiowa.gov/business/financial-assistance/manufacturing-40-technology-investment",
     official_application_url:
       "https://opportunityiowa.gov/business/financial-assistance/manufacturing-40-technology-investment",
-    portal_url: "https://opportunityiowa.gov/business/financial-assistance",
+    portal_url:
+      "https://opportunityiowa.gov/business/financial-assistance/manufacturing-40-technology-investment",
     source_solicitation_url:
       "https://opportunityiowa.gov/business/financial-assistance/manufacturing-40-technology-investment",
     is_free_to_apply: true,
@@ -237,7 +302,8 @@ const CURATED_IOWA_GRANTS = [
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     official_application_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-    portal_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+    portal_url:
+      "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     source_solicitation_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     is_free_to_apply: true,
@@ -341,45 +407,48 @@ async function run() {
         const isClosed = /closed|expired|archived/i.test(closeDate);
         const isRolling = !closeDate || /rolling|continuous|ongoing|open/i.test(closeDate);
 
-        const record = {
-          id: `iowagrants-${slug}`,
-          pool_tier: "state_territory",
-          grant_tier: "State",
-          title,
-          funder_name: agency,
-          funder_type: "government",
-          award_floor: 0,
-          award_ceiling: 0,
-          min_months_in_business: null,
-          eligible_states: ["IA"],
-          application_time_minutes: 120,
-          deadline: closeDate || "Check IowaGrants.gov",
-          open_date: null,
-          close_date: isRolling ? null : closeDate,
-          is_rolling: isRolling,
-          cost_sharing_required: false,
-          cost_sharing_percentage: null,
-          eligible_entity_types: ["for_profit", "small_business", "nonprofit_501c3"],
-          demographic_set_asides: [],
-          geographic_restriction: "state",
-          geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
-          application_method: "online_portal",
-          direct_apply_url: applyUrl,
-          official_application_url: applyUrl,
-          portal_url: "https://www.iowagrants.gov/storefrontFOList.do",
-          source_solicitation_url: applyUrl,
-          is_free_to_apply: true,
-          directory_only: isClosed,
-          summary_text: `State of Iowa opportunity listed on IowaGrants.gov under ${agency}.`,
-          prerequisites: [
-            "Iowa-eligible applicant or project",
-            "IowaGrants.gov portal account",
-          ],
-          source_system: "playwright_script",
-          source_external_id: rawId || slug,
-          last_synced_at: nowIso,
-          updated_at: nowIso,
-        };
+        const record = normalizeGrantRecord(
+          {
+            id: `iowagrants-${slug}`,
+            pool_tier: "state_territory",
+            grant_tier: "State",
+            title,
+            funder_name: agency,
+            funder_type: "government",
+            award_floor: 0,
+            award_ceiling: 0,
+            min_months_in_business: null,
+            eligible_states: ["IA"],
+            application_time_minutes: 120,
+            deadline: closeDate || "Check IowaGrants.gov",
+            open_date: null,
+            close_date: isRolling ? null : closeDate,
+            is_rolling: isRolling,
+            cost_sharing_required: false,
+            cost_sharing_percentage: null,
+            eligible_entity_types: ["for_profit", "small_business", "nonprofit_501c3"],
+            demographic_set_asides: [],
+            geographic_restriction: "state",
+            geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
+            application_method: "online_portal",
+            direct_apply_url: applyUrl,
+            official_application_url: applyUrl,
+            portal_url: applyUrl,
+            source_solicitation_url: applyUrl,
+            is_free_to_apply: true,
+            directory_only: isClosed,
+            summary_text: `State of Iowa opportunity listed on IowaGrants.gov under ${agency}.`,
+            prerequisites: [
+              "Iowa-eligible applicant or project",
+              "IowaGrants.gov portal account",
+            ],
+            source_system: "playwright_script",
+            source_external_id: rawId || slug,
+            last_synced_at: nowIso,
+            updated_at: nowIso,
+          },
+          { isClosed },
+        );
 
         if (isClosed) inactiveIds.push(record.id);
         upserts.push(record);
@@ -408,21 +477,25 @@ async function run() {
             bodyText,
           );
 
-        upserts.push({
-          ...item,
-          directory_only: explicitlyClosed,
-          deadline: explicitlyClosed ? "Closed / Inactive" : item.deadline,
-          last_synced_at: nowIso,
-          updated_at: nowIso,
-        });
+        const normalizedItem = normalizeGrantRecord(
+          {
+            ...item,
+            last_synced_at: nowIso,
+            updated_at: nowIso,
+          },
+          { isClosed: explicitlyClosed },
+        );
 
-        if (explicitlyClosed) inactiveIds.push(item.id);
+        upserts.push(normalizedItem);
+        if (explicitlyClosed) inactiveIds.push(normalizedItem.id);
       } catch {
-        upserts.push({
-          ...item,
-          last_synced_at: nowIso,
-          updated_at: nowIso,
-        });
+        upserts.push(
+          normalizeGrantRecord({
+            ...item,
+            last_synced_at: nowIso,
+            updated_at: nowIso,
+          }),
+        );
       }
     }
   } finally {
@@ -474,7 +547,7 @@ async function run() {
   if (inactiveIds.length > 0) {
     const { error: inactiveError } = await supabase
       .from("site_grants")
-      .update({ directory_only: true, updated_at: nowIso })
+      .update({ directory_only: true, status: "closed", updated_at: nowIso })
       .in("id", inactiveIds);
     if (inactiveError) {
       throw new Error(`Supabase inactive update failed: ${inactiveError.message}`);
