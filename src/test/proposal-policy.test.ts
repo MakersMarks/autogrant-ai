@@ -1,9 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { buildProposalPrompt, summarySchema, validateProposalOutput, buildDocumentPrompt, parseDocument, documentSpecs, voiceDirective, documentFileName, toCleanText, bannedPhrases, calibrateFounderVoiceSample, isRestrictedDocumentRequest } from '@/lib/ai/proposal-policy';
+import {
+  buildProposalPrompt,
+  summarySchema,
+  validateProposalOutput,
+  buildDocumentPrompt,
+  parseDocument,
+  documentSpecs,
+  voiceDirective,
+  documentFileName,
+  toCleanText,
+  bannedPhrases,
+  calibrateFounderVoiceSample,
+  isRestrictedDocumentRequest,
+  intakeSchema,
+} from '@/lib/ai/proposal-policy';
 import { extractDocumentText } from '@/lib/ai/documents.server';
 import { zipSync, strToU8 } from 'fflate';
 
 describe('Institutional synthesis rules', () => {
+  it('accepts existing intake profiles with more than 20 demographic tags', () => {
+    const result = intakeSchema.safeParse({
+      project_name: 'Example',
+      industry: 'Technology',
+      lifecycle_stage: 'Pre-Launch',
+      sector_code: 'BC',
+      entity_type: 'LLC',
+      funding_goal: '25000',
+      demographics: Array.from({ length: 21 }, (_, index) => `tag-${index}`),
+      location: 'Iowa',
+      funding_purpose: 'Product development',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it('includes the Tippie baseline with an empty Vault', () => {
     const request = buildProposalPrompt({ industry: 'Food technology' }, [], {});
     expect(request.system).toContain('University of Iowa Tippie College of Business');

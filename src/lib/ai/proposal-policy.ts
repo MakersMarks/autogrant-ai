@@ -14,7 +14,7 @@ export const intakeSchema = z.object({
   sector_code: z.string().max(10),
   entity_type: z.string().max(200),
   funding_goal: z.string().max(100),
-  demographics: z.array(z.string().max(100)).max(20),
+  demographics: z.array(z.string().max(100)).max(100),
   location: z.string().max(200),
   funding_purpose: z.string().max(500),
 });

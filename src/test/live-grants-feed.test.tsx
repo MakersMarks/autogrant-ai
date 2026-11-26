@@ -104,6 +104,8 @@ describe("Live grants feed effects", () => {
         }),
       });
     });
+    const searchSignals = await screen.findByText(/Search signals from your profile/);
+    expect(searchSignals.closest("details")).not.toHaveAttribute("open");
   });
 
   it("keeps portal directories distinct from confirmed open opportunities", () => {

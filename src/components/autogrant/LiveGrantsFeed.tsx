@@ -583,19 +583,25 @@ export function LiveGrantsFeed({
       </details>
 
       {!keyword.trim() && scout.length > 0 && (
-        <p className="text-[11px] text-slate-400">
-          Scouting from your intake for:{" "}
-          {scout.map((k) => (
-            <span
-              key={k}
-              className="inline-block mr-1 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-slate-200"
-            >
-              {k}
-            </span>
-          ))}{" "}
-          · only grants open to{" "}
-          {mode === "nonprofit" ? "nonprofits" : "for-profit / small businesses"}
-        </p>
+        <details className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
+          <summary className="cursor-pointer text-[11px] font-medium text-slate-400">
+            Search signals from your profile ({scout.length})
+          </summary>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {scout.map((k) => (
+              <span
+                key={k}
+                className="rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] text-slate-300"
+              >
+                {k}
+              </span>
+            ))}
+            <p className="w-full text-[11px] text-slate-500">
+              Showing grants open to{" "}
+              {mode === "nonprofit" ? "nonprofits" : "for-profit / small businesses"}.
+            </p>
+          </div>
+        </details>
       )}
       {poolError && (
         <p role="alert" className="text-xs text-red-400">
@@ -841,83 +847,59 @@ export function LiveGrantsFeed({
             return (
               <article
                 key={grant.id}
-                className="p-4 bg-slate-950 border border-slate-800 rounded-lg space-y-2 hover:border-slate-600 transition"
+                className="space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4 transition hover:border-slate-600"
               >
-                <div className="flex flex-wrap justify-between items-start gap-2">
-                  <div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
-                      {source}
-                    </span>
-                    {isDirectory && (
-                      <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
-                        Program directory
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="rounded border border-blue-800 bg-blue-950 px-1.5 py-0.5 text-[10px] text-blue-300">
+                        {source}
                       </span>
-                    )}
-                    {isClosed && !isDirectory && (
-                      <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800">
-                        Closed / inactive
-                      </span>
-                    )}
-                    <h3 className="mt-1 font-bold text-sm text-blue-300">{grant.title}</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {isLiveGrant ? `${grant.agency} · ${grant.number}` : grant.summaryText}
+                      {isDirectory && (
+                        <span className="rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] text-slate-300">
+                          Directory
+                        </span>
+                      )}
+                      {isClosed && !isDirectory && (
+                        <span className="rounded border border-red-800 bg-red-950 px-1.5 py-0.5 text-[10px] text-red-300">
+                          Closed / inactive
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="mt-2 text-sm font-semibold leading-snug text-slate-100">
+                      {grant.title}
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {isLiveGrant ? `${grant.agency} · ${grant.number}` : grant.funderName}
                     </p>
                   </div>
-                  <span className="text-xs font-mono text-emerald-400 font-bold whitespace-nowrap">
+                  <span className="shrink-0 whitespace-nowrap rounded-md bg-emerald-950/60 px-2 py-1 text-xs font-semibold text-emerald-300">
                     {awardLabel}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 text-[10px]">
-                  <span className="px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
-                    Deadline {closing}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
-                    Eligible: {eligibilityText}
+                  <span className="rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-slate-300">
+                    Deadline · {closing}
                   </span>
                   {score && (
-                    <span className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                      Fit score {score.fitScore}/50
+                    <span className="rounded border border-emerald-800 bg-emerald-950 px-1.5 py-0.5 text-emerald-300">
+                      Fit {score.fitScore}/50
                     </span>
                   )}
                   {score && (
-                    <span className="px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
+                    <span className="rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-slate-300">
                       {score.vaultReadiness.missing.length
-                        ? `Requires ${score.vaultReadiness.missing.length} Vault ${score.vaultReadiness.missing.length === 1 ? "document" : "documents"}`
-                        : "Ready to Draft"}
-                    </span>
-                  )}
-                  {isLiveGrant && grant.matchedKeyword && (
-                    <span className="px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
-                      Matches "{grant.matchedKeyword}"
+                        ? `${score.vaultReadiness.missing.length} Vault item${score.vaultReadiness.missing.length === 1 ? "" : "s"} missing`
+                        : "Vault ready"}
                     </span>
                   )}
                   {isLiveGrant && isLastChance(grant.daysLeft) && (
-                    <span className="px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800">
+                    <span className="rounded border border-red-800 bg-red-950 px-1.5 py-0.5 text-red-300">
                       Last Chance
                     </span>
                   )}
                 </div>
-                {score && (
-                  <p className="rounded-md border border-emerald-900 bg-emerald-950/30 p-2 text-[11px] text-emerald-200">
-                    <strong>Competition signals, not odds:</strong>{" "}
-                    {score.whyLowCompetition.join(" ")}
-                  </p>
-                )}
-                {score?.vaultReadiness.missing.length ? (
-                  <p className="text-[11px] text-amber-200">
-                    Vault readiness {score.vaultReadiness.readyDocuments}/
-                    {score.vaultReadiness.totalDocuments}: add{" "}
-                    {score.vaultReadiness.missing.join(", ")}.
-                  </p>
-                ) : null}
-                {score?.requiresSamWarning && (
-                  <p className="text-[11px] text-amber-200">
-                    Requires active SAM.gov + UEI registration; start at least 10 business days
-                    ahead. IRS or entity-validation delays may extend processing.
-                  </p>
-                )}
-                {score && <ScoreBreakdown score={score} />}
-                <div className="flex flex-wrap gap-2 pt-1">
+                <div className="flex flex-wrap gap-2">
                   {isLiveGrant ? (
                     <Button
                       variant="outline"
@@ -925,12 +907,6 @@ export function LiveGrantsFeed({
                       className="text-xs h-8"
                     >
                       View Grants.gov Details
-                    </Button>
-                  ) : grant.publicWinnerHistoryUrl ? (
-                    <Button variant="outline" asChild className="text-xs h-8">
-                      <a href={grant.publicWinnerHistoryUrl} target="_blank" rel="noreferrer">
-                        Past winners
-                      </a>
                     </Button>
                   ) : null}
                   <Button variant="outline" asChild className="text-xs h-8">
@@ -943,19 +919,6 @@ export function LiveGrantsFeed({
                       {isDirectory ? "Open Program Directory" : "Apply on Official Portal"}
                     </a>
                   </Button>
-                  <a
-                    href={createGrantIssueUrl({
-                      id: grant.id,
-                      title: grant.title,
-                      ...(directApplyHref ? { sourceUrl: directApplyHref } : {}),
-                    })}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => trackLovableEvent("grant_listing_report_opened")}
-                    className="inline-flex h-8 items-center px-2 text-xs text-slate-400 underline underline-offset-2"
-                  >
-                    Report issue
-                  </a>
                   <Button
                     disabled={drafting || !enabled || isDirectory}
                     onClick={() => {
@@ -967,6 +930,69 @@ export function LiveGrantsFeed({
                     {isDirectory ? "Directory Only" : drafting ? "Drafting…" : "Draft Proposal"}
                   </Button>
                 </div>
+                <details className="border-t border-slate-800 pt-2">
+                  <summary className="cursor-pointer text-xs font-medium text-slate-400">
+                    Eligibility, competition & source details
+                  </summary>
+                  <div className="mt-2 space-y-2 text-xs text-slate-400">
+                    {!isLiveGrant && grant.summaryText && <p>{grant.summaryText}</p>}
+                    <p>
+                      <strong className="text-slate-300">Eligible applicants:</strong>{" "}
+                      {eligibilityText || "See official listing"}
+                    </p>
+                    {isLiveGrant && grant.matchedKeyword && (
+                      <p>
+                        <strong className="text-slate-300">Matched search:</strong>{" "}
+                        {grant.matchedKeyword}
+                      </p>
+                    )}
+                    {score && (
+                      <p>
+                        <strong className="text-slate-300">Competition signal, not odds:</strong>{" "}
+                        {score.whyLowCompetition.join(" ")}
+                      </p>
+                    )}
+                    {score?.vaultReadiness.missing.length ? (
+                      <p>
+                        Vault readiness {score.vaultReadiness.readyDocuments}/
+                        {score.vaultReadiness.totalDocuments}; missing{" "}
+                        {score.vaultReadiness.missing.join(", ")}.
+                      </p>
+                    ) : null}
+                    {score?.requiresSamWarning && (
+                      <p>
+                        Requires active SAM.gov + UEI registration; start at least 10 business days
+                        ahead. IRS or entity-validation delays may extend processing.
+                      </p>
+                    )}
+                    {score && <ScoreBreakdown score={score} />}
+                    <div className="flex flex-wrap gap-3 pt-1">
+                      {!isLiveGrant && grant.publicWinnerHistoryUrl && (
+                        <a
+                          href={grant.publicWinnerHistoryUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-emerald-300 underline underline-offset-2"
+                        >
+                          Past winners
+                        </a>
+                      )}
+                      <a
+                        href={createGrantIssueUrl({
+                          id: grant.id,
+                          title: grant.title,
+                          ...(directApplyHref ? { sourceUrl: directApplyHref } : {}),
+                        })}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => trackLovableEvent("grant_listing_report_opened")}
+                        className="text-slate-500 underline underline-offset-2"
+                      >
+                        Report listing issue
+                      </a>
+                    </div>
+                  </div>
+                </details>
               </article>
             );
           })}
