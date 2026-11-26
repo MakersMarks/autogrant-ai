@@ -36,22 +36,40 @@ const opportunity = {
 };
 
 describe("grant eligibility and competition scoring", () => {
-  it("scores only applicants that pass hard rules and reach 65 eligibility points", () => {
+  it("separates hard eligibility checks from the 50-point fit score", () => {
     const result = scoreGrantOpportunity({ opportunity, profile, evidence });
 
     expect(result.eligible).toBe(true);
-    expect(result.eligibilityScore).toBeGreaterThanOrEqual(65);
+    expect(result.fitScore).toBeGreaterThan(0);
+    expect(result.fitScore).toBeLessThanOrEqual(50);
+    expect(Object.values(result.fitBreakdown).reduce((sum, score) => sum + score, 0)).toBe(result.fitScore);
     expect(result.eligibilityReasons).toContain(
       "Applicant entity matches the listed type: LLC / Corporation.",
     );
-    expect(result.eligibilityBreakdown.vaultReadiness).toBe(100);
+    expect(result.vaultReadiness.score).toBe(100);
+  });
+
+  it("can award all 50 fit points when every listed criterion aligns", () => {
+    const result = scoreGrantOpportunity({
+      opportunity: {
+        ...opportunity,
+        stageTags: ["established"],
+        awardFloor: 1000,
+        awardCeiling: 100000,
+        costSharingRequired: false,
+      },
+      profile,
+      evidence,
+    });
+
+    expect(result.fitScore).toBe(50);
   });
 
   it("keeps a strong profile discoverable with an empty Vault and reports missing documents as readiness tasks", () => {
     const result = scoreGrantOpportunity({ opportunity, profile, evidence: [] });
 
     expect(result.eligible).toBe(true);
-    expect(result.eligibilityScore).toBeGreaterThanOrEqual(65);
+    expect(result.fitScore).toBeGreaterThan(0);
     expect(result.hardDisqualifiers.join(" ")).not.toMatch(/Vault evidence is missing/i);
     expect(result.vaultReadiness.score).toBe(0);
     expect(result.vaultReadiness.readyDocuments).toBe(0);
@@ -76,7 +94,7 @@ describe("grant eligibility and competition scoring", () => {
     );
   });
 
-  it("excludes a grant when its eligibility score is below 65 even if no hard rule fails", () => {
+  it("does not turn a low text-fit score into a false eligibility failure", () => {
     const result = scoreGrantOpportunity({
       opportunity,
       profile: {
@@ -89,11 +107,9 @@ describe("grant eligibility and competition scoring", () => {
       evidence,
     });
 
-    expect(result.eligibilityScore).toBeLessThan(65);
-    expect(result.eligible).toBe(false);
-    expect(result.hardDisqualifiers).toContain(
-      `Eligibility score ${result.eligibilityScore} is below the 65-point threshold.`,
-    );
+    expect(result.eligible).toBe(true);
+    expect(result.fitScore).toBeLessThan(50);
+    expect(result.hardDisqualifiers).toEqual([]);
   });
 
   it("hard-fails mismatched entity, geography, and set-aside while keeping mandatory evidence as readiness", () => {
@@ -118,12 +134,51 @@ describe("grant eligibility and competition scoring", () => {
 
     expect(result.eligible).toBe(false);
     expect(result.hardDisqualifiers.join(" ")).toMatch(
-      /entity types|demographic|geographic/,
+      /entity types|geographic/,
     );
     expect(result.vaultReadiness.missing).toContain("health_permit");
   });
 
-  it("weights each available competition metric equally and estimates win rate only from reported history", () => {
+  it("hard-fails closed listings, out-of-state businesses, and verified insufficient tenure", () => {
+    const result = scoreGrantOpportunity({
+      opportunity: {
+        ...opportunity,
+        status: "closed",
+        eligibleStates: ["IA"],
+        minMonthsInBusiness: 18,
+      },
+      profile: { ...profile, monthsInBusiness: 12 },
+      evidence,
+    });
+
+    expect(result.eligible).toBe(false);
+    expect(result.hardDisqualifiers).toContain("This opportunity is closed or inactive.");
+    expect(result.hardDisqualifiers.join(" ")).toMatch(/limited to IA/);
+    expect(result.hardDisqualifiers.join(" ")).toMatch(/requires at least 18 months/);
+  });
+
+  it("allows a day-one business when the grant has no minimum tenure", () => {
+    const result = scoreGrantOpportunity({
+      opportunity,
+      profile: { ...profile, lifecycleStage: "Idea / Pre-Launch", monthsInBusiness: 0 },
+      evidence,
+    });
+
+    expect(result.eligible).toBe(true);
+  });
+
+  it("does not claim a business meets a tenure requirement the profile cannot verify", () => {
+    const result = scoreGrantOpportunity({
+      opportunity: { ...opportunity, minMonthsInBusiness: 18 },
+      profile,
+      evidence,
+    });
+
+    expect(result.eligible).toBe(false);
+    expect(result.hardDisqualifiers.join(" ")).toMatch(/does not confirm the full requirement/);
+  });
+
+  it("weights available competition metrics and reports award rate from reported history", () => {
     const result = scoreGrantOpportunity({
       opportunity: {
         ...opportunity,
@@ -140,16 +195,16 @@ describe("grant eligibility and competition scoring", () => {
     });
 
     expect(result.lowCompetitionScore).toBe(40);
-    expect(result.personalLowCompetitionScore).toBe(40);
+    expect(result.personalLowCompetitionScore).toBe(32);
     expect(result.competitionDataStatus).toBe("mixed");
-    expect(result.estimatedWinRatePct).toBe(10);
+    expect(result.historicalAwardRatePct).toBe(10);
     expect(result.lowCompetitionTier).toBe("Moderate");
   });
 
-  it("does not invent an estimated win rate when applicant history is unavailable", () => {
+  it("does not invent a historical award rate when applicant history is unavailable", () => {
     const result = scoreGrantOpportunity({ opportunity, profile, evidence });
 
-    expect(result.estimatedWinRatePct).toBeNull();
+    expect(result.historicalAwardRatePct).toBeNull();
     expect(result.competitionDataStatus).toBe("estimated");
   });
 

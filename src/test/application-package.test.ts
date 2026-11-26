@@ -10,6 +10,7 @@ describe("application package export", () => {
       grantTitle: "Community Grant",
       funder: "Example Funder",
       amount: "Check current cycle",
+      portalUrl: "https://example.gov/apply",
       documents: [{
         fileName: "Need Narrative.txt",
         sections: [{ title: "Project Need", body: "A community needs this project." }],
@@ -38,6 +39,7 @@ describe("application package export", () => {
     expect(strFromU8(archive["narratives/Need Narrative.txt"]!)).toContain("A community needs this project.");
     expect(strFromU8(archive["requirements/compliance-checklist.txt"]!)).toContain("Vendor quote");
     expect(strFromU8(archive["requirements/compliance-checklist.txt"]!)).toContain("formats: PDF");
+    expect(strFromU8(archive["submission-checklist.txt"]!)).toContain("https://example.gov/apply");
     expect(strFromU8(archive["README.txt"]!)).toContain("not official SF-424/SF-424A forms");
   });
 

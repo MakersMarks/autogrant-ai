@@ -16,6 +16,9 @@ export type Grant = {
   categoryCode: string;
   eligibilityReason: string;
   deadline: string;
+  summaryText?: string;
+  prerequisites?: string[];
+  portalUrl?: string;
   officialUrl?: string;
   publicWinnerHistoryUrl?: string;
 };
@@ -34,6 +37,8 @@ export interface UnifiedGrant {
   awardCount?: number;
   historicalApplicantCount?: number;
   prerequisites?: string[];
+  stageTags?: string[];
+  status?: "open" | "closed" | "unknown" | string;
   officialApplicationUrl?: string;
   directoryOnly?: boolean;
   poolTier: GrantPoolTier;

@@ -1,0 +1,1530 @@
+{
+  "syncedAt": "2026-11-26T07:07:01.244Z",
+  "count": 26,
+  "inactiveCount": 1,
+  "grants": [
+    {
+      "id": "iowagrants-228079",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "Community Development,Economic Development,Historic Preservation,Rural Issues",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Apr 14, 2027 4:30 PM",
+      "open_date": null,
+      "close_date": "Apr 14, 2027 4:30 PM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under Community Development,Economic Development,Historic Preservation,Rural Issues.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "228079",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Community Development,Economic Development,Historic Preservation,Rural Issues",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-371353",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "Community Development,Economic Development,Historic Preservation,History,Housing,Rural Issues,Tourism and Hospitality",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Not Applicable",
+      "open_date": null,
+      "close_date": "Not Applicable",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under Community Development,Economic Development,Historic Preservation,History,Housing,Rural Issues,Tourism and Hospitality.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "371353",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Community Development,Economic Development,Historic Preservation,History,Housing,Rural Issues,Tourism and Hospitality",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-397263",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "Education",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Not Applicable",
+      "open_date": null,
+      "close_date": "Not Applicable",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under Education.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "397263",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Education",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-426239",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "Community Development,Economic Development,Energy,Rural Issues",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Not Applicable",
+      "open_date": null,
+      "close_date": "Not Applicable",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under Community Development,Economic Development,Energy,Rural Issues.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "426239",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Community Development,Economic Development,Energy,Rural Issues",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-544757",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "Child Health,Health, Prevention/Treatment",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Not Applicable",
+      "open_date": null,
+      "close_date": "Not Applicable",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under Child Health,Health, Prevention/Treatment.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "544757",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Child Health,Health, Prevention/Treatment",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-621079",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Not Applicable",
+      "open_date": null,
+      "close_date": "Not Applicable",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under .",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "621079",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-642541",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "Education",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Dec 3, 2026 11:59 PM",
+      "open_date": null,
+      "close_date": "Dec 3, 2026 11:59 PM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under Education.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "642541",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Education",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-667406",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "Education",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Apr 30, 2027 9:53 AM",
+      "open_date": null,
+      "close_date": "Apr 30, 2027 9:53 AM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under Education.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "667406",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Education",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-672330",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Not Applicable",
+      "open_date": null,
+      "close_date": "Not Applicable",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under .",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "672330",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-675777",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "IT/Telecommunications",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Jun 30, 2027 11:00 AM",
+      "open_date": null,
+      "close_date": "Jun 30, 2027 11:00 AM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under IT/Telecommunications.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "675777",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "IT/Telecommunications",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-685608",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "Education",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Dec 11, 2026 11:59 PM",
+      "open_date": null,
+      "close_date": "Dec 11, 2026 11:59 PM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under Education.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "685608",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Education",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-686491",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Dec 1, 2026 11:59 PM",
+      "open_date": null,
+      "close_date": "Dec 1, 2026 11:59 PM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under .",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "686491",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-688337",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Dec 8, 2026 4:00 PM",
+      "open_date": null,
+      "close_date": "Dec 8, 2026 4:00 PM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under .",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "688337",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-688662",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Dec 28, 2026 4:00 PM",
+      "open_date": null,
+      "close_date": "Dec 28, 2026 4:00 PM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under .",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "688662",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-690805",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "Education",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Jun 1, 2027 12:00 AM",
+      "open_date": null,
+      "close_date": "Jun 1, 2027 12:00 AM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under Education.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "690805",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Education",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-692381",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "May 14, 2027 5:00 PM",
+      "open_date": null,
+      "close_date": "May 14, 2027 5:00 PM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under .",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "692381",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-695002",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Dec 16, 2026 4:00 PM",
+      "open_date": null,
+      "close_date": "Dec 16, 2026 4:00 PM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under .",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "695002",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-695886",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Feb 16, 2027 1:00 PM",
+      "open_date": null,
+      "close_date": "Feb 16, 2027 1:00 PM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under .",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "695886",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "iowagrants-697324",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Posted",
+      "funder_name": "Education",
+      "funder_type": "government",
+      "award_floor": 0,
+      "award_ceiling": 0,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Feb 1, 2027 11:59 PM",
+      "open_date": null,
+      "close_date": "Feb 1, 2027 11:59 PM",
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "official_application_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "portal_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "source_solicitation_url": "https://www.iowagrants.gov/storefrontFOList.do",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "State of Iowa opportunity listed on IowaGrants.gov under Education.",
+      "prerequisites": [
+        "Iowa-eligible applicant or project",
+        "IowaGrants.gov portal account"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "697324",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Education",
+      "amount_min": 0,
+      "amount_max": 0,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "ia-ieda-pocr",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Proof of Commercial Relevance (POCR)",
+      "funder_name": "Iowa Economic Development Authority (IEDA)",
+      "funder_type": "government",
+      "award_floor": 10000,
+      "award_ceiling": 50000,
+      "min_months_in_business": 0,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 180,
+      "deadline": "Rolling (TCC Review Cycles)",
+      "open_date": null,
+      "close_date": null,
+      "is_rolling": true,
+      "cost_sharing_required": true,
+      "cost_sharing_percentage": 50,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "email_package",
+      "direct_apply_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
+      "official_application_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
+      "portal_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
+      "source_solicitation_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "Supports Iowa-based startups in advanced manufacturing, biosciences, or IT with functional prototypes to validate market potential and commercial feasibility.",
+      "prerequisites": [
+        "Iowa-registered business (fewer than 500 employees)",
+        "Functional prototype / proof-of-concept",
+        "1:2 non-state matching funds"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "ia-ieda-pocr",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Iowa Economic Development Authority (IEDA)",
+      "amount_min": 10000,
+      "amount_max": 50000,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [
+        "rolling"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "ia-ieda-demonstration-fund",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Iowa Demonstration Fund",
+      "funder_name": "Iowa Economic Development Authority (IEDA)",
+      "funder_type": "government",
+      "award_floor": 25000,
+      "award_ceiling": 100000,
+      "min_months_in_business": 0,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 240,
+      "deadline": "Rolling (TCC Review Cycles)",
+      "open_date": null,
+      "close_date": null,
+      "is_rolling": true,
+      "cost_sharing_required": true,
+      "cost_sharing_percentage": 50,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "email_package",
+      "direct_apply_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
+      "official_application_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
+      "portal_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
+      "source_solicitation_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "Assists Iowa companies with market-ready innovative technologies in advanced manufacturing, biosciences, or IT for marketing, equipment, and business development.",
+      "prerequisites": [
+        "Iowa-based company (fewer than 500 employees)",
+        "Market-ready innovative product",
+        "1:2 non-state matching funds"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "ia-ieda-demonstration-fund",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Iowa Economic Development Authority (IEDA)",
+      "amount_min": 25000,
+      "amount_max": 100000,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [
+        "rolling"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "ia-ieda-tsb",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Iowa Targeted Small Business (TSB) Program",
+      "funder_name": "Iowa Economic Development Authority (IEDA)",
+      "funder_type": "government",
+      "award_floor": 5000,
+      "award_ceiling": 50000,
+      "min_months_in_business": 0,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Closed / Inactive",
+      "open_date": null,
+      "close_date": null,
+      "is_rolling": true,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business"
+      ],
+      "demographic_set_asides": [
+        "women_owned",
+        "minority_owned",
+        "veteran_owned",
+        "disability_owned"
+      ],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+      "official_application_url": "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+      "portal_url": "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+      "source_solicitation_url": "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+      "is_free_to_apply": true,
+      "directory_only": true,
+      "summary_text": "Supports certified Iowa Targeted Small Businesses owned and operated by women, minorities, service-disabled veterans, or people with disabilities.",
+      "prerequisites": [
+        "Iowa Targeted Small Business (TSB) certification",
+        "51%+ majority ownership by eligible group"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "ia-ieda-tsb",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Iowa Economic Development Authority (IEDA)",
+      "amount_min": 5000,
+      "amount_max": 50000,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [
+        "rolling"
+      ],
+      "status": "closed"
+    },
+    {
+      "id": "ia-choose-iowa-value-added",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Choose Iowa Value-Added Agricultural Grant",
+      "funder_name": "Iowa Department of Agriculture and Land Stewardship (IDALS)",
+      "funder_type": "government",
+      "award_floor": 5000,
+      "award_ceiling": 25000,
+      "min_months_in_business": 0,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Check Current Cycle",
+      "open_date": null,
+      "close_date": null,
+      "is_rolling": false,
+      "cost_sharing_required": true,
+      "cost_sharing_percentage": 50,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business",
+        "nonprofit_501c3"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.chooseiowa.com/grants",
+      "official_application_url": "https://www.chooseiowa.com/grants",
+      "portal_url": "https://www.chooseiowa.com/grants",
+      "source_solicitation_url": "https://www.chooseiowa.com/grants",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "Cost-share grants for Iowa farmers, food processors, and small businesses expanding processing, packaging, or distribution of Iowa agricultural products.",
+      "prerequisites": [
+        "Iowa-based agricultural or food business",
+        "1:1 dollar-for-dollar match"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "ia-choose-iowa-value-added",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Iowa Department of Agriculture and Land Stewardship (IDALS)",
+      "amount_min": 5000,
+      "amount_max": 25000,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [
+        "microgrant"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "ia-ieda-manufacturing-4-0",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Manufacturing 4.0 Technology Investment Grant",
+      "funder_name": "Iowa Economic Development Authority (IEDA) / CIRAS",
+      "funder_type": "government",
+      "award_floor": 25000,
+      "award_ceiling": 75000,
+      "min_months_in_business": 12,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 180,
+      "deadline": "Check Current Cycle",
+      "open_date": null,
+      "close_date": null,
+      "is_rolling": false,
+      "cost_sharing_required": true,
+      "cost_sharing_percentage": 50,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://opportunityiowa.gov/business/financial-assistance/manufacturing-40-technology-investment",
+      "official_application_url": "https://opportunityiowa.gov/business/financial-assistance/manufacturing-40-technology-investment",
+      "portal_url": "https://opportunityiowa.gov/business/financial-assistance/manufacturing-40-technology-investment",
+      "source_solicitation_url": "https://opportunityiowa.gov/business/financial-assistance/manufacturing-40-technology-investment",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "Helps Iowa manufacturers adopt automation, smart sensors, robotics, and manufacturing software.",
+      "prerequisites": [
+        "Iowa manufacturing facility",
+        "Matching capital investment"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "ia-ieda-manufacturing-4-0",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Iowa Economic Development Authority (IEDA) / CIRAS",
+      "amount_min": 25000,
+      "amount_max": 75000,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    },
+    {
+      "id": "ia-ieda-sbir-sttr-match",
+      "pool_tier": "state_territory",
+      "grant_tier": "State",
+      "title": "Iowa SBIR / STTR State Matching Grant",
+      "funder_name": "Iowa Economic Development Authority (IEDA)",
+      "funder_type": "government",
+      "award_floor": 25000,
+      "award_ceiling": 75000,
+      "min_months_in_business": 0,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 120,
+      "deadline": "Rolling",
+      "open_date": null,
+      "close_date": null,
+      "is_rolling": true,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "for_profit",
+        "small_business"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "state",
+      "geographic_scope": {
+        "level": "state_specific",
+        "allowedStates": [
+          "IA"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+      "official_application_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+      "portal_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+      "source_solicitation_url": "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "Supports Iowa small businesses pursuing federal SBIR/STTR awards with technical assistance and state matching commitments.",
+      "prerequisites": [
+        "Iowa-based small business",
+        "Federal SBIR/STTR Phase I or Phase II track"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "ia-ieda-sbir-sttr-match",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Iowa Economic Development Authority (IEDA)",
+      "amount_min": 25000,
+      "amount_max": 75000,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [
+        "rolling"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "ia-cfgdm-community-grants",
+      "pool_tier": "foundation",
+      "grant_tier": "Foundation",
+      "title": "Greater Des Moines Leadership & Community Grants",
+      "funder_name": "Community Foundation of Greater Des Moines",
+      "funder_type": "private_foundation",
+      "award_floor": 2500,
+      "award_ceiling": 50000,
+      "min_months_in_business": null,
+      "eligible_states": [
+        "IA"
+      ],
+      "application_time_minutes": 150,
+      "deadline": "Check Current Cycle",
+      "open_date": null,
+      "close_date": null,
+      "is_rolling": false,
+      "cost_sharing_required": false,
+      "cost_sharing_percentage": null,
+      "eligible_entity_types": [
+        "nonprofit_501c3",
+        "fiscal_sponsor"
+      ],
+      "demographic_set_asides": [],
+      "geographic_restriction": "county",
+      "geographic_scope": {
+        "level": "local_county",
+        "allowedStates": [
+          "IA"
+        ],
+        "counties": [
+          "Polk",
+          "Dallas",
+          "Warren"
+        ]
+      },
+      "application_method": "online_portal",
+      "direct_apply_url": "https://www.desmoinesfoundation.org/nonprofits/grants",
+      "official_application_url": "https://www.desmoinesfoundation.org/nonprofits/grants",
+      "portal_url": "https://www.desmoinesfoundation.org/nonprofits/grants",
+      "source_solicitation_url": "https://www.desmoinesfoundation.org/nonprofits/grants",
+      "is_free_to_apply": true,
+      "directory_only": false,
+      "summary_text": "Supports charitable and community initiatives across Greater Des Moines and Central Iowa.",
+      "prerequisites": [
+        "501(c)(3) nonprofit or eligible fiscal sponsor"
+      ],
+      "source_system": "playwright_script",
+      "source_external_id": "ia-cfgdm-community-grants",
+      "last_synced_at": "2026-11-26T07:07:01.244Z",
+      "updated_at": "2026-11-26T07:07:01.244Z",
+      "funder": "Community Foundation of Greater Des Moines",
+      "amount_min": 2500,
+      "amount_max": 50000,
+      "states": [
+        "IA"
+      ],
+      "stage_tags": [],
+      "status": "open"
+    }
+  ]
+}

@@ -61,6 +61,19 @@ describe('Day 2 document engine', () => {
     expect(parseDocument('institutional', '## 1. Technical Approach\none two three four', requiredSections)[0]?.body)
       .toBe('one two three…');
   });
+  it('grounds grant-specific drafting in the supplied summary, prerequisites, and parsed requirements', () => {
+    const request = buildDocumentPrompt('institutional', {}, [], {
+      summaryText: 'Funds prototype validation for Iowa technology startups.',
+      prerequisites: ['Iowa registration', 'Functional prototype'],
+      requirements: { formatting: { pageLimit: 5 } },
+    }, 'VOICE');
+    const grant = JSON.parse(request.prompt).grant;
+
+    expect(request.system).toContain('Use only the supplied grant summary, prerequisites');
+    expect(grant.summaryText).toContain('prototype validation');
+    expect(grant.prerequisites).toEqual(['Iowa registration', 'Functional prototype']);
+    expect(grant.requirements.formatting.pageLimit).toBe(5);
+  });
   it('uses sourced winner stories only as non-causal structural examples', () => {
     const request = buildDocumentPrompt('executive_summary', {}, [], {}, 'VOICE', undefined, [{
       winner: 'Example Co.',

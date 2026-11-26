@@ -27,20 +27,26 @@ jobs:
 
       - name: Install Playwright and Chromium for nightly Iowa crawlers
         run: |
-          npm install --no-save playwright @supabase/supabase-js
+          mkdir -p /tmp/grant-runner
+          cd /tmp/grant-runner
+          npm init -y
+          npm install --no-package-lock --legacy-peer-deps playwright @supabase/supabase-js
           npx playwright install --with-deps chromium
 
       - name: Run nightly Iowa grant crawlers and sync to site_grants
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NODE_PATH: /tmp/grant-runner/node_modules
         run: node scripts/sync-iowa-grants.mjs
 
       - name: Commit updated snapshot if anything changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/state-watch-snapshot.json
+          for snapshot in .github/state-watch-snapshot.json .github/iowa-grants-snapshot.json; do
+            if [ -f "$snapshot" ]; then git add "$snapshot"; fi
+          done
           if ! git diff --staged --quiet; then
             git commit -m "chore: update TN and IA grant page snapshot"
             git push

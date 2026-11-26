@@ -84,6 +84,9 @@ function Platform({ userId }: { userId: string }) {
         categoryCode: profile?.sector_code ?? "",
         eligibilityReason: `Grants.gov ${opportunity.number}. Eligible applicants: ${opportunity.eligibility.join("; ") || "see the official listing"}. Closing date: ${opportunity.closeDate || "not stated"}.`,
         deadline: opportunity.closeDate,
+        summaryText: opportunity.description ?? "",
+        prerequisites: opportunity.prerequisites ?? [],
+        portalUrl: opportunity.url,
         officialUrl: opportunity.url,
       });
       return;
@@ -104,7 +107,10 @@ function Platform({ userId }: { userId: string }) {
       categoryCode: profile?.sector_code ?? "",
       eligibilityReason: `${opportunity.summaryText} Confirm current eligibility and open funding cycle on the official funder site.`,
       deadline: opportunity.directoryOnly ? "Check current cycle" : opportunity.isRolling ? "Rolling" : opportunity.deadline,
-      officialUrl: opportunity.directApplyUrl,
+      summaryText: opportunity.summaryText,
+      prerequisites: opportunity.prerequisites ?? [],
+      portalUrl: opportunity.portalUrl ?? opportunity.directApplyUrl,
+      officialUrl: opportunity.portalUrl ?? opportunity.directApplyUrl,
       ...(opportunity.publicWinnerHistoryUrl ? { publicWinnerHistoryUrl: opportunity.publicWinnerHistoryUrl } : {}),
     });
   };

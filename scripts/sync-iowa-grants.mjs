@@ -1,10 +1,30 @@
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
-import { chromium } from "playwright";
-import { createClient } from "@supabase/supabase-js";
+
+const require = createRequire(import.meta.url);
+const { chromium } = require("playwright");
+const { createClient } = require("@supabase/supabase-js");
 
 const SNAPSHOT_PATH = path.resolve(process.cwd(), ".github/iowa-grants-snapshot.json");
 const nowIso = new Date().toISOString();
+
+function deadlineHasPassed(value) {
+  if (typeof value !== "string" || !value.trim()) return false;
+  if (/\b(closed|expired|archived|ended)\b/i.test(value)) return true;
+
+  const text = value.trim();
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text);
+  const date = match
+    ? new Date(Date.UTC(Number(match[3]), Number(match[1]) - 1, Number(match[2])))
+    : new Date(text);
+  if (Number.isNaN(date.getTime())) return false;
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  date.setUTCHours(0, 0, 0, 0);
+  return date < today;
+}
 
 function normalizeGrantRecord(item, { isClosed = false } = {}) {
   const states =
@@ -35,35 +55,46 @@ function normalizeGrantRecord(item, { isClosed = false } = {}) {
         ...(amountMax > 0 && amountMax <= 25000 ? ["microgrant"] : []),
       ];
 
-  const resolvedStatus = isClosed
+  const itemStatus =
+    typeof item.status === "string" ? item.status.trim().toLowerCase() : "";
+  const isInactive =
+    isClosed ||
+    /\b(closed|inactive|expired|archived|ended)\b/.test(itemStatus) ||
+    deadlineHasPassed(item.deadline);
+  const resolvedStatus = isInactive
     ? "closed"
-    : item.status === "open" || item.status === "closed" || item.status === "unknown"
-      ? item.status
+    : itemStatus === "open" || itemStatus === "unknown"
+      ? itemStatus
       : item.is_rolling || Boolean(item.deadline)
         ? "open"
         : "unknown";
 
   const resolvedPortalUrl =
+    item.portal_url ||
     item.direct_apply_url ||
     item.official_application_url ||
-    item.portal_url ||
     item.source_solicitation_url ||
     "";
 
   return {
     ...item,
     funder: item.funder ?? item.funder_name ?? "",
+    funder_name: item.funder_name ?? item.funder ?? "",
     amount_min: amountMin,
     amount_max: amountMax,
+    award_floor: amountMin,
+    award_ceiling: amountMax,
     eligible_entity_types: Array.isArray(item.eligible_entity_types)
       ? item.eligible_entity_types
       : [],
     states,
+    eligible_states: states,
     stage_tags: stageTags,
-    deadline: isClosed ? "Closed / Inactive" : item.deadline || "Check Current Cycle",
+    deadline: isInactive ? "Closed / Inactive" : item.deadline || "Check Current Cycle",
     status: resolvedStatus,
     portal_url: resolvedPortalUrl,
-    directory_only: isClosed || Boolean(item.directory_only),
+    direct_apply_url: item.direct_apply_url || resolvedPortalUrl,
+    directory_only: isInactive || Boolean(item.directory_only),
   };
 }
 
@@ -404,7 +435,7 @@ async function run() {
         const applyUrl = row.href
           ? new URL(row.href, "https://www.iowagrants.gov/").toString()
           : "https://www.iowagrants.gov/storefrontFOList.do";
-        const isClosed = /closed|expired|archived/i.test(closeDate);
+        const isClosed = deadlineHasPassed(closeDate);
         const isRolling = !closeDate || /rolling|continuous|ongoing|open/i.test(closeDate);
 
         const record = normalizeGrantRecord(
@@ -467,12 +498,17 @@ async function run() {
           timeout: 20000,
         });
         const status = resp ? resp.status() : 0;
+        if (status >= 500 || status === 0 || (status >= 400 && status !== 404 && status !== 410)) {
+          console.warn(`Skipping ${item.id}: official page returned HTTP ${status || "no response"}.`);
+          continue;
+        }
         const bodyText = await page.evaluate(() =>
           (document.body?.innerText ?? "").slice(0, 4000),
         );
         const explicitlyClosed =
           status === 404 ||
-          status >= 500 ||
+          status === 410 ||
+          deadlineHasPassed(item.deadline) ||
           /\b(program closed|applications? closed|no longer accepting applications|funding exhausted)\b/i.test(
             bodyText,
           );
@@ -489,13 +525,7 @@ async function run() {
         upserts.push(normalizedItem);
         if (explicitlyClosed) inactiveIds.push(normalizedItem.id);
       } catch {
-        upserts.push(
-          normalizeGrantRecord({
-            ...item,
-            last_synced_at: nowIso,
-            updated_at: nowIso,
-          }),
-        );
+        console.warn(`Skipping ${item.id}: the official page could not be checked.`);
       }
     }
   } finally {

@@ -43,15 +43,21 @@ type Detail = Awaited<ReturnType<typeof getGrantDetail>>;
 
 interface SiteGrantRow {
   id: string;
+  funder?: string | null;
   pool_tier: UnifiedGrant["poolTier"] | null;
   grant_tier: UnifiedGrant["grantTier"] | null;
   title: string;
-  funder_name: string;
+  funder_name: string | null;
   funder_type: UnifiedGrant["funderType"] | null;
+  amount_min?: number | null;
+  amount_max?: number | null;
   award_floor: number | null;
   award_ceiling: number | null;
   min_months_in_business: number | null;
   eligible_states: string[] | null;
+  states?: string[] | null;
+  stage_tags?: string[] | null;
+  status?: "open" | "closed" | "unknown" | null;
   application_time_minutes: number | null;
   deadline: string | null;
   open_date: string | null;
@@ -64,52 +70,80 @@ interface SiteGrantRow {
   geographic_restriction: string | null;
   geographic_scope: UnifiedGrant["geographicScope"] | null;
   application_method: string | null;
-  direct_apply_url: string;
+  direct_apply_url: string | null;
   official_application_url: string | null;
   portal_url: string | null;
   source_solicitation_url: string | null;
   is_free_to_apply: boolean | null;
   directory_only: boolean | null;
-  summary_text: string;
+  summary_text: string | null;
   prerequisites: string[] | null;
 }
 
 function mapSiteGrantToUnified(row: SiteGrantRow): UnifiedGrant {
+  const states = row.states?.length
+    ? row.states
+    : row.eligible_states?.length
+      ? row.eligible_states
+      : ["ALL"];
+  const portalUrl = row.portal_url || row.direct_apply_url || row.official_application_url || "";
+  const parsedCloseDate = row.close_date ? new Date(row.close_date) : null;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  parsedCloseDate?.setUTCHours(0, 0, 0, 0);
+  const expired = !!parsedCloseDate && !Number.isNaN(parsedCloseDate.getTime()) && parsedCloseDate < today;
+  const statusValue = row.status?.trim().toLowerCase() ?? "";
+  const statusClosed = /\b(closed|inactive|expired|archived|ended)\b/.test(statusValue);
+  const deadlineClosed = /\b(closed|inactive|expired|archived|ended)\b/i.test(row.deadline ?? "");
+  const status =
+    statusClosed || row.directory_only || expired || deadlineClosed
+      ? "closed"
+      : statusValue || (row.is_rolling ? "open" : "unknown");
   return {
     id: row.id,
     poolTier: row.pool_tier ?? "state_territory",
     grantTier: row.grant_tier ?? "State",
     title: row.title,
-    funderName: row.funder_name,
+    funderName: row.funder || row.funder_name || "",
     funderType: row.funder_type ?? "government",
-    awardFloor: Number(row.award_floor ?? 0),
-    awardCeiling: Number(row.award_ceiling ?? 0),
-    minMonthsInBusiness: row.min_months_in_business ?? undefined,
-    eligibleStates: row.eligible_states ?? ["ALL"],
-    applicationTimeMinutes: row.application_time_minutes ?? undefined,
+    awardFloor: Number(row.amount_min ?? row.award_floor ?? 0),
+    awardCeiling: Number(row.amount_max ?? row.award_ceiling ?? 0),
+    ...(row.min_months_in_business !== null
+      ? { minMonthsInBusiness: row.min_months_in_business }
+      : {}),
+    eligibleStates: states,
+    stageTags: row.stage_tags ?? [],
+    status,
+    ...(row.application_time_minutes !== null
+      ? { applicationTimeMinutes: row.application_time_minutes }
+      : {}),
     deadline: row.deadline ?? "Rolling",
-    openDate: row.open_date ?? undefined,
-    closeDate: row.close_date ?? undefined,
+    ...(row.open_date ? { openDate: row.open_date } : {}),
+    ...(row.close_date ? { closeDate: row.close_date } : {}),
     isRolling: row.is_rolling ?? true,
     costSharingRequired: row.cost_sharing_required ?? false,
-    costSharingPercentage: row.cost_sharing_percentage ?? undefined,
+    ...(row.cost_sharing_percentage !== null
+      ? { costSharingPercentage: row.cost_sharing_percentage }
+      : {}),
     eligibleEntityTypes: (row.eligible_entity_types ?? ["for_profit"]) as UnifiedGrant["eligibleEntityTypes"],
     demographicSetAsides: (row.demographic_set_asides ?? []) as UnifiedGrant["demographicSetAsides"],
-    geographicRestriction: (row.geographic_restriction ?? "state") as UnifiedGrant["geographicRestriction"],
+    geographicRestriction: (row.geographic_restriction ?? "state") as NonNullable<
+      UnifiedGrant["geographicRestriction"]
+    >,
     geographicScope: row.geographic_scope ?? {
       level: "state_specific",
-      allowedStates: row.eligible_states ?? ["IA"],
+      allowedStates: states,
     },
     applicationMethod: (row.application_method ?? "online_portal") as UnifiedGrant["applicationMethod"],
-    directApplyUrl: row.direct_apply_url,
-    officialApplicationUrl: row.official_application_url ?? row.direct_apply_url,
-    portalUrl: row.portal_url ?? undefined,
-    sourceSolicitationUrl: row.source_solicitation_url ?? undefined,
+    directApplyUrl: portalUrl,
+    officialApplicationUrl: row.official_application_url ?? portalUrl,
+    ...(portalUrl ? { portalUrl } : {}),
+    ...(row.source_solicitation_url ? { sourceSolicitationUrl: row.source_solicitation_url } : {}),
     isFreeToApply: row.is_free_to_apply ?? true,
     directoryOnly: row.directory_only ?? false,
-    summaryText: row.summary_text,
+    summaryText: row.summary_text ?? "",
     prerequisites: row.prerequisites ?? [],
-  } as UnifiedGrant;
+  };
 }
 
 const DEADLINES = [
@@ -232,12 +266,9 @@ export function LiveGrantsFeed({
 
   useEffect(() => {
     let active = true;
-    const targetStates = registryStateCode ? [registryStateCode, "ALL"] : ["IA", "ALL"];
-
     void (supabase as any)
       .from("site_grants")
       .select("*")
-      .overlaps("eligible_states", targetStates)
       .then(
         ({
           data,
@@ -252,14 +283,28 @@ export function LiveGrantsFeed({
             setPoolError((prev) => prev || dbError.message);
             return;
           }
-          setSiteGrants((data ?? []).map(mapSiteGrantToUnified));
+          const targetState = registryStateCode || "IA";
+          const targetStateName = stateFromLocation(profile?.location ?? "") ?? "Iowa";
+          setSiteGrants(
+            (data ?? [])
+              .map(mapSiteGrantToUnified)
+              .filter(
+                (grant) =>
+                  !grant.eligibleStates?.length ||
+                  grant.eligibleStates.some(
+                    (state) =>
+                      ["ALL", "NATIONAL", "US", targetState].includes(state.toUpperCase()) ||
+                      state.toLowerCase() === targetStateName.toLowerCase(),
+                  ),
+              ),
+          );
         },
       );
 
     return () => {
       active = false;
     };
-  }, [registryStateCode]);
+  }, [registryStateCode, profile?.location]);
 
   useEffect(() => {
     void pool({
@@ -406,19 +451,12 @@ export function LiveGrantsFeed({
   const allEligibleGrants = [...shown, ...eligiblePoolGrants].sort((a, b) => {
     const scoreA = scoreById.get(a.id);
     const scoreB = scoreById.get(b.id);
-    return (
-      (scoreB?.eligibilityScore ?? 0) +
-      (scoreB?.personalLowCompetitionScore ?? 0) -
-      (scoreA?.eligibilityScore ?? 0) -
-      (scoreA?.personalLowCompetitionScore ?? 0)
-    );
+    return (scoreB?.fitScore ?? 0) - (scoreA?.fitScore ?? 0);
   });
 
   const closestMatches = [...grants, ...matchingPoolGrants]
     .filter((grant) => !scoreById.get(grant.id)?.eligible)
-    .sort(
-      (a, b) => (scoreById.get(b.id)?.eligibilityScore ?? 0) - (scoreById.get(a.id)?.eligibilityScore ?? 0),
-    )
+    .sort((a, b) => (scoreById.get(b.id)?.fitScore ?? 0) - (scoreById.get(a.id)?.fitScore ?? 0))
     .slice(0, 8);
   const lastChanceCount = grants.filter((g) => isLastChance(g.daysLeft)).length;
 
@@ -651,11 +689,10 @@ export function LiveGrantsFeed({
             <section className="space-y-2">
               <div>
                 <h3 className="text-sm font-bold text-amber-300">
-                  Closest Matches — Missing 1–2 Requirements
+                  Eligibility checks — needs review
                 </h3>
                 <p className="text-xs text-slate-400">
-                  These opportunities are close. Add the listed evidence or update the matching profile
-                  detail to unlock them.
+                  The reasons below explain why these programs are not currently shown as eligible.
                 </p>
               </div>
               {closestMatches.map((grant) => {
@@ -675,7 +712,9 @@ export function LiveGrantsFeed({
                 const directUrl =
                   "agency" in grant
                     ? grant.url
-                    : grant.directApplyUrl || grant.officialApplicationUrl;
+                    : grant.portalUrl || grant.directApplyUrl || grant.officialApplicationUrl;
+                const closed =
+                  "agency" in grant ? false : grant.status === "closed" || grant.directoryOnly;
                 return (
                   <div
                     key={grant.id}
@@ -686,6 +725,11 @@ export function LiveGrantsFeed({
                       <span className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-300">
                         {tier}
                       </span>
+                      {closed && (
+                        <span className="rounded border border-red-800 bg-red-950 px-2 py-1 text-[10px] text-red-300">
+                          Closed / inactive
+                        </span>
+                      )}
                     </div>
                     <ul className="list-disc pl-4 text-xs text-amber-200 space-y-1">
                       {missing.map((item) => (
@@ -748,9 +792,10 @@ export function LiveGrantsFeed({
               : grant.eligibleEntityTypes
                   .map((entity) => entity.replaceAll("_", " "))
                   .join(", ");
+            const isClosed = !isLiveGrant && (grant.status === "closed" || grant.directoryOnly);
             const directApplyHref = isLiveGrant
               ? grant.url
-              : grant.directApplyUrl || grant.officialApplicationUrl;
+              : grant.portalUrl || grant.directApplyUrl || grant.officialApplicationUrl;
 
             return (
               <article
@@ -762,6 +807,11 @@ export function LiveGrantsFeed({
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
                       {source}
                     </span>
+                    {isClosed && (
+                      <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800">
+                        Closed / inactive
+                      </span>
+                    )}
                     <h3 className="mt-1 font-bold text-sm text-blue-300">{grant.title}</h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       {isLiveGrant ? `${grant.agency} · ${grant.number}` : grant.summaryText}
@@ -780,7 +830,7 @@ export function LiveGrantsFeed({
                   </span>
                   {score && (
                     <span className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                      Match {score.eligibilityScore}/100
+                      Small-business fit {score.fitScore}/50
                     </span>
                   )}
                   {score && (
@@ -803,7 +853,7 @@ export function LiveGrantsFeed({
                 </div>
                 {score && (
                   <p className="rounded-md border border-emerald-900 bg-emerald-950/30 p-2 text-[11px] text-emerald-200">
-                    <strong>Why You Qualify:</strong> {score.whyLowCompetition.join(" ")}
+                    <strong>Competition signals, not odds:</strong> {score.whyLowCompetition.join(" ")}
                   </p>
                 )}
                 {score?.vaultReadiness.missing.length ? (
@@ -1018,40 +1068,46 @@ export function LiveGrantsFeed({
 function ScoreBreakdown({ score }: { score: GrantScore | undefined }) {
   if (!score) return null;
   const dimensions = [
-    ["Sector", score.eligibilityBreakdown.sectorFit],
-    ["Set-aside", score.eligibilityBreakdown.demographicAlignment],
-    ["Stage / purpose", score.eligibilityBreakdown.stageAndPurposeFit],
-    ["Vault readiness", score.eligibilityBreakdown.vaultReadiness],
+    ["Operating stage", score.fitBreakdown.operatingStage],
+    ["Award suitability", score.fitBreakdown.awardSuitability],
+    ["Matching-funds burden", score.fitBreakdown.matchingFunds],
+    ["Sector alignment", score.fitBreakdown.sectorAlignment],
+    ["Demographic alignment", score.fitBreakdown.demographicAlignment],
   ] as const;
 
   return (
     <details className="rounded border border-slate-800 bg-slate-900/70 p-2 text-[11px] text-slate-300">
       <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1">
         <span className="font-semibold text-emerald-300">
-          Eligibility {score.eligibilityScore}/100
+          Small-business fit {score.fitScore}/50
         </span>
         <span>
           Low-competition: {score.lowCompetitionScore ?? "Not estimable"}
-          {score.lowCompetitionTier !== "Insufficient data"
-            ? ` · ${score.lowCompetitionTier}`
-            : ""}
+          {score.lowCompetitionTier !== "Insufficient data" ? ` · ${score.lowCompetitionTier}` : ""}
         </span>
-        <span>Personal score: {score.personalLowCompetitionScore ?? "Not estimable"}</span>
         <span>
-          Estimated win rate:{" "}
-          {score.estimatedWinRatePct === null
+          Profile-adjusted competition signal:{" "}
+          {score.personalLowCompetitionScore ?? "Not estimable"}
+        </span>
+        <span>
+          Reported historical award rate:{" "}
+          {score.historicalAwardRatePct === null
             ? "Not estimable"
-            : `${score.estimatedWinRatePct}%`}
+            : `${score.historicalAwardRatePct}%`}
         </span>
       </summary>
       <div className="mt-2 space-y-2 border-t border-slate-800 pt-2">
         <div className="grid gap-1 sm:grid-cols-2">
           {dimensions.map(([label, value]) => (
             <span key={label}>
-              {label}: {value}/100
+              {label}: {value}/10
             </span>
           ))}
         </div>
+        <p>
+          Legal eligibility is evaluated separately. Fit and competition signals are not award
+          probabilities; any award rate shown is historical, not a prediction.
+        </p>
         {score.eligibilityReasons.length > 0 && (
           <ul className="list-disc space-y-0.5 pl-4">
             {score.eligibilityReasons.map((reason) => (

@@ -198,6 +198,7 @@ export function buildApplicationPackage(input: {
   funder: string;
   amount: string;
   documents: PackageDocument[];
+  portalUrl?: string;
   budget?: { input: BudgetInput; calculation: BudgetCalculation };
   requirements?: GrantRequirementBOM;
   attachments?: PackageAttachment[];
@@ -252,12 +253,27 @@ export function buildApplicationPackage(input: {
     files["requirements/compliance-checklist.txt"] = strToU8(checklist);
   }
 
+  files["submission-checklist.txt"] = strToU8([
+    `Program: ${input.grantTitle}`,
+    `Official application portal: ${input.portalUrl?.trim() || "Not listed; verify the official funder site."}`,
+    "",
+    "Before submitting:",
+    "- Confirm the program is open and that this notice is the current funding cycle.",
+    "- Verify applicant eligibility, deadline, award limits, and all submission instructions on the official notice.",
+    "- Review every generated draft and replace each [Needs evidence: ...] note with verified applicant information.",
+    "- Attach every mandatory form and evidence item required by the current solicitation.",
+    "- Confirm budget totals, matching funds, file formats, and page or word limits.",
+    "- Submit through the official portal and save the submission confirmation.",
+  ].join("\n"));
+
   files["README.txt"] = strToU8([
     `Grant application working package`,
     `Funder: ${input.funder}`,
     `Program: ${input.grantTitle}`,
     `Listed award: ${input.amount}`,
+    `Official application portal: ${input.portalUrl?.trim() || "Not listed; verify the official funder site."}`,
     "",
+    "Use submission-checklist.txt before filing.",
     "Generated narratives are editable working drafts. Review all facts, headings, limits, and evidence against the current official solicitation.",
     "Narrative drafts are exported as PDF, DOCX, and TXT. Budget exports are PDF, CSV, and plain-text justification. Other required formats must be prepared in the funder's official system or with an approved tool.",
     "These are working drafts, not official SF-424/SF-424A forms. Verify SAM.gov registration and submit through the funder's official portal.",

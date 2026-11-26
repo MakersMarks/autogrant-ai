@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { inferEntityTypes, stripHtml } from "./rules.ts";
 
 interface SiteGrantUpsert {
   id: string;
@@ -36,37 +37,6 @@ interface SiteGrantUpsert {
   source_external_id: string | null;
   last_synced_at: string;
   updated_at: string;
-}
-
-function stripHtml(raw: string): string {
-  return raw
-    .replace(/<[^>]*>/g, " ")
-    .replace(/ /gi, " ")
-    .replace(/&/gi, "&")
-    .replace(/"/gi, '"')
-    .replace(/'/gi, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function inferEntityTypes(title: string, agency: string): string[] {
-  const text = `${title} ${agency}`.toLowerCase();
-  const types = new Set<string>();
-  if (/(business|manufacturer|manufacturing|startup|innovation|commerce|agriculture|dairy|butchery|value-added|sbir|sttr|entrepreneur)/i.test(text)) {
-    types.add("for_profit");
-    types.add("small_business");
-  }
-  if (/(nonprofit|501\(c\)|community|library|museum|arts|historic|conservation|humanities|victim|youth|housing|health)/i.test(text)) {
-    types.add("nonprofit_501c3");
-  }
-  if (/(municipality|city|county|government|tribal|school|public safety|dot|transportation|water|wastewater)/i.test(text)) {
-    types.add("government_entity");
-  }
-  if (types.size === 0) {
-    types.add("for_profit");
-    types.add("nonprofit_501c3");
-  }
-  return Array.from(types);
 }
 
 async function fetchIowaGrantsGov(): Promise<SiteGrantUpsert[]> {
@@ -496,7 +466,7 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
   ];
 }
 
-serve(async (req) => {
+serve(async (_req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");

@@ -129,16 +129,23 @@ export function ProposalStudio({
   const run = async () => {
     setBusy(true);
     try {
-      const r = await gen({ data: {
-        type,
-        title: grant.title,
-        funder: grant.funder,
-        amount: grant.amount,
-        eligibilityReason: grant.eligibilityReason,
-        grantId: grant.id,
-        applicationId: appId,
-        requirements: parsedBOM ?? undefined,
-      } });
+      const r = await gen({
+        data: {
+          type,
+          title: grant.title,
+          funder: grant.funder,
+          amount: grant.amount,
+          eligibilityReason: grant.eligibilityReason,
+          grantId: grant.id,
+          summaryText: grant.summaryText ?? "",
+          prerequisites: grant.prerequisites ?? [],
+          ...((grant.portalUrl ?? grant.officialUrl)
+            ? { portalUrl: grant.portalUrl ?? grant.officialUrl }
+            : {}),
+          applicationId: appId,
+          requirements: parsedBOM ?? undefined,
+        },
+      });
       setDocs((d) => ({ ...d, [type]: { sections: r.sections, fileName: r.fileName } }));
       setAppId(r.applicationId);
       setDirty(false);
@@ -211,6 +218,9 @@ export function ProposalStudio({
         funder: grant.funder,
         amount: grant.amount,
         documents,
+        ...((grant.portalUrl ?? grant.officialUrl)
+          ? { portalUrl: grant.portalUrl ?? grant.officialUrl }
+          : {}),
         ...(parsedBOM ? { requirements: parsedBOM } : {}),
         ...(budget ? { budget } : {}),
         attachments,

@@ -34,6 +34,9 @@ const grantSchema = z.object({
   amount: z.string().max(500),
   eligibilityReason: z.string().max(500),
   grantId: z.string().max(200).optional(),
+  summaryText: z.string().max(8000).optional(),
+  prerequisites: z.array(z.string().max(2000)).max(100).optional(),
+  portalUrl: z.string().url().max(2000).optional(),
 });
 
 type ApplicantProfile = Tables<"profiles">;

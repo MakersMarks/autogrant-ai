@@ -18,6 +18,7 @@ export type GrantScoringProfile = {
   fundingGoal: string;
   location: string;
   demographics: readonly string[];
+  monthsInBusiness?: number | null;
 };
 
 export type GrantScoringEvidence = {
@@ -66,6 +67,14 @@ export type ScoringOpportunity = {
   summaryText?: string;
   requiredEvidence?: Requirement[];
   competitionMetrics?: CompetitionMetrics;
+  status?: "open" | "closed" | "unknown" | string;
+  directoryOnly?: boolean;
+  eligibleStates?: readonly string[] | null;
+  minMonthsInBusiness?: number | null;
+  stageTags?: readonly string[];
+  awardFloor?: number | null;
+  awardCeiling?: number | null;
+  costSharingRequired?: boolean;
 };
 
 export type CompetitionComponent = {
@@ -79,7 +88,6 @@ export type CompetitionComponent = {
 
 export type GrantScore = {
   eligible: boolean;
-  eligibilityScore: number;
   vaultReadiness: {
     score: number;
     readyDocuments: number;
@@ -92,21 +100,21 @@ export type GrantScore = {
   dataConfidence: "Reported" | "Estimated";
   whyLowCompetition: string[];
   qualificationProof: string[];
-  estimatedWinRatePct: number | null;
+  historicalAwardRatePct: number | null;
   competitionDataStatus: "reported" | "mixed" | "estimated" | "partial" | "insufficient data";
   competitionComponents: CompetitionComponent[];
   eligibilityReasons: string[];
   hardDisqualifiers: string[];
-  eligibilityBreakdown: {
-    sectorFit: number;
+  fitScore: number;
+  fitBreakdown: {
+    operatingStage: number;
+    awardSuitability: number;
+    matchingFunds: number;
+    sectorAlignment: number;
     demographicAlignment: number;
-    stageAndPurposeFit: number;
-    vaultReadiness: number;
   };
 };
 
-const COMPONENT_WEIGHT = 25;
-const ELIGIBILITY_THRESHOLD = 65;
 const COMPETITION_WEIGHTS = {
   award_rate: 25,
   applicant_scarcity: 25,
@@ -169,6 +177,52 @@ function entityMatchesUnifiedGrant(
           ? "individual"
           : "for_profit";
   return allowed.includes(applicantType);
+}
+
+function stateMatches(allowedStates: readonly string[], profileLocation: string): boolean {
+  const stateCode = stateCodeFromLocation(profileLocation);
+  const stateName = stateFromLocation(profileLocation);
+  return allowedStates.some((allowed) => {
+    const value = allowed.trim().toUpperCase();
+    return value === "ALL" || value === "NATIONAL" || value === "US" ||
+      value === stateCode || allowed.trim().toLowerCase() === stateName?.toLowerCase();
+  });
+}
+
+function tenureRange(profile: GrantScoringProfile): { minimum: number; maximum: number | null } | null {
+  const explicitMonths = profile.monthsInBusiness;
+  if (typeof explicitMonths === "number" && Number.isFinite(explicitMonths) && explicitMonths >= 0) {
+    return { minimum: explicitMonths, maximum: explicitMonths };
+  }
+  const stage = normalize(profile.lifecycleStage);
+  if (/idea|pre launch|not registered/.test(stage)) return { minimum: 0, maximum: 0 };
+  if (/new startup|under 1 year|early stage startup/.test(stage)) return { minimum: 0, maximum: 11 };
+  if (/established|1\+ years|operating business|growth|expansion/.test(stage)) {
+    return { minimum: 12, maximum: null };
+  }
+  return null;
+}
+
+function stageFit(
+  profile: GrantScoringProfile,
+  opportunity: ScoringOpportunity,
+): number {
+  const taggedStages = (opportunity.stageTags ?? []).filter((tag) =>
+    /pre.?launch|startup|early.stage|established|operating|growth|mature/i.test(tag),
+  );
+  if (!taggedStages.length) return opportunity.minMonthsInBusiness != null ? 10 : 5;
+
+  const stage = normalize(profile.lifecycleStage);
+  const matches = taggedStages.some((tag) => {
+    const normalizedTag = normalize(tag);
+    if (/idea|pre launch/.test(stage)) return /pre launch|idea|startup|early stage/.test(normalizedTag);
+    if (/new startup|under 1 year/.test(stage)) return /startup|early stage|pre launch/.test(normalizedTag);
+    if (/established|1\+ years|operating business|growth|expansion/.test(stage)) {
+      return /established|operating|growth|mature/.test(normalizedTag);
+    }
+    return false;
+  });
+  return matches ? 10 : 0;
 }
 
 function computeVaultReadiness(
@@ -415,6 +469,14 @@ export function scoreGrantOpportunity(input: {
       hardDisqualifiers.push(`Complete the intake field: ${label}.`);
   }
 
+  if (opportunity.status === "closed" || opportunity.directoryOnly) {
+    hardDisqualifiers.push(
+      opportunity.status === "closed"
+        ? "This opportunity is closed or inactive."
+        : "This listing is directory-only and does not accept applications directly.",
+    );
+  }
+
   if (opportunity.eligibility) {
     if (!isEntityEligible(opportunity.eligibility, entityMode(profile.entityType))) {
       hardDisqualifiers.push(
@@ -444,15 +506,44 @@ export function scoreGrantOpportunity(input: {
     }
   }
 
+  const allowedStates = opportunity.eligibleStates;
+  if (allowedStates?.length && !stateMatches(allowedStates, profile.location)) {
+    hardDisqualifiers.push(
+      `The grant is limited to ${allowedStates.join(", ")}; the profile location is outside that area.`,
+    );
+  }
+
+  const minimumMonths = opportunity.minMonthsInBusiness;
+  if (typeof minimumMonths === "number" && minimumMonths > 0) {
+    const tenure = tenureRange(profile);
+    if (!tenure) {
+      hardDisqualifiers.push(
+        `This grant requires at least ${minimumMonths} months in business; the profile does not specify operating history.`,
+      );
+    } else if (tenure.maximum !== null && minimumMonths > tenure.maximum) {
+      hardDisqualifiers.push(
+        `This grant requires at least ${minimumMonths} months in business; the profile stage indicates fewer than ${minimumMonths} months.`,
+      );
+    } else if (minimumMonths > tenure.minimum) {
+      hardDisqualifiers.push(
+        `This grant requires at least ${minimumMonths} months in business; the profile confirms at least ${tenure.minimum} months but does not confirm the full requirement.`,
+      );
+    } else {
+      eligibilityReasons.push(
+        `The profile confirms at least ${tenure.minimum} months in business; this grant requires ${minimumMonths}.`,
+      );
+    }
+  }
+
   const setAsides = opportunity.demographicSetAsides ?? [];
   const matchingSetAside = setAsides.find((item) => matchesSetAside(item, profile.demographics));
-  if (setAsides.length && !matchingSetAside) {
-    hardDisqualifiers.push(
-      "The profile does not include a required demographic/set-aside qualification.",
-    );
-  } else if (matchingSetAside) {
+  if (matchingSetAside) {
     eligibilityReasons.push(
       `Self-reported profile qualification matches the listed ${matchingSetAside.replaceAll("_", " ")} set-aside; certification is not verified.`,
+    );
+  } else if (setAsides.length) {
+    eligibilityReasons.push(
+      `Listed set-aside(s) ${setAsides.map((item) => item.replaceAll("_", " ")).join(", ")} are not confirmed by the profile; verify the official eligibility rules.`,
     );
   } else {
     eligibilityReasons.push("No demographic/set-aside restriction is listed for this opportunity.");
@@ -464,7 +555,7 @@ export function scoreGrantOpportunity(input: {
     (scope.allowedStates?.length ?? 0) > 0
   ) {
     const stateCode = stateCodeFromLocation(profile.location);
-    if (!stateCode || !scope.allowedStates?.includes(stateCode)) {
+    if (!scope.allowedStates?.length || !stateMatches(scope.allowedStates, profile.location)) {
       hardDisqualifiers.push(
         "Applicant location does not match the listed geographic restriction.",
       );
@@ -488,35 +579,46 @@ export function scoreGrantOpportunity(input: {
         [profile.industry],
         `${opportunity.title} ${opportunity.summaryText ?? ""} ${sectorText}`,
       );
-  const demographicAlignment = setAsides.length ? (matchingSetAside ? 100 : 0) : 100;
-  const stageAndPurposeFit = overlapScore(
-    [profile.lifecycleStage, profile.fundingPurpose],
-    `${opportunity.title} ${opportunity.summaryText ?? ""} ${sectorText}`,
-  );
-  const eligibilityScore = stageAndPurposeFit > 0
-  ? Math.round((sectorFit + demographicAlignment + stageAndPurposeFit) / 3)
-  : Math.round(sectorFit * 0.6 + demographicAlignment * 0.4);
   eligibilityReasons.push(
     sectorFit > 0
-      ? `Sector fit: ${sectorFit}/100 based on published categories or opportunity text.`
-      : "Sector fit: 0/100; no published category or opportunity-text match was found.",
-  );
-  eligibilityReasons.push(
-    stageAndPurposeFit > 0
-      ? `Stage and funding-purpose fit: ${stageAndPurposeFit}/100 based on profile and opportunity text.`
-      : "Stage and funding-purpose fit: 0/100; no relevant profile terms were found in the opportunity text.",
+      ? "Published categories or opportunity text mention this business's sector."
+      : "No published category or opportunity-text match was found for this business's sector.",
   );
   eligibilityReasons.push(
     ...vault.reasons.filter((reason) => !reason.startsWith("Required Vault evidence is missing")),
   );
 
-  const hardRulesPass = hardDisqualifiers.length === 0;
-  const eligible = hardRulesPass && eligibilityScore >= ELIGIBILITY_THRESHOLD;
-  if (hardRulesPass && !eligible) {
-    hardDisqualifiers.push(
-      `Eligibility score ${eligibilityScore} is below the ${ELIGIBILITY_THRESHOLD}-point threshold.`,
-    );
-  }
+  const awardGoal = Number(profile.fundingGoal.replace(/[^\d.]/g, ""));
+  const awardFloor = opportunity.awardFloor ?? null;
+  const awardCeiling = opportunity.awardCeiling ?? null;
+  const awardSuitability =
+    !Number.isFinite(awardGoal) || awardGoal <= 0 || (awardFloor === null && awardCeiling === null)
+      ? 5
+      : (awardFloor === null || awardGoal >= awardFloor) &&
+          (awardCeiling === null || awardGoal <= awardCeiling)
+        ? 10
+        : (awardFloor === null || awardGoal >= awardFloor * 0.75) &&
+            (awardCeiling === null || awardGoal <= awardCeiling * 1.25)
+          ? 5
+          : 0;
+  const matchingFunds = opportunity.costSharingRequired
+    ? opportunity.costSharePercentage == null
+      ? 3
+      : Math.max(0, 10 - Math.round(opportunity.costSharePercentage / 10) * 2)
+    : 10;
+  const fitBreakdown = {
+    operatingStage: stageFit(profile, opportunity),
+    awardSuitability,
+    matchingFunds,
+    sectorAlignment: Math.round(sectorFit / 10),
+    demographicAlignment: setAsides.length
+      ? matchingSetAside
+        ? 10
+        : 0
+      : 10,
+  };
+  const fitScore = Object.values(fitBreakdown).reduce((total, points) => total + points, 0);
+  const eligible = hardDisqualifiers.length === 0;
 
   const competitionComponents = buildCompetitionComponents(opportunity, profile, evidence);
   const legacyComponents = competitionComponents.filter((component) =>
@@ -543,11 +645,10 @@ export function scoreGrantOpportunity(input: {
     : null;
   const personalLowCompetitionScore =
     eligible && lowCompetitionScore !== null
-      ? Math.round((lowCompetitionScore * eligibilityScore) / 100)
+      ? Math.round((lowCompetitionScore * fitScore) / 50)
       : null;
   const awardRate = competitionComponents.find((component) => component.id === "award_rate");
-  const estimatedWinRatePct =
-    eligible && awardRate ? Math.round(awardRate.score * eligibilityScore) / 100 : null;
+  const historicalAwardRatePct = eligible && awardRate ? awardRate.score : null;
   const dataSources = new Set(competitionComponents.map((component) => component.source));
   const competitionDataStatus = !competitionComponents.length
     ? "insufficient data"
@@ -582,7 +683,6 @@ export function scoreGrantOpportunity(input: {
 
   return {
     eligible,
-    eligibilityScore,
     vaultReadiness: {
       score: vault.score,
       readyDocuments: vault.readyDocuments,
@@ -595,17 +695,13 @@ export function scoreGrantOpportunity(input: {
     dataConfidence,
     whyLowCompetition,
     qualificationProof,
-    estimatedWinRatePct,
+    historicalAwardRatePct,
     competitionDataStatus,
     competitionComponents,
     eligibilityReasons,
     hardDisqualifiers,
-    eligibilityBreakdown: {
-      sectorFit,
-      demographicAlignment,
-      stageAndPurposeFit,
-      vaultReadiness: vault.score,
-    },
+    fitScore,
+    fitBreakdown,
   };
 }
 
@@ -629,12 +725,15 @@ export function scoringInputFromLiveGrant(grant: LiveGrant): ScoringOpportunity 
     grantTier: grant.grantTier ?? "Federal",
     eligibility: grant.eligibility,
     categories: grant.categories,
+    awardFloor: grant.awardFloor,
+    awardCeiling: grant.awardCeiling,
     geographicRestriction: grant.geographicRestriction,
     numberOfAwards: grant.numberOfAwards,
     ...(grant.naicsCodes ? { naicsCodes: grant.naicsCodes } : {}),
     openDate: grant.openDate,
     closeDate: grant.closeDate,
     ...(grant.costSharePercentage !== undefined ? { costSharePercentage: grant.costSharePercentage } : {}),
+    costSharingRequired: (grant.costSharePercentage ?? 0) > 0,
     ...(grant.prerequisites ? { prerequisites: grant.prerequisites } : {}),
     competitionMetrics: {
       ...(reportedApplicantCount !== undefined
@@ -662,6 +761,16 @@ export function scoringInputFromUnifiedGrant(grant: UnifiedGrant): ScoringOpport
     eligibleEntityTypes: grant.eligibleEntityTypes,
     demographicSetAsides: grant.demographicSetAsides,
     geographicScope: grant.geographicScope,
+    ...(grant.eligibleStates !== undefined ? { eligibleStates: grant.eligibleStates } : {}),
+    ...(grant.minMonthsInBusiness !== undefined
+      ? { minMonthsInBusiness: grant.minMonthsInBusiness }
+      : {}),
+    ...(grant.stageTags !== undefined ? { stageTags: grant.stageTags } : {}),
+    awardFloor: grant.awardFloor,
+    awardCeiling: grant.awardCeiling,
+    costSharingRequired: grant.costSharingRequired,
+    ...(grant.status !== undefined ? { status: grant.status } : {}),
+    ...(grant.directoryOnly !== undefined ? { directoryOnly: grant.directoryOnly } : {}),
     summaryText: grant.summaryText,
     ...(grant.naicsCodes ? { naicsCodes: grant.naicsCodes } : {}),
     ...(grant.openDate ? { openDate: grant.openDate } : {}),
