@@ -22,4 +22,17 @@ describe("application tracker status adapter", () => {
       confirmation: "receipt-123",
     });
   });
+
+  it("preserves persisted award amount and funder", () => {
+    expect(
+      applicationToProposal({
+        ...row("draft"),
+        amount: "$5,000",
+        funder: "Community Foundation",
+      }),
+    ).toMatchObject({
+      amount: "$5,000",
+      funder: "Community Foundation",
+    });
+  });
 });

@@ -26,7 +26,7 @@ import {
 import { extractDocumentText } from "./documents.server";
 import { evaluateProposalRedTeam } from "./red-team";
 import { grantRequirementBOMSchema, type GrantRequirementBOM } from "./rfp-parser";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 
 const grantSchema = z.object({
   title: z.string().min(1).max(500),
@@ -318,17 +318,19 @@ export const copilotChat = createServerFn({ method: "POST" })
           maxAward: z.number().positive().optional(),
           includeFederal: z.boolean().optional(),
         }),
-        execute: async ({ query, agency, category, maxAward, includeFederal }) =>
-          searchSiteGrantListings({
+        execute: async ({ query, agency, category, maxAward, includeFederal }) => {
+          const state = stateFromLocation(profile?.location ?? "");
+          return searchSiteGrantListings({
             query,
-            agency,
-            category,
-            state: stateFromLocation(profile?.location ?? "") ?? undefined,
-            lifecycleStage: profile?.lifecycle_stage,
-            entityType: profile?.entity_type,
+            ...(agency === undefined ? {} : { agency }),
+            ...(category === undefined ? {} : { category }),
+            ...(state === null ? {} : { state }),
+            ...(profile?.lifecycle_stage === undefined ? {} : { lifecycleStage: profile.lifecycle_stage }),
+            ...(profile?.entity_type === undefined ? {} : { entityType: profile.entity_type }),
             maxAward: maxAward ?? 25000,
             includeFederal: includeFederal ?? false,
-          }),
+          });
+        },
       }),
       update_user_memory: tool({
         description:
@@ -350,9 +352,33 @@ export const copilotChat = createServerFn({ method: "POST" })
           if (!parsed.success) {
             throw new Error(`Invalid value for ${field}; memory was not saved.`);
           }
+          const updates: TablesUpdate<"profiles"> = { updated_at: new Date().toISOString() };
+          switch (field) {
+            case "project_name":
+              updates.project_name = parsed.data.project_name;
+              break;
+            case "industry":
+              updates.industry = parsed.data.industry;
+              break;
+            case "lifecycle_stage":
+              updates.lifecycle_stage = parsed.data.lifecycle_stage;
+              break;
+            case "entity_type":
+              updates.entity_type = parsed.data.entity_type;
+              break;
+            case "funding_goal":
+              updates.funding_goal = parsed.data.funding_goal;
+              break;
+            case "location":
+              updates.location = parsed.data.location;
+              break;
+            case "funding_purpose":
+              updates.funding_purpose = parsed.data.funding_purpose;
+              break;
+          }
           const { error: updateErr } = await context.supabase
             .from("profiles")
-            .update({ [field]: parsed.data[field], updated_at: new Date().toISOString() })
+            .update(updates)
             .eq("id", context.userId);
           if (updateErr) {
             throw new Error(`Could not save ${field} to profile: ${updateErr.message}`);
@@ -445,16 +471,11 @@ export const copilotChat = createServerFn({ method: "POST" })
           confirmationReceipt: z.string().trim().max(200).optional(),
         }),
         execute: async ({ applicationId, newStatus, confirmationReceipt }) => {
-          const updatePayload: Record<string, unknown> = {
-            status: newStatus,
-            updated_at: new Date().toISOString(),
-          };
-          if (confirmationReceipt) {
-            updatePayload["confirmation"] = confirmationReceipt;
-          }
           const { error } = await context.supabase
             .from("applications")
-            .update(updatePayload)
+            .update({
+              status: confirmationReceipt ? `${newStatus}::${confirmationReceipt}` : newStatus,
+            })
             .eq("id", applicationId)
             .eq("user_id", context.userId);
           if (error) throw new Error(`Could not update application: ${error.message}`);

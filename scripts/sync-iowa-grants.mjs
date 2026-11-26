@@ -411,20 +411,35 @@ async function run() {
       const rows = await page.evaluate(() => {
         return Array.from(document.querySelectorAll("tr"))
           .map((tr) => {
+            const table = tr.closest("table");
+            const headerRow = table?.querySelector("tr:has(th)");
+            const headers = Array.from(headerRow?.querySelectorAll("th") ?? []).map((th) =>
+              (th.textContent ?? "").replace(/\s+/g, " ").trim(),
+            );
             const cells = Array.from(tr.querySelectorAll("td")).map((td) =>
               (td.textContent ?? "").replace(/\s+/g, " ").trim(),
             );
             const anchor = tr.querySelector("a[href]");
-            return { cells, href: anchor ? anchor.getAttribute("href") : null };
+            return { cells, headers, href: anchor ? anchor.getAttribute("href") : null };
           })
           .filter((r) => r.cells.length >= 4);
       });
 
       for (const row of rows) {
+        const findColumn = (pattern, fallback) => {
+          const index = row.headers.findIndex((header) => pattern.test(header));
+          return index >= 0 ? index : fallback;
+        };
+        const titleFallback = /\b(posted|open|closed|active|inactive)\b/i.test(row.cells[1] ?? "")
+          ? 2
+          : 1;
+        const titleIndex = findColumn(/opportunity|program|grant|title|name/i, titleFallback);
+        const agencyIndex = findColumn(/agency|sponsor|department|funder/i, titleIndex + 1);
+        const deadlineIndex = findColumn(/close|deadline|due date/i, row.cells.length - 1);
         const rawId = row.cells[0] ?? "";
-        const title = row.cells[1] ?? "";
-        const agency = row.cells[2] ?? "State of Iowa (IowaGrants.gov)";
-        const closeDate = row.cells[row.cells.length - 1] ?? "";
+        const title = row.cells[titleIndex] ?? "";
+        const agency = row.cells[agencyIndex] ?? "State of Iowa (IowaGrants.gov)";
+        const closeDate = row.cells[deadlineIndex] ?? "";
         if (!title || title.length < 4 || /opportunity title/i.test(title)) continue;
 
         const slug = (rawId || title)

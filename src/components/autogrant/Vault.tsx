@@ -15,8 +15,8 @@ export type VaultDoc = {
   grant_id?: string;
 };
 
-export function Vault({ userId, entityType, industry = "", docs, reload, voiceSample, voiceProfile, onVoiceSaved }: {
-  userId: string; entityType: string; industry?: string; docs: VaultDoc[]; reload: () => Promise<void>;
+export function Vault({ userId, entityType, lifecycleStage = "", industry = "", docs, reload, voiceSample, voiceProfile, onVoiceSaved }: {
+  userId: string; entityType: string; lifecycleStage?: string; industry?: string; docs: VaultDoc[]; reload: () => Promise<void>;
   voiceSample: string; voiceProfile: string; onVoiceSaved: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState<Record<string, boolean>>({});
@@ -122,7 +122,7 @@ export function Vault({ userId, entityType, industry = "", docs, reload, voiceSa
       <section id="industry-compliance" className="bg-card p-6 rounded-xl border border-border">
         <h3 className="text-lg font-display font-bold mb-1">Core Credentials ({entityType})</h3>
         <p className="text-xs text-muted-foreground mb-4">Required to verify legal status and federal compliance.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{coreDocSlots(entityType).map(slotCard)}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{coreDocSlots(entityType, lifecycleStage).map(slotCard)}</div>
       </section>
       <section className="bg-card p-6 rounded-xl border border-border">
         <h3 className="text-lg font-display font-bold mb-1">Additional Business Assets & Pitch Documents</h3>

@@ -995,16 +995,14 @@ export function LiveGrantsFeed({
                 {fitErr && <p className="text-xs text-red-400">{fitErr}</p>}
                 {fit && (
                   <div
-                    className={`rounded-lg border p-3 text-xs space-y-1 ${fit.verdict === "GO" ? "border-emerald-600" : fit.verdict === "NO-GO" ? "border-red-600" : "border-amber-500"}`}
+                    className={`rounded-lg border p-3 text-xs space-y-1 ${fit.verdict === "GO" ? "border-emerald-600" : "border-amber-500"}`}
                   >
                     <p
-                      className={`font-bold text-sm ${fit.verdict === "GO" ? "text-emerald-500" : fit.verdict === "NO-GO" ? "text-red-500" : "text-amber-500"}`}
+                      className={`font-bold text-sm ${fit.verdict === "GO" ? "text-emerald-500" : "text-amber-500"}`}
                     >
                       {fit.verdict === "GO"
                         ? "GO — clear to pursue"
-                        : fit.verdict === "NO-GO"
-                          ? "NO-GO — skip this one"
-                          : "CAUTION — check before writing"}
+                        : "CAUTION — check before writing"}
                     </p>
                     {fit.costSharing && (
                       <p className="font-semibold text-amber-500">
@@ -1043,12 +1041,6 @@ export function LiveGrantsFeed({
                         {detail.description || "No description provided in the listing."}
                       </p>
                     </section>
-                    {detail.contact && (
-                      <section>
-                        <h4 className="font-semibold mb-1">Agency contact</h4>
-                        <p className="text-xs">{detail.contact}</p>
-                      </section>
-                    )}
                     <p className="text-[11px] text-muted-foreground">
                       The Grants.gov synopsis may omit mandatory forms, attachment formats,
                       evaluation criteria, or other application instructions. Verify those in the
