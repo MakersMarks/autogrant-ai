@@ -210,6 +210,7 @@ export function CopilotDrawer({
     const running = status === "Running…";
     let label = "Run requested action";
     if (action.type === "draft_summary") label = "Create executive summary in Vault";
+    if (action.type === "draft_custom_document") label = "Create document in Vault";
     if (action.type === "update_intake") label = `Update ${action.field.replaceAll("_", " ")}`;
     if (action.type === "edit_vault_file") label = "Revise Vault document";
     if (action.type === "update_settings") label = `Update ${action.field.replaceAll("_", " ")}`;
@@ -224,6 +225,15 @@ export function CopilotDrawer({
           </p>
         )}
         {action.type === "edit_vault_file" && <p>Instruction: {action.instruction}</p>}
+        {action.type === "draft_custom_document" && (
+          <div>
+            <p>Document: {action.title}</p>
+            <p>Request: {action.request}</p>
+            <p className="mt-1 text-amber-800">
+              This will be an editable draft for your review, not a legal or certified filing.
+            </p>
+          </div>
+        )}
         {action.type === "update_settings" && (
           <p>
             {action.field}: {String(action.value)}
@@ -275,7 +285,8 @@ export function CopilotDrawer({
             {messages.length === 0 && (
               <p className="text-xs text-slate-500">
                 Ask about your intake, Vault evidence, application tracker, grant eligibility, or
-                request a draft. Changes always require confirmation.
+                request a business-document draft. Generated drafts are saved in your Vault, and
+                changes always require confirmation.
               </p>
             )}
             {messages.map((message, index) => (

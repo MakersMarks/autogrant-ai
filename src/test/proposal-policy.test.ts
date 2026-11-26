@@ -18,6 +18,20 @@ describe('Institutional synthesis rules', () => {
     const request = buildProposalPrompt({}, [{ name: 'plan.txt', text: 'Pilot will serve 17 rural clinics.' }], {});
     expect(JSON.parse(request.prompt).vaultEvidence[0].text).toBe('Pilot will serve 17 rural clinics.');
   });
+  it('keeps Vault evidence tied to document IDs even when names are duplicated', () => {
+    const request = buildProposalPrompt({}, [
+      { documentId: 'doc-1', name: 'plan.txt', slotKey: 'budget', text: 'Budget evidence.' },
+      { documentId: 'doc-2', name: 'plan.txt', slotKey: 'founder-resume', text: 'Founder evidence.' },
+    ], {});
+
+    expect(JSON.parse(request.prompt).vaultEvidence.map((item: { documentId: string; text: string }) => [
+      item.documentId,
+      item.text,
+    ])).toEqual([
+      ['doc-1', 'Budget evidence.'],
+      ['doc-2', 'Founder evidence.'],
+    ]);
+  });
   it('accepts precisely the four mandatory substantive sections', () => {
     const text = '## 1. Statement of Core Problem\nProblem\n## 2. Proposed Solution & Operational Architecture\nSolution\n## 3. Strategic Target Market Alignment\nMarket\n## 4. Capital Allocation & Funding Goal\nCapital';
     expect(validateProposalOutput(text)).toBe(text);
@@ -127,10 +141,13 @@ describe('Day 2 document engine', () => {
     it('blocks drafting certifications and official financial or legal documents', () => {
       expect(isRestrictedDocumentRequest('Please complete the SF-424 certifications.')).toBe(true);
       expect(isRestrictedDocumentRequest('Draft an MOU with our partner.')).toBe(true);
+      expect(isRestrictedDocumentRequest('Create a binding partnership agreement.')).toBe(true);
+      expect(isRestrictedDocumentRequest('Prepare an official government filing.')).toBe(true);
       expect(isRestrictedDocumentRequest('Prepare an audited financial statement.')).toBe(true);
     });
     it('allows ordinary proposal and budget drafts and informational questions', () => {
       expect(isRestrictedDocumentRequest('Draft a project narrative and budget justification.')).toBe(false);
+      expect(isRestrictedDocumentRequest('Create a plain-language business overview.')).toBe(false);
       expect(isRestrictedDocumentRequest('What is an SF-424?')).toBe(false);
     });
   });
