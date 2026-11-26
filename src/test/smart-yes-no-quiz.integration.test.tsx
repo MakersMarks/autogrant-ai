@@ -4,7 +4,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockState = vi.hoisted(() => ({
   profileTags: [] as string[],
   documents: [] as { slot_key: string }[],
-  grants: [] as { demographic_tags: string[] | null }[],
+  grants: [] as {
+    id: string;
+    demographic_tags: string[] | null;
+    requires_strict_demographic: boolean;
+  }[],
+  pools: [] as {
+    id: string;
+    demographicSetAsides: string[];
+    requiresStrictDemographic: boolean;
+  }[],
+  registryRequests: [] as unknown[],
+}));
+
+vi.mock("@/lib/grants-gov/grants.functions", () => ({
+  getMultiPoolRegistry: vi.fn(async (input: unknown) => {
+    mockState.registryRequests.push(input);
+    return { pools: { Corporate: mockState.pools } };
+  }),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -21,7 +38,11 @@ vi.mock("@/integrations/supabase/client", () => ({
           select: () => ({
             eq: () => ({
               maybeSingle: async () => ({
-                data: { demographics: mockState.profileTags },
+                data: {
+                  demographics: mockState.profileTags,
+                  location: "Des Moines, Iowa",
+                  lifecycle_stage: "Established Business",
+                },
                 error: null,
               }),
             }),
@@ -42,9 +63,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         };
       }
       if (table === "site_grants") {
-        return {
-          select: async () => ({ data: mockState.grants, error: null }),
-        };
+        return { select: async () => ({ data: mockState.grants, error: null }) };
       }
       throw new Error(`Unexpected table: ${table}`);
     },
@@ -52,26 +71,46 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import { STARTER_QUESTIONS } from "@/data/yesNoQuestionBank";
-import { useSmartYesNoQuiz } from "@/hooks/useSmartYesNoQuiz";
+import { applyDemographicAnswer, useSmartYesNoQuiz } from "@/hooks/useSmartYesNoQuiz";
 
 describe("Smart Match quiz profile integration", () => {
+  it("clears legacy aliases on No but preserves saved profile tags on Skip", () => {
+    expect(applyDemographicAnswer(["Woman-Owned", "Women-Owned"], "women_owned", "no")).toEqual([]);
+    expect(applyDemographicAnswer(["Woman-Owned"], "women_owned", "skip")).toEqual(["Woman-Owned"]);
+  });
+
   beforeEach(() => {
     mockState.profileTags = [];
     mockState.documents = [];
+    mockState.registryRequests = [];
     const firstTag = STARTER_QUESTIONS[0]!.tag;
-    mockState.grants = [{ demographic_tags: [] }, { demographic_tags: [firstTag] }];
+    mockState.grants = [
+      { id: "site-general", demographic_tags: [], requires_strict_demographic: false },
+      { id: "site-black", demographic_tags: [firstTag], requires_strict_demographic: true },
+    ];
+    mockState.pools = [
+      {
+        id: "amber-grant-for-women",
+        demographicSetAsides: ["women_owned"],
+        requiresStrictDemographic: true,
+      },
+      { id: "pool-general", demographicSetAsides: [], requiresStrictDemographic: false },
+    ];
   });
 
-  it("recalculates match counts after answers and refreshes Vault auto-skip evidence on focus", async () => {
+  it("counts database and portal-pool matches, saves survey tags, and refreshes Vault evidence", async () => {
     const { result } = renderHook(() => useSmartYesNoQuiz());
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.matchCount).toBe(1);
+    expect(result.current.matchCount).toBe(2);
     expect(result.current.questionCount).toBe(STARTER_QUESTIONS.length);
+    expect(mockState.registryRequests).toContainEqual({
+      data: { state: "IA", lifecycleStage: "Established Business" },
+    });
 
     await act(async () => {
       await result.current.answer("yes");
     });
-    expect(result.current.matchCount).toBe(2);
+    expect(result.current.matchCount).toBe(3);
     expect(mockState.profileTags).toContain(STARTER_QUESTIONS[0]!.tag);
 
     mockState.documents = [{ slot_key: "ein_letter" }];

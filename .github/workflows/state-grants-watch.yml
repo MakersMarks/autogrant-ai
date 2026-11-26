@@ -30,7 +30,16 @@ jobs:
           mkdir -p /tmp/grant-runner
           cd /tmp/grant-runner
           npm init -y
-          npm install --no-package-lock --legacy-peer-deps playwright @supabase/supabase-js
+          for attempt in 1 2 3; do
+            if npm install --no-package-lock --legacy-peer-deps --no-audit --no-fund playwright@1.65.1 @supabase/supabase-js@2.119.2; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Failed to install pinned crawler dependencies after 3 attempts." >&2
+              exit 1
+            fi
+            sleep 10
+          done
           npx playwright install --with-deps chromium
 
       - name: Run nightly Iowa grant crawlers and sync to site_grants

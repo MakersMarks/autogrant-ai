@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import {
   searchLiveGrants,
@@ -185,13 +184,8 @@ export function LiveGrantsFeed({
   const userState = stateFromLocation(profile?.location ?? "");
   const registryStateCode = stateCodeFromLocation(profile?.location ?? "");
   const statePortal = stateFundingPortals.find((portal) => portal.stateCode === registryStateCode);
-  const search = useServerFn(searchLiveGrants);
-  const searchSbir = useServerFn(searchSbirSolicitations);
-  const fetchDetail = useServerFn(getGrantDetail);
-  const summarize = useServerFn(summarizeGrant);
   const [keyword, setKeyword] = useState("");
   const keywordRef = useRef("");
-  const audit = useServerFn(auditGrantFit);
   const mode = entityMode(profile?.entityType ?? "");
   const hasProfile = profile !== undefined;
   const profileIndustry = profile?.industry ?? "";
@@ -243,6 +237,7 @@ export function LiveGrantsFeed({
   const [tierFilter, setTierFilter] = useState<
     "All" | "Federal" | "State" | "Local" | "Corporate" | "Foundation"
   >("All");
+  const includeFederal = tierFilter === "All" || tierFilter === "Federal";
   const [lowCompOnly, setLowCompOnly] = useState(false);
   const [grants, setGrants] = useState<LiveGrant[]>([]);
   const [total, setTotal] = useState(0);
@@ -253,7 +248,6 @@ export function LiveGrantsFeed({
   const [detailErr, setDetailErr] = useState("");
   const [summary, setSummary] = useState("");
   const [summarizing, setSummarizing] = useState(false);
-  const pool = useServerFn(getMultiPoolRegistry);
   const [poolGrants, setPoolGrants] = useState<UnifiedGrant[]>([]);
   const [siteGrants, setSiteGrants] = useState<UnifiedGrant[]>([]);
   const [sbirGrants, setSbirGrants] = useState<UnifiedGrant[]>([]);
@@ -313,10 +307,12 @@ export function LiveGrantsFeed({
   }, [registryStateCode, profile?.location]);
 
   useEffect(() => {
-    void pool({
+    let active = true;
+    void getMultiPoolRegistry({
       data: { state: registryStateCode, lifecycleStage: profile?.lifecycleStage ?? "" },
     })
       .then((result) => {
+        if (!active) return;
         setPoolGrants([
           ...(result.pools["State"] ?? []),
           ...(result.pools["Local"] ?? []),
@@ -326,10 +322,14 @@ export function LiveGrantsFeed({
         setPoolError("");
       })
       .catch((e) => {
+        if (!active) return;
         setPoolGrants([]);
         setPoolError(e instanceof Error ? e.message : "Could not load the program directory.");
       });
-  }, [signedIn, registryStateCode, pool, profile?.lifecycleStage]);
+    return () => {
+      active = false;
+    };
+  }, [signedIn, registryStateCode, profile?.lifecycleStage]);
 
   const run = useCallback(
     async (keywords?: string[]) => {
@@ -347,17 +347,24 @@ export function LiveGrantsFeed({
           searchKeywords,
         );
         const [r, sbirResult] = await Promise.all([
-          search({
+          searchLiveGrants({
             data: {
               keywords: searchKeywords,
               category,
               eligibility,
               entityType: profileEntityType,
               lifecycleStage: profile?.lifecycleStage ?? "",
+              includeFederal,
             },
           }),
           shouldSearchSbir
-            ? searchSbir({ data: { keyword: searchKeywords[0] ?? "", openOnly: true } })
+            ? searchSbirSolicitations({
+                data: {
+                  keyword: searchKeywords[0] ?? "",
+                  openOnly: true,
+                  includeFederal,
+                },
+              })
                 .then(({ solicitations }) => ({
                   grants: solicitations
                     .map((solicitation) => sbirToUnifiedGrant(solicitation))
@@ -382,8 +389,6 @@ export function LiveGrantsFeed({
     },
     [
       signedIn,
-      search,
-      searchSbir,
       scout,
       category,
       eligibility,
@@ -391,6 +396,7 @@ export function LiveGrantsFeed({
       profile?.sector,
       profile?.lifecycleStage,
       profileIndustry,
+      includeFederal,
     ],
   );
   useEffect(() => {
@@ -461,7 +467,15 @@ export function LiveGrantsFeed({
   });
 
   const closestMatches = [...grants, ...matchingPoolGrants]
-    .filter((grant) => !scoreById.get(grant.id)?.eligible)
+    .filter((grant) => {
+      const score = scoreById.get(grant.id);
+      return (
+        !score?.eligible &&
+        !score?.hardDisqualifiers.some((reason) =>
+          reason.startsWith("Restricted to founders matching:"),
+        )
+      );
+    })
     .sort((a, b) => (scoreById.get(b.id)?.fitScore ?? 0) - (scoreById.get(a.id)?.fitScore ?? 0))
     .slice(0, 8);
   const lastChanceCount = grants.filter((g) => isLastChance(g.daysLeft)).length;
@@ -474,7 +488,7 @@ export function LiveGrantsFeed({
     setFit(null);
     setFitErr("");
     try {
-      setDetail(await fetchDetail({ data: { id: g.id } }));
+      setDetail(await getGrantDetail({ data: { id: g.id } }));
     } catch (e) {
       setDetailErr(e instanceof Error ? e.message : "Could not load grant.");
     }
@@ -484,10 +498,10 @@ export function LiveGrantsFeed({
     setSummarizing(true);
     setSummary("");
     try {
-      setSummary(
-        (await summarize({ data: { id: open.id, title: open.title, closeDate: open.closeDate } }))
-          .summary,
-      );
+      const result = await summarizeGrant({
+        data: { id: open.id, title: open.title, closeDate: open.closeDate },
+      });
+      setSummary(result.summary);
     } catch (e) {
       setSummary(e instanceof Error ? e.message : "Summary failed.");
     } finally {
@@ -501,7 +515,7 @@ export function LiveGrantsFeed({
     setFit(null);
     setFitErr("");
     try {
-      setFit(await audit({ data: { id: open.id, title: open.title } }));
+      setFit(await auditGrantFit({ data: { id: open.id, title: open.title } }));
     } catch (e) {
       setFitErr(e instanceof Error ? e.message : "Fit check failed.");
     } finally {
@@ -518,6 +532,12 @@ export function LiveGrantsFeed({
           Matched for {profile?.projectName || "your business"}
           {userState ? ` · ${userState}` : ""}
         </p>
+        <a
+          href="/discover-profile"
+          className="inline-flex text-xs font-semibold text-emerald-300 underline underline-offset-2"
+        >
+          Improve matches with Smart Match
+        </a>
       </div>
 
       <form

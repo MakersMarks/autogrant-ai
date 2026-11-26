@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateAutopilotGate,
   scoreGrantOpportunity,
+  scoringInputFromUnifiedGrant,
   type GrantScoringEvidence,
   type GrantScoringProfile,
 } from "@/lib/grants-gov/scoring";
+import { corporateRegistry } from "@/lib/grants/sources/corporate-registry";
 
 const profile: GrantScoringProfile = {
   projectName: "Rural Kitchen Expansion",
@@ -98,6 +100,28 @@ describe("grant eligibility and competition scoring", () => {
       "demographicAndGeographicPriority",
       "vaultReadiness",
     ]);
+  });
+
+  it("excludes the Amber Grant unless the business is self-reported as woman-owned", () => {
+    const amber = corporateRegistry.find((grant) => grant.id === "amber-grant-for-women");
+    if (!amber) throw new Error("Amber Grant fixture is missing.");
+
+    const maleApplicant = scoreGrantOpportunity({
+      opportunity: scoringInputFromUnifiedGrant(amber),
+      profile: { ...profile, demographics: ["Male"] },
+      evidence: [],
+    });
+    const womanOwnedBusiness = scoreGrantOpportunity({
+      opportunity: scoringInputFromUnifiedGrant(amber),
+      profile: { ...profile, demographics: ["Woman-Owned"] },
+      evidence: [],
+    });
+
+    expect(maleApplicant.eligible).toBe(false);
+    expect(maleApplicant.hardDisqualifiers).toContain(
+      "Restricted to founders matching: women_owned.",
+    );
+    expect(womanOwnedBusiness.eligible).toBe(true);
   });
 
   it("scores required Vault documents and warns when SAM.gov registration is not active", () => {

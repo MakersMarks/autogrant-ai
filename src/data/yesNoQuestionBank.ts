@@ -56,7 +56,8 @@ const STARTER: Omit<YesNoQuestion, "id">[] = [
     tag: "women_owned",
     category: "Identity & Heritage",
     question: "Is your business at least 51% woman-owned?",
-    helper: "Unlocks women-owned and intersectional programs.",
+    helper:
+      "This is about business ownership, not your personal gender; unlocks women-owned programs.",
   },
   {
     tag: "lgbtq_owned",

@@ -123,7 +123,7 @@ export type GrantScore = {
   };
 };
 
-function standardizedDemographicTags(tags: readonly string[]): string[] {
+export function standardizedDemographicTags(tags: readonly string[]): string[] {
   const aliases: Array<[string, RegExp]> = [
     ["black_owned", /black|african diaspora/],
     ["hispanic_owned", /hispanic|latino/],
@@ -132,7 +132,7 @@ function standardizedDemographicTags(tags: readonly string[]): string[] {
     ["indigenous_owned", /indigenous|native american|alaska native|tribal/],
     ["mena_owned", /middle eastern|north african|mena/],
     ["immigrant_owned", /immigrant|refugee|first generation/],
-    ["women_owned", /women owned|woman owned|female/],
+    ["women_owned", /women owned|woman owned|female|wosb/],
     ["lgbtq_owned", /lgbtq|lgbt owned/],
     ["veteran_owned", /veteran/],
     ["military_spouse_owned", /military spouse/],
@@ -190,7 +190,7 @@ function overlapScore(needles: string[], haystack: string): number {
 function matchesSetAside(setAside: string, demographics: readonly string[]): boolean {
   const profileTags = demographics.map(normalize);
   const aliases: Record<string, string[]> = {
-    women_owned: ["woman owned", "women owned", "female"],
+    women_owned: ["woman owned", "women owned", "female", "wosb"],
     minority_owned: ["minority", "black african diaspora", "hispanic latino", "native american"],
     veteran_owned: ["veteran", "disabled veteran"],
     rural: ["rural county", "rural", "appalachian delta region"],
