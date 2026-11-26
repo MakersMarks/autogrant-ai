@@ -32,6 +32,7 @@ use the editor.
 ## Project rules
 - AutoGrant UI lives in `src/components/autogrant/`; `/` renders it client-only (`ssr: false`) because the session is in localStorage.
 - AI calls go through `src/lib/ai/ai.functions.ts` (auth-protected server fns) → `ai.server.ts` on the Lovable AI Gateway; never call external AI providers or ship keys to the browser.
+  Owner override: if the server secret `AI_PROVIDER_API_KEY` is set, `ai.server.ts` calls that OpenAI-compatible provider directly instead (optional `AI_PROVIDER_BASE_URL`, `AI_PROVIDER_MODEL`; defaults to Google Gemini) and skips Lovable credits and the gateway-pause table. Selection logic lives in `src/lib/ai/ai-config.ts` (tested). Keys stay server-side only.
 - Vault files live in the private `vault` bucket under `<user_id>/...`; upload rules are in `validateVaultFile` (covered by tests).
 - Both drafting entry points use the shared proposal policy and server-side profile/Vault reads; persisted application rows are the tracker source of truth to prevent template-only or session-only drafts.
 - Parse Vault PDF/DOCX/TXT evidence on the server with edge-compatible libraries; JPG/PNG are transcribed via Gemini vision (generateWithGemini image arg); fail explicitly rather than silently omit unreadable evidence.
