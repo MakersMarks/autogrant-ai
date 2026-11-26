@@ -40,3 +40,4 @@ use the editor.
 - Feed seeds category/eligibility from the intake profile and hides other-state-only grants via stateFromLocation/isOtherStateOnly in rules.ts.
 - Keep src/lib/ai/project-memory.ts synchronized with durable product architecture, capabilities, and limitations; Stark receives this context on every copilot request.
 - Any future Stark repository-editing integration must use a server-side least-privilege GitHub App and isolated branch/PR workflow; do not expose arbitrary shell access or direct writes to the connected main branch.
+- Keep the product's core values and the approval boundary for any proposed daily code-audit automation current in src/lib/ai/project-memory.ts.
