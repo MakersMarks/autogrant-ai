@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { copilotChat, executeCopilotAction, type CopilotAction } from "@/lib/ai/ai.functions";
+import type { Grant } from "@/lib/grants";
 
 type Message = {
   role: "user" | "assistant";
@@ -39,6 +40,7 @@ export function CopilotDrawer({
   onActionComplete,
   onReplyComplete,
   initialQuestion,
+  activeGrant,
 }: {
   isAuthenticated: boolean;
   onSignIn: () => void;
@@ -47,6 +49,7 @@ export function CopilotDrawer({
   onActionComplete: (action: Exclude<CopilotAction, { type: "none" }>) => void;
   onReplyComplete?: () => void;
   initialQuestion?: { id: number; text: string } | undefined;
+  activeGrant?: Grant | undefined;
 }) {
   const askCopilot = useServerFn(copilotChat);
   const runAction = useServerFn(executeCopilotAction);
@@ -68,7 +71,7 @@ export function CopilotDrawer({
 
   useEffect(() => {
     if (!isAuthenticated) {
-      setMessages([]);
+      setMessages((current) => (current.length ? [] : current));
       setDraft("");
       setError("");
       actionLocks.current.clear();
@@ -104,6 +107,22 @@ export function CopilotDrawer({
           message: text,
           messages: nextMessages.map(({ role, content }) => ({ role, content })),
           activePage,
+          ...(activeGrant
+            ? {
+                activeGrant: {
+                  id: activeGrant.id,
+                  title: activeGrant.title,
+                  funder: activeGrant.funder,
+                  amount: activeGrant.amount,
+                  deadline: activeGrant.deadline,
+                  ...(activeGrant.summaryText ? { summaryText: activeGrant.summaryText } : {}),
+                  ...(activeGrant.prerequisites ? { prerequisites: activeGrant.prerequisites } : {}),
+                  ...(activeGrant.portalUrl ? { portalUrl: activeGrant.portalUrl } : {}),
+                  ...(activeGrant.guidelinesUrl ? { guidelinesUrl: activeGrant.guidelinesUrl } : {}),
+                  ...(activeGrant.officialUrl ? { officialUrl: activeGrant.officialUrl } : {}),
+                },
+              }
+            : {}),
         },
       });
       setMessages([

@@ -5,98 +5,10 @@ import path from "node:path";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 const { createClient } = require("@supabase/supabase-js");
+import { deadlineHasPassed, normalizeGrantRecord, parseIowaGrantRow } from "./iowa-grant-normalizer.mjs";
 
 const SNAPSHOT_PATH = path.resolve(process.cwd(), ".github/iowa-grants-snapshot.json");
 const nowIso = new Date().toISOString();
-
-function deadlineHasPassed(value) {
-  if (typeof value !== "string" || !value.trim()) return false;
-  if (/\b(closed|expired|archived|ended)\b/i.test(value)) return true;
-
-  const text = value.trim();
-  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text);
-  const date = match
-    ? new Date(Date.UTC(Number(match[3]), Number(match[1]) - 1, Number(match[2])))
-    : new Date(text);
-  if (Number.isNaN(date.getTime())) return false;
-
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  date.setUTCHours(0, 0, 0, 0);
-  return date < today;
-}
-
-function normalizeGrantRecord(item, { isClosed = false } = {}) {
-  const states =
-    Array.isArray(item.states) && item.states.length > 0
-      ? item.states
-      : Array.isArray(item.eligible_states) && item.eligible_states.length > 0
-        ? item.eligible_states
-        : ["NATIONAL"];
-
-  const amountMin =
-    typeof item.amount_min === "number"
-      ? item.amount_min
-      : typeof item.award_floor === "number"
-        ? item.award_floor
-        : 0;
-
-  const amountMax =
-    typeof item.amount_max === "number"
-      ? item.amount_max
-      : typeof item.award_ceiling === "number"
-        ? item.award_ceiling
-        : 0;
-
-  const stageTags = Array.isArray(item.stage_tags)
-    ? item.stage_tags
-    : [
-        ...(item.is_rolling ? ["rolling"] : []),
-        ...(amountMax > 0 && amountMax <= 25000 ? ["microgrant"] : []),
-      ];
-
-  const itemStatus =
-    typeof item.status === "string" ? item.status.trim().toLowerCase() : "";
-  const isInactive =
-    isClosed ||
-    /\b(closed|inactive|expired|archived|ended)\b/.test(itemStatus) ||
-    deadlineHasPassed(item.deadline);
-  const resolvedStatus = isInactive
-    ? "closed"
-    : itemStatus === "open" || itemStatus === "unknown"
-      ? itemStatus
-      : item.is_rolling || Boolean(item.deadline)
-        ? "open"
-        : "unknown";
-
-  const resolvedPortalUrl =
-    item.portal_url ||
-    item.direct_apply_url ||
-    item.official_application_url ||
-    item.source_solicitation_url ||
-    "";
-
-  return {
-    ...item,
-    funder: item.funder ?? item.funder_name ?? "",
-    funder_name: item.funder_name ?? item.funder ?? "",
-    amount_min: amountMin,
-    amount_max: amountMax,
-    award_floor: amountMin,
-    award_ceiling: amountMax,
-    eligible_entity_types: Array.isArray(item.eligible_entity_types)
-      ? item.eligible_entity_types
-      : [],
-    states,
-    eligible_states: states,
-    stage_tags: stageTags,
-    deadline: isInactive ? "Closed / Inactive" : item.deadline || "Check Current Cycle",
-    status: resolvedStatus,
-    portal_url: resolvedPortalUrl,
-    direct_apply_url: item.direct_apply_url || resolvedPortalUrl,
-    directory_only: Boolean(item.directory_only),
-  };
-}
 
 const CURATED_IOWA_GRANTS = [
   {
@@ -131,7 +43,7 @@ const CURATED_IOWA_GRANTS = [
     source_solicitation_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
     is_free_to_apply: true,
-    directory_only: false,
+    directory_only: true,
     summary_text:
       "Supports Iowa-based startups in advanced manufacturing, biosciences, or IT with functional prototypes to validate market potential and commercial feasibility.",
     prerequisites: [
@@ -192,42 +104,36 @@ const CURATED_IOWA_GRANTS = [
     title: "Iowa Targeted Small Business (TSB) Program",
     funder_name: "Iowa Economic Development Authority (IEDA)",
     funder_type: "government",
-    award_floor: 5000,
-    award_ceiling: 50000,
+    award_floor: 0,
+    award_ceiling: 0,
     min_months_in_business: 0,
     eligible_states: ["IA"],
     application_time_minutes: 120,
-    deadline: "Rolling",
+    deadline: "Check Current Cycle",
     open_date: null,
     close_date: null,
-    is_rolling: true,
+    is_rolling: false,
     cost_sharing_required: false,
     cost_sharing_percentage: null,
     eligible_entity_types: ["for_profit", "small_business"],
-    demographic_set_asides: [
-      "women_owned",
-      "minority_owned",
-      "veteran_owned",
-      "disability_owned",
-    ],
+    demographic_set_asides: [],
     geographic_restriction: "state",
     geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
     application_method: "online_portal",
     direct_apply_url:
-      "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+      "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     official_application_url:
-      "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+      "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     portal_url:
-      "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+      "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     source_solicitation_url:
-      "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+      "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     is_free_to_apply: true,
-    directory_only: false,
+    directory_only: true,
     summary_text:
-      "Supports certified Iowa Targeted Small Businesses owned and operated by women, minorities, service-disabled veterans, or people with disabilities.",
+      "The previous official program page is unavailable. Verify current program availability, eligibility, and funding terms with IEDA before applying.",
     prerequisites: [
-      "Iowa Targeted Small Business (TSB) certification",
-      "51%+ majority ownership by eligible group",
+      "Contact IEDA to confirm current program eligibility and terms.",
     ],
     source_system: "playwright_script",
     source_external_id: "ia-ieda-tsb",
@@ -274,14 +180,14 @@ const CURATED_IOWA_GRANTS = [
     title: "Manufacturing 4.0 Technology Investment Grant",
     funder_name: "Iowa Economic Development Authority (IEDA) / CIRAS",
     funder_type: "government",
-    award_floor: 25000,
+    award_floor: 0,
     award_ceiling: 75000,
-    min_months_in_business: 12,
+    min_months_in_business: 36,
     eligible_states: ["IA"],
     application_time_minutes: 180,
-    deadline: "Check Current Cycle",
-    open_date: null,
-    close_date: null,
+    deadline: "Jan 29, 2027",
+    open_date: "Jan 4, 2027",
+    close_date: "Jan 29, 2027",
     is_rolling: false,
     cost_sharing_required: true,
     cost_sharing_percentage: 50,
@@ -301,8 +207,13 @@ const CURATED_IOWA_GRANTS = [
     is_free_to_apply: true,
     directory_only: false,
     summary_text:
-      "Helps Iowa manufacturers adopt automation, smart sensors, robotics, and manufacturing software.",
-    prerequisites: ["Iowa manufacturing facility", "Matching capital investment"],
+      "Iowa manufacturers may apply for up to $75,000 toward smart technology adoption. Applications open January 4, 2027 and close January 29, 2027; an Industry 4.0 assessment is required, and the assessment request period is closed.",
+    prerequisites: [
+      "Iowa manufacturer operating for at least three years",
+      "3 to 124 full-time employees",
+      "Industry 4.0 assessment (request period closed)",
+      "1:1 match",
+    ],
     source_system: "playwright_script",
     source_external_id: "ia-ieda-manufacturing-4-0",
   },
@@ -313,15 +224,15 @@ const CURATED_IOWA_GRANTS = [
     title: "Iowa SBIR / STTR State Matching Grant",
     funder_name: "Iowa Economic Development Authority (IEDA)",
     funder_type: "government",
-    award_floor: 25000,
-    award_ceiling: 75000,
+    award_floor: 0,
+    award_ceiling: 0,
     min_months_in_business: 0,
     eligible_states: ["IA"],
     application_time_minutes: 120,
-    deadline: "Rolling",
+    deadline: "Check Current Cycle",
     open_date: null,
     close_date: null,
-    is_rolling: true,
+    is_rolling: false,
     cost_sharing_required: false,
     cost_sharing_percentage: null,
     eligible_entity_types: ["for_profit", "small_business"],
@@ -338,9 +249,9 @@ const CURATED_IOWA_GRANTS = [
     source_solicitation_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     is_free_to_apply: true,
-    directory_only: false,
+    directory_only: true,
     summary_text:
-      "Supports Iowa small businesses pursuing federal SBIR/STTR awards with technical assistance and state matching commitments.",
+      "The official page is a general IEDA grants directory, not a verified application page for this specific program. Confirm current program availability and terms before applying.",
     prerequisites: [
       "Iowa-based small business",
       "Federal SBIR/STTR Phase I or Phase II track",
@@ -352,11 +263,11 @@ const CURATED_IOWA_GRANTS = [
     id: "ia-cfgdm-community-grants",
     pool_tier: "foundation",
     grant_tier: "Foundation",
-    title: "Greater Des Moines Leadership & Community Grants",
+    title: "2026 Community Foundation of Greater Des Moines Nonprofit Grant Programs",
     funder_name: "Community Foundation of Greater Des Moines",
     funder_type: "private_foundation",
-    award_floor: 2500,
-    award_ceiling: 50000,
+    award_floor: 0,
+    award_ceiling: 0,
     min_months_in_business: null,
     eligible_states: ["IA"],
     application_time_minutes: 150,
@@ -375,15 +286,15 @@ const CURATED_IOWA_GRANTS = [
       counties: ["Polk", "Dallas", "Warren"],
     },
     application_method: "online_portal",
-    direct_apply_url: "https://www.desmoinesfoundation.org/nonprofits/grants",
-    official_application_url: "https://www.desmoinesfoundation.org/nonprofits/grants",
-    portal_url: "https://www.desmoinesfoundation.org/nonprofits/grants",
-    source_solicitation_url: "https://www.desmoinesfoundation.org/nonprofits/grants",
+    direct_apply_url: "https://www.desmoinesfoundation.org/nonprofit-resources/grantmaking",
+    official_application_url: "https://www.desmoinesfoundation.org/nonprofit-resources/grantmaking",
+    portal_url: "https://www.desmoinesfoundation.org/nonprofit-resources/grantmaking",
+    source_solicitation_url: "https://www.desmoinesfoundation.org/nonprofit-resources/grantmaking",
     is_free_to_apply: true,
-    directory_only: false,
+    directory_only: true,
     summary_text:
-      "Supports charitable and community initiatives across Greater Des Moines and Central Iowa.",
-    prerequisites: ["501(c)(3) nonprofit or eligible fiscal sponsor"],
+      "The 2026 program page lists Leadership, Capacity Building, and Strategic Alignment grants. Leadership has cycle deadlines; Capacity Building and Strategic Alignment applications are accepted throughout the year. Confirm the specific program's current deadline and award terms on the official page.",
+    prerequisites: ["501(c)(3) nonprofit or eligible fiscal sponsor", "Greater Des Moines service area"],
     source_system: "playwright_script",
     source_external_id: "ia-cfgdm-community-grants",
   },
@@ -420,38 +331,21 @@ async function run() {
               (td.textContent ?? "").replace(/\s+/g, " ").trim(),
             );
             const anchor = tr.querySelector("a[href]");
-            return { cells, headers, href: anchor ? anchor.getAttribute("href") : null };
+            return {
+              cells,
+              headers,
+              href: anchor ? anchor.getAttribute("href") : null,
+              linkText: anchor ? (anchor.textContent ?? "").replace(/\s+/g, " ").trim() : "",
+            };
           })
           .filter((r) => r.cells.length >= 4);
       });
 
       for (const row of rows) {
-        const findColumn = (pattern, fallback) => {
-          const index = row.headers.findIndex((header) => pattern.test(header));
-          return index >= 0 ? index : fallback;
-        };
-        const titleFallback = /\b(posted|open|closed|active|inactive)\b/i.test(row.cells[1] ?? "")
-          ? 2
-          : 1;
-        const titleIndex = findColumn(/opportunity|program|grant|title|name/i, titleFallback);
-        const agencyIndex = findColumn(/agency|sponsor|department|funder/i, titleIndex + 1);
-        const deadlineIndex = findColumn(/close|deadline|due date/i, row.cells.length - 1);
-        const rawId = row.cells[0] ?? "";
-        const title = row.cells[titleIndex] ?? "";
-        const agency = row.cells[agencyIndex] ?? "State of Iowa (IowaGrants.gov)";
-        const closeDate = row.cells[deadlineIndex] ?? "";
-        if (!title || title.length < 4 || /opportunity title/i.test(title)) continue;
-
-        const slug = (rawId || title)
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "")
-          .slice(0, 64);
-        const applyUrl = row.href
-          ? new URL(row.href, "https://www.iowagrants.gov/").toString()
-          : "https://www.iowagrants.gov/storefrontFOList.do";
-        const isClosed = deadlineHasPassed(closeDate);
-        const isRolling = !closeDate || /rolling|continuous|ongoing|open/i.test(closeDate);
+        const parsedRow = parseIowaGrantRow(row);
+        if (!parsedRow) continue;
+        const { rawId, title, agency, deadline: closeDate, applyUrl, isClosed, isRolling, slug } =
+          parsedRow;
 
         const record = normalizeGrantRecord(
           {
@@ -520,9 +414,8 @@ async function run() {
         const bodyText = await page.evaluate(() =>
           (document.body?.innerText ?? "").slice(0, 4000),
         );
+        const unavailable = status === 404 || status === 410;
         const explicitlyClosed =
-          status === 404 ||
-          status === 410 ||
           deadlineHasPassed(item.deadline) ||
           /\b(program closed|applications? closed|no longer accepting applications|funding exhausted)\b/i.test(
             bodyText,
@@ -531,6 +424,13 @@ async function run() {
         const normalizedItem = normalizeGrantRecord(
           {
             ...item,
+            ...(unavailable
+              ? {
+                  status: "unknown",
+                  directory_only: true,
+                  summary_text: `${item.summary_text} The official program page returned HTTP ${status}; verify current availability before applying.`,
+                }
+              : {}),
             last_synced_at: nowIso,
             updated_at: nowIso,
           },

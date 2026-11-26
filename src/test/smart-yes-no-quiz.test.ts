@@ -36,6 +36,15 @@ describe("Smart Match yes/no question bank", () => {
     expect(withBranch).toHaveLength(28);
     expect(withBranch[1]?.parentTag).toBe(starterQuestion.tag);
 
+    const satisfiedParentWithBranch = buildQuestionSequence(
+      new Set([starterQuestion.tag]),
+      new Set(),
+      { [starterQuestion.id]: "yes" },
+    );
+    expect(satisfiedParentWithBranch).toHaveLength(27);
+    expect(satisfiedParentWithBranch[0]?.id).not.toBe(starterQuestion.id);
+    expect(satisfiedParentWithBranch[0]?.parentTag).toBe(starterQuestion.tag);
+
     const noBranch = buildQuestionSequence(new Set(), new Set(), { [starterQuestion.id]: "no" });
     expect(noBranch).toHaveLength(25);
 
@@ -47,5 +56,18 @@ describe("Smart Match yes/no question bank", () => {
     expect(autoSkipped).toHaveLength(23);
     expect(autoSkipped.some((question) => question.tag === "ein_ready")).toBe(false);
     expect(autoSkipped.some((question) => question.tag === "student_founder")).toBe(false);
+  });
+
+  it("auto-skips a question once new profile or Vault evidence satisfies it, even if it was answered before", () => {
+    const einQuestion = STARTER_QUESTIONS.find((question) => question.tag === "ein_ready");
+    expect(einQuestion).toBeDefined();
+
+    const sequence = buildQuestionSequence(
+      new Set(),
+      new Set(["ein_letter"]),
+      { [einQuestion!.id]: "no" },
+    );
+
+    expect(sequence.some((question) => question.id === einQuestion!.id)).toBe(false);
   });
 });

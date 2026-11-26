@@ -871,7 +871,8 @@ export function LiveGrantsFeed({
                 ) : null}
                 {score?.requiresSamWarning && (
                   <p className="text-[11px] text-amber-200">
-                    Requires active SAM.gov + UEI registration; allow 2–4 weeks before the deadline.
+                    Requires active SAM.gov + UEI registration; start at least 10 business days ahead.
+                    IRS or entity-validation delays may extend processing.
                   </p>
                 )}
                 {score && <ScoreBreakdown score={score} />}

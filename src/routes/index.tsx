@@ -1199,6 +1199,7 @@ function IndexComponent() {
         isAuthenticated={!!userSession}
         onSignIn={() => setShowAuth(true)}
         activePage={cockpitView}
+        activeGrant={selectedGrant ?? undefined}
         initialQuestion={copilotQuestion}
         onUploadFile={(file) => {
           const name = file.name.toLowerCase();

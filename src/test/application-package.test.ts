@@ -16,6 +16,10 @@ describe("application package export", () => {
         fileName: "Need Narrative.txt",
         sections: [{ title: "Project Need", body: "A community needs this project." }],
       }],
+      attachments: [{
+        fileName: "EIN verification.pdf",
+        bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+      }],
       requirements: {
         grantId: "grant-1",
         grantTitle: "Community Grant",
@@ -65,6 +69,12 @@ describe("application package export", () => {
     expect(strFromU8(archive["submission-checklist.txt"]!)).toContain("https://example.gov/apply");
     expect(strFromU8(archive["submission-checklist.txt"]!)).toContain("https://example.gov/nofo");
     expect(strFromU8(archive["README.txt"]!)).toContain("not official SF-424/SF-424A forms");
+    expect(Array.from(archive["vault/1-EIN verification.pdf"]!)).toEqual([
+      0x25,
+      0x50,
+      0x44,
+      0x46,
+    ]);
   });
 
   it("creates a readable, paginated PDF and reports unsupported glyphs rather than dropping them", async () => {

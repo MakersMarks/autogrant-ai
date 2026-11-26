@@ -35,18 +35,20 @@ export function buildQuestionSequence(
   documentKeys: ReadonlySet<string>,
   answers: Readonly<Record<string, Answer>>,
 ): YesNoQuestion[] {
-  return STARTER_QUESTIONS.filter(
-    (question) => !isSatisfied(question, tags, documentKeys) || answers[question.id] !== undefined,
-  ).flatMap((question) => [
-    question,
-    ...(answers[question.id] === "yes"
-      ? FOLLOW_UP_QUESTION_BANK.filter(
-          (followUp) =>
-            followUp.parentTag === question.tag &&
-            (!isSatisfied(followUp, tags, documentKeys) || answers[followUp.id] !== undefined),
-        )
-      : []),
-  ]);
+  return STARTER_QUESTIONS.flatMap((question) => {
+    const followUps =
+      answers[question.id] === "yes"
+        ? FOLLOW_UP_QUESTION_BANK.filter(
+            (followUp) =>
+              followUp.parentTag === question.tag &&
+              !isSatisfied(followUp, tags, documentKeys),
+          )
+        : [];
+    return [
+      ...(!isSatisfied(question, tags, documentKeys) ? [question] : []),
+      ...followUps,
+    ];
+  });
 }
 
 export function useSmartYesNoQuiz() {
@@ -61,7 +63,7 @@ export function useSmartYesNoQuiz() {
 
   useEffect(() => {
     let active = true;
-    void (async () => {
+    const loadProfileAndVault = async () => {
       try {
         const {
           data: { user },
@@ -102,6 +104,7 @@ export function useSmartYesNoQuiz() {
                 ),
             ).length,
           );
+          setMatchCountError("");
         }
       } catch (error) {
         if (active) {
@@ -110,9 +113,18 @@ export function useSmartYesNoQuiz() {
       } finally {
         if (active) setLoading(false);
       }
-    })();
+    };
+    void loadProfileAndVault();
+    const refreshOnFocus = () => void loadProfileAndVault();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadProfileAndVault();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       active = false;
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, []);
 

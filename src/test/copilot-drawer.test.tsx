@@ -11,6 +11,7 @@ vi.mock("@/lib/ai/ai.functions", () => ({
 }));
 
 import { CopilotDrawer } from "@/components/autogrant/CopilotDrawer";
+import { copilotChat } from "@/lib/ai/ai.functions";
 
 describe("Copilot drawer access", () => {
   it("prompts visitors to sign in before chatting or uploading", () => {
@@ -29,5 +30,49 @@ describe("Copilot drawer access", () => {
 
     expect(onSignIn).toHaveBeenCalledOnce();
     expect(screen.getByText(/Sign in to chat with Grant/)).toBeInTheDocument();
+  });
+
+  it("sends the selected grant context with Copilot messages", async () => {
+    vi.mocked(copilotChat).mockResolvedValue({
+      reply: "I can help with this grant.",
+      action: { type: "none" },
+    });
+    render(
+      <CopilotDrawer
+        isAuthenticated
+        onSignIn={vi.fn()}
+        onUploadFile={vi.fn()}
+        onActionComplete={vi.fn()}
+        activeGrant={{
+          id: "ia-grant-1",
+          title: "Community Grant",
+          funder: "Iowa Agency",
+          amount: "$10,000",
+          deadline: "Jan 29, 2027",
+          fit: "Good fit",
+          tier: "State",
+          categoryCode: "CD",
+          eligibilityReason: "Iowa applicants",
+          portalUrl: "https://example.gov/apply",
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "AI Copilot" }));
+    fireEvent.change(screen.getByLabelText("Message Grant"), {
+      target: { value: "What do I need to apply?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await vi.waitFor(() => expect(copilotChat).toHaveBeenCalledOnce());
+    expect(vi.mocked(copilotChat).mock.calls[0]?.[0]).toMatchObject({
+      data: {
+        activeGrant: {
+          id: "ia-grant-1",
+          title: "Community Grant",
+          portalUrl: "https://example.gov/apply",
+        },
+      },
+    });
   });
 });
