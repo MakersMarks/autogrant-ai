@@ -120,7 +120,11 @@ export function sectorName(code: string) {
 export type DocSlot = { key: string; name: string; required: boolean };
 
 export function coreDocSlots(entityType: string, lifecycleStage = ""): DocSlot[] {
-  if (/idea|not registered|new startup|under 1 year|creator|pre-launch/i.test(`${entityType} ${lifecycleStage}`)) {
+  if (
+    /idea|not registered|new startup|under 1 year|creator|pre-launch/i.test(
+      `${entityType} ${lifecycleStage}`,
+    )
+  ) {
     return [
       { key: "ein", name: "EIN Confirmation Letter (CP 575)", required: false },
       { key: "business_plan", name: "Business Plan & Executive Summary", required: true },
@@ -141,11 +145,14 @@ export function inferVaultSlotKey(fileName: string): string | undefined {
   if (/photo.?id|passport|driver.?s? license|identity document/.test(name)) return "photo_id";
   if (/\bein\b|cp\s?575|employer identification/.test(name)) return "ein";
   if (/tax return|form 1120|form 1040/.test(name)) return "tax_returns";
-  if (/formation|articles of organization|incorporation|501c3 letter|entity proof/.test(name)) return "entity_proof";
-  if (/profit.?and.?loss|balance sheet|financial statement|bank statement/.test(name)) return "financial_statement";
+  if (/formation|articles of organization|incorporation|501c3 letter|entity proof/.test(name))
+    return "entity_proof";
+  if (/profit.?and.?loss|balance sheet|financial statement|bank statement/.test(name))
+    return "financial_statement";
   if (/founder resume|founder bio|curriculum vitae|\bcv\b/.test(name)) return "founder_resume";
   if (/letter of support|support letter|partner commitment/.test(name)) return "support_letter";
-  if (/milestone|pilot metric|traction|waitlist|letter of intent|\bloi\b/.test(name)) return "milestone_metric";
+  if (/milestone|pilot metric|traction|waitlist|letter of intent|\bloi\b/.test(name))
+    return "milestone_metric";
   if (/good standing|certificate of status/.test(name)) return "good_standing";
   if (/sam.?gov|uei|cage code/.test(name)) return "sam_registration_record";
   if (/pitch deck/.test(name)) return "pitch_deck";
@@ -173,18 +180,30 @@ export const CUSTOM_DOC_SLOTS: DocSlot[] = [
   { key: "market_research", name: "Customer Discovery & Market Research Data", required: false },
   { key: "entity_proof", name: "Entity Formation / Tax-Exempt Proof", required: false },
   { key: "tax_document", name: "Additional Tax Document", required: false },
-  { key: "financial_statement", name: "Financial Statement / P&L / Balance Sheet", required: false },
+  {
+    key: "financial_statement",
+    name: "Financial Statement / P&L / Balance Sheet",
+    required: false,
+  },
   { key: "founder_resume", name: "Founder Resume / Biography", required: false },
   { key: "support_letter", name: "Support Letter / Partner Commitment", required: false },
   { key: "milestone_metric", name: "Traction, LOI, Pilot, or Milestone Evidence", required: false },
-  { key: "sam_registration_record", name: "SAM.gov Entity Registration / UEI / CAGE record (if required; not externally verified)", required: false },
+  {
+    key: "sam_registration_record",
+    name: "SAM.gov Entity Registration / UEI / CAGE record (if required; not externally verified)",
+    required: false,
+  },
   { key: "w9", name: "W-9 (if requested by the funder; sensitive tax details)", required: false },
 ];
 
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
 /** Returns an error message, or null when the file is acceptable. */
-export function validateVaultFile(file: { name: string; type: string; size: number }): string | null {
+export function validateVaultFile(file: {
+  name: string;
+  type: string;
+  size: number;
+}): string | null {
   const dot = file.name.lastIndexOf(".");
   const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
   const allowedTypes = [
@@ -214,4 +233,3 @@ export function validateVaultFile(file: { name: string; type: string; size: numb
   if (file.size > MAX_UPLOAD_BYTES) return "Rejected: File exceeds 15MB limit.";
   return null;
 }
-

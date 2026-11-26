@@ -40,8 +40,63 @@ export function canTransitionProposalStatus(current: string, next: ProposalDraft
 }
 
 export function proposalPreflightBlockers(narrative: string): string[] {
-  const markers = narrative.match(/\[(?:needs evidence|missing_user_evidence)\s*:?[^\]]*\]/giu) ?? [];
+  const markers =
+    narrative.match(/\[(?:needs evidence|missing_user_evidence)\s*:?[^\]]*\]/giu) ?? [];
   return [...new Set(markers.map((marker) => marker.trim()))];
+}
+
+export interface ProposalStatusAttestations {
+  accuracy: boolean;
+  funderRules: boolean;
+  requirements: boolean;
+  auditReviewed: boolean;
+  freshEyes: boolean;
+}
+
+export function proposalStatusBlockers(input: {
+  currentStatus: string;
+  nextStatus: ProposalDraft["status"];
+  narrative: string;
+  attestations?: ProposalStatusAttestations;
+  externalSubmissionConfirmed?: boolean;
+}): string[] {
+  const currentStatus = input.currentStatus.split("::", 1)[0]!.trim().toLowerCase();
+  const blockers: string[] = [];
+
+  if (input.nextStatus === "submission_ready") {
+    if (!input.narrative.trim()) blockers.push("A saved proposal is required.");
+    const attestations = input.attestations;
+    if (
+      !attestations?.accuracy ||
+      !attestations.funderRules ||
+      !attestations.requirements ||
+      !attestations.auditReviewed ||
+      !attestations.freshEyes
+    ) {
+      blockers.push("All human review confirmations are required.");
+    }
+    blockers.push(...proposalPreflightBlockers(input.narrative));
+  }
+
+  if (
+    input.nextStatus === "submitted" &&
+    (currentStatus !== "submission_ready" || input.externalSubmissionConfirmed !== true)
+  ) {
+    blockers.push("Confirm manual submission from the submission-ready state.");
+  }
+
+  if (
+    ["under_review", "awarded", "not_selected"].includes(input.nextStatus) &&
+    !["submitted", "under_review"].includes(currentStatus)
+  ) {
+    blockers.push("Only an externally submitted application can move to review or a decision.");
+  }
+
+  if (!canTransitionProposalStatus(currentStatus, input.nextStatus)) {
+    blockers.push(`Application status cannot change from ${currentStatus} to ${input.nextStatus}.`);
+  }
+
+  return [...new Set(blockers)];
 }
 
 /** Adapter for persisted application rows; AI generation is server-only in ai.functions.ts. */

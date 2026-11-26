@@ -1,4 +1,4 @@
-import { supabase } from '../integrations/supabase/client';
+import { supabase } from "../integrations/supabase/client";
 
 export interface VaultDocument {
   id: string;
@@ -33,17 +33,20 @@ function resolveMimeType(file: File, ext: string): string {
 
 export function validateVaultFile(file: File): { valid: boolean; error?: string } {
   if (!file || file.size <= 0) {
-    return { valid: false, error: 'Selected file is empty.' };
+    return { valid: false, error: "Selected file is empty." };
   }
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    return { valid: false, error: 'File size exceeds the 15MB limit.' };
+    return { valid: false, error: "File size exceeds the 15MB limit." };
   }
   const dot = file.name.lastIndexOf(".");
   const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
   const allowedMimes = ALLOWED_MIME_BY_EXT[ext];
   const mimeMatchesExt = !file.type || (allowedMimes?.includes(file.type) ?? false);
   if (!allowedMimes || !mimeMatchesExt) {
-    return { valid: false, error: 'Invalid file format. Please upload PDF, DOCX, TXT, CSV, JPG, or PNG.' };
+    return {
+      valid: false,
+      error: "Invalid file format. Please upload PDF, DOCX, TXT, CSV, JPG, or PNG.",
+    };
   }
   return { valid: true };
 }
@@ -61,9 +64,12 @@ export async function processDocumentUpload(
     throw new Error(check.error);
   }
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
   if (authError) throw new Error(`Could not verify your account: ${authError.message}`);
-  if (!user) throw new Error('Please sign in before uploading documents.');
+  if (!user) throw new Error("Please sign in before uploading documents.");
 
   const dot = file.name.lastIndexOf(".");
   const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
@@ -78,11 +84,13 @@ export async function processDocumentUpload(
     .eq("slot_key", slotKey)
     .maybeSingle();
   if (previousDocumentError) {
-    throw new Error(`Could not check for an existing Vault document: ${previousDocumentError.message}`);
+    throw new Error(
+      `Could not check for an existing Vault document: ${previousDocumentError.message}`,
+    );
   }
 
   const { error: storageError } = await supabase.storage
-    .from('vault')
+    .from("vault")
     .upload(filePath, file, { contentType: resolvedMimeType });
   if (storageError) throw new Error(`Storage upload failed: ${storageError.message}`);
 
@@ -98,7 +106,7 @@ export async function processDocumentUpload(
   };
 
   let { data: dbData, error: dbError } = await supabase
-    .from('vault_documents')
+    .from("vault_documents")
     .upsert(metadata, { onConflict: "user_id,slot_key" })
     .select()
     .single();
@@ -114,15 +122,18 @@ export async function processDocumentUpload(
       throw new Error(`Document metadata could not be saved: ${dbError.message}`);
     }
     const fallback = await supabase
-      .from('vault_documents')
-      .upsert({
-        user_id: user.id,
-        file_name: file.name,
-        size_bytes: file.size,
-        mime_type: resolvedMimeType,
-        storage_path: filePath,
-        slot_key: slotKey,
-      }, { onConflict: "user_id,slot_key" })
+      .from("vault_documents")
+      .upsert(
+        {
+          user_id: user.id,
+          file_name: file.name,
+          size_bytes: file.size,
+          mime_type: resolvedMimeType,
+          storage_path: filePath,
+          slot_key: slotKey,
+        },
+        { onConflict: "user_id,slot_key" },
+      )
       .select()
       .single();
     dbData = fallback.data;
@@ -132,8 +143,8 @@ export async function processDocumentUpload(
   }
 
   if (dbError || !dbData) {
-    await supabase.storage.from('vault').remove([filePath]);
-    throw new Error('Document metadata could not be saved. Upload was rolled back.');
+    await supabase.storage.from("vault").remove([filePath]);
+    throw new Error("Document metadata could not be saved. Upload was rolled back.");
   }
 
   let cleanupWarning: string | undefined;
@@ -155,7 +166,7 @@ export async function processDocumentUpload(
     storagePath: filePath,
     ...(options.categoryTag ? { categoryTag: options.categoryTag } : {}),
     ...(options.grantId ? { grantId: options.grantId } : {}),
-    ...((metadataWarning || cleanupWarning)
+    ...(metadataWarning || cleanupWarning
       ? { metadataWarning: [metadataWarning, cleanupWarning].filter(Boolean).join(" ") }
       : {}),
     slotKey,
@@ -163,11 +174,16 @@ export async function processDocumentUpload(
 }
 
 export async function deleteVaultDocument(doc: VaultDocument): Promise<void> {
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
   if (authError) throw new Error(`Could not verify the current user: ${authError.message}`);
   if (!user) throw new Error("Please sign in before deleting Vault documents.");
   if (doc.storagePath && !doc.storagePath.startsWith(`${user.id}/`)) {
-    throw new Error("This document is outside your private Vault and cannot be deleted from this account.");
+    throw new Error(
+      "This document is outside your private Vault and cannot be deleted from this account.",
+    );
   }
 
   const owned = await supabase
@@ -186,12 +202,14 @@ export async function deleteVaultDocument(doc: VaultDocument): Promise<void> {
     .eq("user_id", user.id)
     .select("id")
     .maybeSingle();
-  if (deletion.error) throw new Error(`Could not delete the Vault record: ${deletion.error.message}`);
+  if (deletion.error)
+    throw new Error(`Could not delete the Vault record: ${deletion.error.message}`);
   if (!deletion.data) throw new Error("Vault record could not be deleted.");
 
   if (doc.storagePath) {
     const removal = await supabase.storage.from("vault").remove([doc.storagePath]);
-    if (removal.error) throw new Error(`Vault record deleted, but file cleanup failed: ${removal.error.message}`);
+    if (removal.error)
+      throw new Error(`Vault record deleted, but file cleanup failed: ${removal.error.message}`);
   }
 }
 
@@ -208,11 +226,16 @@ export async function updateVaultTextDocument(
   if (!doc.type.startsWith("text/") || !doc.storagePath) {
     throw new Error("Only stored text documents can be edited in the Vault.");
   }
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
   if (authError) throw new Error(`Could not verify the current user: ${authError.message}`);
   if (!user) throw new Error("Please sign in before editing Vault documents.");
   if (!doc.storagePath.startsWith(`${user.id}/`)) {
-    throw new Error("This document is outside your private Vault and cannot be edited from this account.");
+    throw new Error(
+      "This document is outside your private Vault and cannot be edited from this account.",
+    );
   }
 
   const blob = new Blob([content], { type: doc.type });
@@ -221,9 +244,11 @@ export async function updateVaultTextDocument(
   const upload = await supabase.storage.from("vault").upload(storagePath, blob, {
     contentType: doc.type,
   });
-  if (upload.error) throw new Error(`Could not upload the edited document: ${upload.error.message}`);
+  if (upload.error)
+    throw new Error(`Could not upload the edited document: ${upload.error.message}`);
 
-  const update = await supabase.from("vault_documents")
+  const update = await supabase
+    .from("vault_documents")
     .update({ storage_path: storagePath, size_bytes: blob.size })
     .eq("id", doc.id)
     .eq("user_id", user.id)

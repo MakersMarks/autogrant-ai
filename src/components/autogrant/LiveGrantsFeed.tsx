@@ -24,10 +24,7 @@ import {
   type LiveGrant,
 } from "@/lib/grants-gov/rules";
 import { OFFICIAL_SECTORS, type UnifiedGrant } from "@/lib/grants";
-import {
-  mapSiteGrantToUnified,
-  type SiteGrantRow,
-} from "@/lib/grants/site-grant-mapping";
+import { mapSiteGrantToUnified, type SiteGrantRow } from "@/lib/grants/site-grant-mapping";
 import { stateFundingPortals } from "@/lib/grants/sources/state-portals";
 import { sbirToUnifiedGrant, shouldSearchSbirSolicitations } from "@/lib/grants-gov/sbir";
 import {
@@ -319,7 +316,10 @@ export function LiveGrantsFeed({
           "agency" in grant
             ? scoringInputFromLiveGrant(grant)
             : scoringInputFromUnifiedGrant(grant);
-        return [grant.id, scoreGrantOpportunity({ opportunity, profile: scoringProfile, evidence })] as const;
+        return [
+          grant.id,
+          scoreGrantOpportunity({ opportunity, profile: scoringProfile, evidence }),
+        ] as const;
       }),
     );
   }, [grants, matchingPoolGrants, profile, evidence]);
@@ -349,7 +349,18 @@ export function LiveGrantsFeed({
           return matchesAmount(g, Number(minAmt) || 0, Number(maxAmt) || 0);
         })
         .sort((a, b) => (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999)),
-    [grants, deadline, awardScaleOnly, minAmt, maxAmt, localOnly, userState, scoreById, tierFilter, lowCompOnly],
+    [
+      grants,
+      deadline,
+      awardScaleOnly,
+      minAmt,
+      maxAmt,
+      localOnly,
+      userState,
+      scoreById,
+      tierFilter,
+      lowCompOnly,
+    ],
   );
 
   const eligiblePoolGrants = matchingPoolGrants.filter((grant) => {

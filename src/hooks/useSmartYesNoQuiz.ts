@@ -136,9 +136,7 @@ async function loadMatchCount(
           ...(grant.status === undefined ? {} : { status: grant.status }),
           ...(grant.directory_only === undefined ? {} : { directoryOnly: grant.directory_only }),
           ...(grant.states === undefined ? {} : { states: grant.states }),
-          ...(grant.eligible_states === undefined
-            ? {}
-            : { eligibleStates: grant.eligible_states }),
+          ...(grant.eligible_states === undefined ? {} : { eligibleStates: grant.eligible_states }),
           ...(grant.eligible_entity_types === undefined
             ? {}
             : { eligibleEntityTypes: grant.eligible_entity_types }),

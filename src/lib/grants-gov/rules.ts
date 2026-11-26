@@ -352,7 +352,10 @@ export function scoutKeywords(p: {
     [/hispanic|latino/, ["Hispanic-owned small business grants"]],
     [/asian/, ["Asian-owned small business grants"]],
     [/pacific islander|native hawaiian/, ["Native Hawaiian and Pacific Islander business grants"]],
-    [/indigenous|native american|alaska native|tribal/, ["Native American and tribal business grants"]],
+    [
+      /indigenous|native american|alaska native|tribal/,
+      ["Native American and tribal business grants"],
+    ],
     [/middle eastern|north african|mena/, ["MENA entrepreneur grants"]],
     [/immigrant|refugee|first generation/, ["immigrant entrepreneur grants"]],
     [/women owned|woman owned|female|wosb/, ["women-owned small business grants"]],
@@ -363,7 +366,10 @@ export function scoutKeywords(p: {
     [/hubzone/, ["HUBZone small business grants"]],
     [/opportunity zone|low income|lmi/, ["LMI and Opportunity Zone small business grants"]],
     [/sedi/, ["SEDI small business grants"]],
-    [/minority|underrepresented|underserved/, ["minority business grants", "underserved small business grants"]],
+    [
+      /minority|underrepresented|underserved/,
+      ["minority business grants", "underserved small business grants"],
+    ],
   ];
   for (const tag of p.demographics ?? []) {
     const normalized = tag.toLowerCase().replace(/[_-]+/g, " ");
@@ -390,7 +396,12 @@ export function scoutKeywords(p: {
   if (/\b(food|hospitality|restaurant|cater|kitchen|agriculture)\b/i.test(text)) {
     domainKeywords.push("food service", "kitchen equipment", "agriculture", "supply chain");
   } else if (/\b(mining|mineral|industrial|extraction)\b/i.test(text)) {
-    domainKeywords.push("mineral exploration", "industrial machinery", "clean extraction", "export");
+    domainKeywords.push(
+      "mineral exploration",
+      "industrial machinery",
+      "clean extraction",
+      "export",
+    );
   } else if (/\b(arts?|humanities|cultural|oral history|performing)\b/i.test(text)) {
     domainKeywords.push("cultural preservation", "performing arts", "youth mentorship");
   }

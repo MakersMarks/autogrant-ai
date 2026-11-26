@@ -111,13 +111,7 @@ const minorityProgramDirectories: UnifiedGrant[] = [
     "https://nglcc.org",
     ["lgbtq"],
   ),
-  programDirectory(
-    "startout",
-    "StartOut Programs",
-    "StartOut",
-    "https://startout.org",
-    ["lgbtq"],
-  ),
+  programDirectory("startout", "StartOut Programs", "StartOut", "https://startout.org", ["lgbtq"]),
   programDirectory(
     "wes-mariam-assefa",
     "Mariam Assefa Fund",
@@ -198,7 +192,8 @@ export const corporateRegistry: UnifiedGrant[] = [
     summaryText:
       "Monthly grants for women-owned businesses with annual year-end recipients; verify the current cycle, application fee, and award tiers with WomensNet.",
     sourceSolicitationUrl: "https://ambergrantsforwomen.com/",
-    publicWinnerHistoryUrl: "https://ambergrantsforwomen.com/business_category/amber-grant-winners/",
+    publicWinnerHistoryUrl:
+      "https://ambergrantsforwomen.com/business_category/amber-grant-winners/",
   },
   {
     id: "verizon-digital-ready-grant",

@@ -190,9 +190,9 @@ describe("scout + entity gate", () => {
     expect(blackOwned).toContain("ai and govtech");
     expect(blackOwned).toHaveLength(5);
 
-    expect(
-      scoutKeywords({ demographics: ["immigrant_owned"] }),
-    ).toContain("immigrant entrepreneur grants");
+    expect(scoutKeywords({ demographics: ["immigrant_owned"] })).toContain(
+      "immigrant entrepreneur grants",
+    );
     expect(scoutKeywords({ demographics: ["SEDI"] })).toContain("sedi small business grants");
     expect(scoutKeywords({ demographics: ["LMI"] })).toContain(
       "lmi and opportunity zone small business grants",

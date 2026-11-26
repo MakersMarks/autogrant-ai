@@ -50,7 +50,7 @@ function strip(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<[^>]+>/g, " ")
-    .replace(/ /g, " ")
+    .replace(/\u00a0/g, " ")
     .replace(/&/g, "&")
     .replace(/</g, "<")
     .replace(/>/g, ">")
@@ -92,23 +92,28 @@ async function fetchUsaspendingAwardCount(assistanceListingNumber: string): Prom
   if (cached !== null) return cached;
 
   try {
-    const usaspending = await fetch("https://api.usaspending.gov/api/v2/search/spending_by_award/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(8000),
-      body: JSON.stringify({
-        filters: {
-          time_period: [{ start_date: "2020-10-01", end_date: new Date().toISOString().slice(0, 10) }],
-          cfda: assistanceListingNumber,
-          award_type: ["02", "03", "04", "05"],
-        },
-        fields: ["Award ID", "Award Amount"],
-        page: 1,
-        limit: 1,
-        sort: "Award Amount",
-        order: "desc",
-      }),
-    });
+    const usaspending = await fetch(
+      "https://api.usaspending.gov/api/v2/search/spending_by_award/",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(8000),
+        body: JSON.stringify({
+          filters: {
+            time_period: [
+              { start_date: "2020-10-01", end_date: new Date().toISOString().slice(0, 10) },
+            ],
+            cfda: assistanceListingNumber,
+            award_type: ["02", "03", "04", "05"],
+          },
+          fields: ["Award ID", "Award Amount"],
+          page: 1,
+          limit: 1,
+          sort: "Award Amount",
+          order: "desc",
+        }),
+      },
+    );
     if (!usaspending.ok) return null;
     const payload = (await usaspending.json()) as { page_metadata?: { total?: number } };
     const total = Number(payload.page_metadata?.total);
@@ -159,7 +164,10 @@ async function loadDetail(id: string) {
     numberOfAwards: num(active["numberOfAwards"]),
     costSharing,
     eligibilityNotes: strip(String(active["applicantEligibilityDesc"] ?? "")),
-    moreInfoUrl: typeof active["additionalInformationUrl"] === "string" ? active["additionalInformationUrl"] : null,
+    moreInfoUrl:
+      typeof active["additionalInformationUrl"] === "string"
+        ? active["additionalInformationUrl"]
+        : null,
     eligibility: applicantTypes
       .filter(isJsonRecord)
       .map((type) => String(type["description"] ?? "")),
@@ -211,8 +219,12 @@ async function searchSimplerGrants(query: string): Promise<LiveGrant[]> {
   for (const item of rawItems) {
     if (!isJsonRecord(item)) continue;
     const summary = isJsonRecord(item["summary"]) ? item["summary"] : item;
-    const rawId = String(item["opportunity_id"] ?? item["id"] ?? summary["opportunity_id"] ?? "").trim();
-    const oppNumber = String(item["opportunity_number"] ?? summary["opportunity_number"] ?? rawId).trim();
+    const rawId = String(
+      item["opportunity_id"] ?? item["id"] ?? summary["opportunity_id"] ?? "",
+    ).trim();
+    const oppNumber = String(
+      item["opportunity_number"] ?? summary["opportunity_number"] ?? rawId,
+    ).trim();
     const title = String(item["opportunity_title"] ?? summary["opportunity_title"] ?? "").trim();
     if (!rawId || !title) continue;
 
@@ -224,7 +236,9 @@ async function searchSimplerGrants(query: string): Promise<LiveGrant[]> {
     ).trim();
     const ceiling = num(summary["award_ceiling"] ?? item["award_ceiling"]);
     const floor = num(summary["award_floor"] ?? item["award_floor"]);
-    const numAwards = num(summary["expected_number_of_awards"] ?? item["expected_number_of_awards"]);
+    const numAwards = num(
+      summary["expected_number_of_awards"] ?? item["expected_number_of_awards"],
+    );
     const desc = strip(String(summary["summary_description"] ?? summary["description"] ?? ""));
 
     mapped.push({
@@ -240,7 +254,9 @@ async function searchSimplerGrants(query: string): Promise<LiveGrant[]> {
       numberOfAwards: numAwards,
       eligibility: [],
       categories: [],
-      url: rawId ? `https://simpler.grants.gov/opportunity/${encodeURIComponent(rawId)}` : "https://simpler.grants.gov",
+      url: rawId
+        ? `https://simpler.grants.gov/opportunity/${encodeURIComponent(rawId)}`
+        : "https://simpler.grants.gov",
       ...(query ? { matchedKeyword: query } : {}),
       grantTier: "Federal",
       geographicRestriction: "national",
@@ -313,7 +329,11 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
         const closeDate = String(hit["closeDate"] ?? "");
         if (daysUntil(closeDate) !== null && (daysUntil(closeDate) ?? -1) < 0) return null;
         const combinedText = `${title}\n${grant.eligibility.join(" ")}\n${grant.description}\n${grant.eligibilityNotes}`;
-        if (isFounderOrSmallBiz && !explicitlyAskedForAcademic && academicOnlyPattern.test(combinedText)) {
+        if (
+          isFounderOrSmallBiz &&
+          !explicitlyAskedForAcademic &&
+          academicOnlyPattern.test(combinedText)
+        ) {
           return null;
         }
         if (grant.awardFloor !== null && grant.awardFloor > maxAwardCap) return null;
@@ -339,7 +359,8 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
             grant.eligibilityNotes || "Eligibility details are not stated in the listing summary.",
           summary: grant.description,
           url: grantUrl(id),
-          requirementsSource: "Grants.gov listing; verify the complete official opportunity notice.",
+          requirementsSource:
+            "Grants.gov listing; verify the complete official opportunity notice.",
         };
       }),
     );
@@ -353,7 +374,11 @@ export async function searchSiteGrantListings(input: SiteGrantSearch) {
   const regional = registryGrants
     .filter((grant) => {
       const regionalText = `${grant.title} ${grant.summaryText} ${grant.eligibleEntityTypes.join(" ")}`;
-      if (isFounderOrSmallBiz && !explicitlyAskedForAcademic && academicOnlyPattern.test(regionalText)) {
+      if (
+        isFounderOrSmallBiz &&
+        !explicitlyAskedForAcademic &&
+        academicOnlyPattern.test(regionalText)
+      ) {
         return false;
       }
       if (grant.directoryOnly || !isUnifiedGrantOpen(grant)) return false;
@@ -486,7 +511,9 @@ export const searchLiveGrants = createServerFn({ method: "POST" })
         }
         return {
           keyword,
-          hits: (Array.isArray(response["oppHits"]) ? response["oppHits"] : []).filter(isJsonRecord),
+          hits: (Array.isArray(response["oppHits"]) ? response["oppHits"] : []).filter(
+            isJsonRecord,
+          ),
           total: Number(response["hitCount"] ?? 0) || 0,
         };
       }),
@@ -611,9 +638,7 @@ export const searchSbirSolicitations = createServerFn({ method: "POST" })
           "SBIR.gov reports its API is temporarily unavailable. This is not a no-results response; use the official Topics search.",
         );
       }
-      throw new Error(
-        `SBIR.gov solicitation search failed (${response.status}). Try again later.`,
-      );
+      throw new Error(`SBIR.gov solicitation search failed (${response.status}). Try again later.`);
     }
     return { solicitations: parseSbirSolicitations(await response.json()) };
   });
@@ -788,9 +813,7 @@ export const verifySamRegistration = createServerFn({ method: "POST" })
     const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (response.status === 404) return { status: "not_found" as const };
     if (response.status === 401 || response.status === 403) {
-      throw new Error(
-        "SAM.gov rejected the server API key. Check its permissions and rate limit.",
-      );
+      throw new Error("SAM.gov rejected the server API key. Check its permissions and rate limit.");
     }
     if (!response.ok) {
       throw new Error(`SAM.gov status check failed (${response.status}). Try again later.`);
@@ -804,9 +827,7 @@ export const verifySamRegistration = createServerFn({ method: "POST" })
     }
     const match = payload.entityData.find((entity) => {
       const registration = entity["entityRegistration"] as Record<string, unknown> | undefined;
-      const entityUei = String(
-        registration?.["ueiSAM"] ?? entity["ueiSAM"] ?? "",
-      ).toUpperCase();
+      const entityUei = String(registration?.["ueiSAM"] ?? entity["ueiSAM"] ?? "").toUpperCase();
       const entityCage = String(
         registration?.["cageCode"] ?? entity["cageCode"] ?? "",
       ).toUpperCase();
@@ -817,7 +838,8 @@ export const verifySamRegistration = createServerFn({ method: "POST" })
     });
     if (!match) {
       return {
-        status: data.uei && data.cageCode ? ("identifier_mismatch" as const) : ("not_found" as const),
+        status:
+          data.uei && data.cageCode ? ("identifier_mismatch" as const) : ("not_found" as const),
       };
     }
     const registration = match["entityRegistration"] as Record<string, unknown> | undefined;

@@ -117,9 +117,13 @@ export function CopilotDrawer({
                   amount: activeGrant.amount,
                   deadline: activeGrant.deadline,
                   ...(activeGrant.summaryText ? { summaryText: activeGrant.summaryText } : {}),
-                  ...(activeGrant.prerequisites ? { prerequisites: activeGrant.prerequisites } : {}),
+                  ...(activeGrant.prerequisites
+                    ? { prerequisites: activeGrant.prerequisites }
+                    : {}),
                   ...(activeGrant.portalUrl ? { portalUrl: activeGrant.portalUrl } : {}),
-                  ...(activeGrant.guidelinesUrl ? { guidelinesUrl: activeGrant.guidelinesUrl } : {}),
+                  ...(activeGrant.guidelinesUrl
+                    ? { guidelinesUrl: activeGrant.guidelinesUrl }
+                    : {}),
                   ...(activeGrant.officialUrl ? { officialUrl: activeGrant.officialUrl } : {}),
                 },
               }
@@ -256,9 +260,7 @@ export function CopilotDrawer({
           <header className="flex items-center justify-between border-b border-slate-200 bg-slate-900 px-4 py-3 text-white">
             <div>
               <h2 className="text-sm font-bold">Grant</h2>
-              <p className="text-[11px] text-slate-300">
-                Private profile, tracker & Vault context
-              </p>
+              <p className="text-[11px] text-slate-300">Private profile, tracker & Vault context</p>
             </div>
             <button
               type="button"

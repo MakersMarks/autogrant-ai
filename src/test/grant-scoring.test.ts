@@ -44,7 +44,9 @@ describe("grant eligibility and competition scoring", () => {
     expect(result.eligible).toBe(true);
     expect(result.fitScore).toBeGreaterThan(0);
     expect(result.fitScore).toBeLessThanOrEqual(50);
-    expect(Object.values(result.fitBreakdown).reduce((sum, score) => sum + score, 0)).toBe(result.fitScore);
+    expect(Object.values(result.fitBreakdown).reduce((sum, score) => sum + score, 0)).toBe(
+      result.fitScore,
+    );
     expect(result.eligibilityReasons).toContain(
       "Applicant entity matches the listed type: LLC / Corporation.",
     );
@@ -263,9 +265,7 @@ describe("grant eligibility and competition scoring", () => {
     });
 
     expect(result.eligible).toBe(false);
-    expect(result.hardDisqualifiers.join(" ")).toMatch(
-      /entity types|geographic/,
-    );
+    expect(result.hardDisqualifiers.join(" ")).toMatch(/entity types|geographic/);
     expect(result.vaultReadiness.missing).toContain("health_permit");
   });
 
@@ -353,13 +353,20 @@ describe("grant eligibility and competition scoring", () => {
         },
       },
       profile,
-      evidence: [...evidence, { slotKey: "sam_registration_record" }, { slotKey: "good_standing" }, { slotKey: "financial" }],
+      evidence: [
+        ...evidence,
+        { slotKey: "sam_registration_record" },
+        { slotKey: "good_standing" },
+        { slotKey: "financial" },
+      ],
     });
 
     expect(result.eligible).toBe(true);
     expect(result.lowCompetitionScore).toBeGreaterThanOrEqual(70);
     expect(result.dataConfidence).toBe("Reported");
-    expect(result.whyLowCompetition.join(" ")).toMatch(/Geographic fence|Fast-turnaround|SAM.gov|Historical award/);
+    expect(result.whyLowCompetition.join(" ")).toMatch(
+      /Geographic fence|Fast-turnaround|SAM.gov|Historical award/,
+    );
   });
 });
 

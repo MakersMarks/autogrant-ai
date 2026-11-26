@@ -1,4 +1,4 @@
-import type { GrantRequirementBOM } from './rfp-parser';
+import type { GrantRequirementBOM } from "./rfp-parser";
 
 export const redTeamRubricWeights = {
   structure: 25,
@@ -54,41 +54,41 @@ export interface RedTeamModuleResult {
 export interface RedTeamResult {
   score: number;
   maxScore: 100;
-  assessment: 'deterministic heuristic; semantic coverage is approximate';
+  assessment: "deterministic heuristic; semantic coverage is approximate";
   modules: RedTeamModuleResult[];
 }
 
 export const redTeamBannedTerms = [
-  'delve',
-  'testament',
-  'landscape',
-  'tapestry',
+  "delve",
+  "testament",
+  "landscape",
+  "tapestry",
   "in today's fast-paced",
-  'ever-evolving landscape',
-  'beacon of hope',
-  'synergy',
-  'synergistic',
-  'game-changer',
-  'unlock the potential',
-  'navigate the complexities',
-  'it is important to note',
-  'in conclusion',
-  'empower',
-  'foster',
-  'leverage',
-  'holistic',
-  'pivotal',
-  'crucial',
-  'furthermore',
+  "ever-evolving landscape",
+  "beacon of hope",
+  "synergy",
+  "synergistic",
+  "game-changer",
+  "unlock the potential",
+  "navigate the complexities",
+  "it is important to note",
+  "in conclusion",
+  "empower",
+  "foster",
+  "leverage",
+  "holistic",
+  "pivotal",
+  "crucial",
+  "furthermore",
 ] as const;
 
 type ParsedSection = { heading: string; body: string };
 
 function normalizeHeading(value: string) {
   return value
-    .replace(/^\s*\d+(?:\.\d+)*[.)]?\s*/u, '')
+    .replace(/^\s*\d+(?:\.\d+)*[.)]?\s*/u, "")
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 
@@ -100,7 +100,7 @@ function countWords(text: string) {
 function parseSections(text: string): ParsedSection[] {
   const matches = [...text.matchAll(/^(#{1,6})\s+(.+)\s*$/gmu)];
   return matches.map((match, index) => {
-    const heading = match[2]?.trim() ?? '';
+    const heading = match[2]?.trim() ?? "";
     const start = (match.index ?? 0) + match[0].length;
     const end = matches[index + 1]?.index ?? text.length;
     return { heading, body: text.slice(start, end).trim() };
@@ -123,19 +123,20 @@ function makeModule(
 function evaluateStructure(text: string, bom: GrantRequirementBOM) {
   const sections = parseSections(text);
   const findings: RedTeamFinding[] = [];
-  const requiredHeadings = [...new Set(
-    bom.aiDraftableDocuments.flatMap((document) => document.requiredHeadings),
-  )];
+  const requiredHeadings = [
+    ...new Set(bom.aiDraftableDocuments.flatMap((document) => document.requiredHeadings)),
+  ];
   const normalizedSections = sections.map((section) => ({
     ...section,
     normalizedHeading: normalizeHeading(section.heading),
   }));
   const headingMatches = requiredHeadings.map((heading) => {
     const normalized = normalizeHeading(heading);
-    return normalizedSections.find((section) =>
-      section.normalizedHeading === normalized
-      || section.normalizedHeading.includes(normalized)
-      || normalized.includes(section.normalizedHeading),
+    return normalizedSections.find(
+      (section) =>
+        section.normalizedHeading === normalized ||
+        section.normalizedHeading.includes(normalized) ||
+        normalized.includes(section.normalizedHeading),
     );
   });
 
@@ -146,63 +147,126 @@ function evaluateStructure(text: string, bom: GrantRequirementBOM) {
     const missingHeadings = requiredHeadings.filter((_, index) => !headingMatches[index]);
     if (missingHeadings.length) {
       findings.push({
-        code: 'missing_headings',
-        message: `Missing required heading${missingHeadings.length === 1 ? '' : 's'}: ${missingHeadings.join('; ')}.`,
+        code: "missing_headings",
+        message: `Missing required heading${missingHeadings.length === 1 ? "" : "s"}: ${missingHeadings.join("; ")}.`,
       });
     } else {
-      findings.push({ code: 'headings_present', message: 'All required headings were found.' });
+      findings.push({ code: "headings_present", message: "All required headings were found." });
     }
   } else {
-    findings.push({ code: 'headings_unspecified', message: 'The BOM does not specify required headings.' });
+    findings.push({
+      code: "headings_unspecified",
+      message: "The BOM does not specify required headings.",
+    });
   }
 
-  let wordChecks = 0;
-  let wordPasses = 0;
+  let limitChecks = 0;
+  let limitPasses = 0;
   const totalLimit = bom.formatting.wordCountLimit;
-  if (typeof totalLimit === 'number' && totalLimit >= 0) {
-    wordChecks += 1;
-    const prose = text.replace(/^#{1,6}\s+.*$/gmu, '');
-    if (countWords(prose) <= totalLimit) wordPasses += 1;
-    else findings.push({
-      code: 'total_word_limit_exceeded',
-      message: `Proposal has ${countWords(prose)} words; the BOM limit is ${totalLimit}.`,
-    });
+  if (typeof totalLimit === "number" && totalLimit >= 0) {
+    limitChecks += 1;
+    const prose = text.replace(/^#{1,6}\s+.*$/gmu, "");
+    if (countWords(prose) <= totalLimit) limitPasses += 1;
+    else
+      findings.push({
+        code: "total_word_limit_exceeded",
+        message: `Proposal has ${countWords(prose)} words; the BOM limit is ${totalLimit}.`,
+      });
   }
 
   for (const document of bom.aiDraftableDocuments) {
     for (const [heading, limit] of Object.entries(document.wordLimitsPerSection ?? {})) {
       if (!Number.isFinite(limit) || limit < 0) continue;
-      wordChecks += 1;
+      limitChecks += 1;
       const normalized = normalizeHeading(heading);
-      const section = normalizedSections.find((candidate) =>
-        candidate.normalizedHeading === normalized
-        || candidate.normalizedHeading.includes(normalized)
-        || normalized.includes(candidate.normalizedHeading),
+      const section = normalizedSections.find(
+        (candidate) =>
+          candidate.normalizedHeading === normalized ||
+          candidate.normalizedHeading.includes(normalized) ||
+          normalized.includes(candidate.normalizedHeading),
       );
       if (!section) {
         findings.push({
-          code: 'section_word_limit_unverifiable',
+          code: "section_word_limit_unverifiable",
           message: `Cannot verify the ${heading} word limit because its section is missing.`,
         });
       } else if (countWords(section.body) <= limit) {
-        wordPasses += 1;
+        limitPasses += 1;
       } else {
         findings.push({
-          code: 'section_word_limit_exceeded',
+          code: "section_word_limit_exceeded",
           message: `${heading} has ${countWords(section.body)} words; the BOM limit is ${limit}.`,
         });
       }
     }
   }
 
-  const wordRate = wordChecks ? wordPasses / wordChecks : 1;
-  if (!wordChecks) findings.push({ code: 'word_limits_unspecified', message: 'The BOM does not specify word limits.' });
-  else if (wordPasses === wordChecks) findings.push({ code: 'word_limits_met', message: 'All configured word limits were met.' });
   const promptItems = bom.extractedPrompts ?? [];
+  for (const prompt of promptItems) {
+    if (prompt.maxWords === undefined && prompt.maxCharacters === undefined) continue;
+    const normalizedQuestion = normalizeHeading(prompt.question);
+    const section = normalizedSections.find(
+      (candidate) =>
+        candidate.normalizedHeading === normalizedQuestion ||
+        candidate.normalizedHeading.includes(normalizedQuestion) ||
+        normalizedQuestion.includes(candidate.normalizedHeading),
+    );
+    if (!section) {
+      if (prompt.maxWords !== undefined) {
+        limitChecks += 1;
+        findings.push({
+          code: "prompt_word_limit_unverifiable",
+          message: `Cannot verify the ${prompt.maxWords}-word limit because no matching section was found for: ${prompt.question}`,
+        });
+      }
+      if (prompt.maxCharacters !== undefined) {
+        limitChecks += 1;
+        findings.push({
+          code: "prompt_character_limit_unverifiable",
+          message: `Cannot verify the ${prompt.maxCharacters}-character limit because no matching section was found for: ${prompt.question}`,
+        });
+      }
+      continue;
+    }
+    if (prompt.maxWords !== undefined) {
+      limitChecks += 1;
+      const words = countWords(section.body);
+      if (words <= prompt.maxWords) limitPasses += 1;
+      else {
+        findings.push({
+          code: "prompt_word_limit_exceeded",
+          message: `${prompt.question} has ${words} words; the verified limit is ${prompt.maxWords}.`,
+        });
+      }
+    }
+    if (prompt.maxCharacters !== undefined) {
+      limitChecks += 1;
+      const characters = section.body.length;
+      if (characters <= prompt.maxCharacters) limitPasses += 1;
+      else {
+        findings.push({
+          code: "prompt_character_limit_exceeded",
+          message: `${prompt.question} has ${characters} characters; the verified limit is ${prompt.maxCharacters}.`,
+        });
+      }
+    }
+  }
+  const limitRate = limitChecks ? limitPasses / limitChecks : 1;
+  if (!limitChecks) {
+    findings.push({
+      code: "word_limits_unspecified",
+      message: "The BOM does not specify proposal or prompt word/character limits.",
+    });
+  } else if (limitPasses === limitChecks) {
+    findings.push({
+      code: "word_limits_met",
+      message: "All configured proposal and prompt word/character limits were met.",
+    });
+  }
   const criteriaItems = bom.rubricCriteria ?? [];
   const requiredItems = [
-    ...promptItems.map((item) => ({ kind: 'prompt', text: item.question })),
-    ...criteriaItems.map((item) => ({ kind: 'criterion', text: item.criterion })),
+    ...promptItems.map((item) => ({ kind: "prompt", text: item.question })),
+    ...criteriaItems.map((item) => ({ kind: "criterion", text: item.criterion })),
   ];
   let checklistRate = 1;
   if (requiredItems.length) {
@@ -210,11 +274,30 @@ function evaluateStructure(text: string, bom: GrantRequirementBOM) {
     const isCovered = (target: string) => {
       const normalizedTarget = normalizeHeading(target);
       if (normalizedTarget && normalizedProposal.includes(normalizedTarget)) return true;
-      const terms = [...new Set(
-        normalizedTarget
-          .split(/\s+/u)
-          .filter((term) => term.length > 3 && !['what', 'when', 'where', 'which', 'your', 'this', 'that', 'with', 'from', 'have', 'will', 'does'].includes(term)),
-      )];
+      const terms = [
+        ...new Set(
+          normalizedTarget
+            .split(/\s+/u)
+            .filter(
+              (term) =>
+                term.length > 3 &&
+                ![
+                  "what",
+                  "when",
+                  "where",
+                  "which",
+                  "your",
+                  "this",
+                  "that",
+                  "with",
+                  "from",
+                  "have",
+                  "will",
+                  "does",
+                ].includes(term),
+            ),
+        ),
+      ];
       if (!terms.length) return false;
       const matchingTerms = terms.filter((term) => normalizedProposal.includes(term));
       return matchingTerms.length >= Math.max(2, Math.ceil(terms.length * 0.6));
@@ -225,34 +308,37 @@ function evaluateStructure(text: string, bom: GrantRequirementBOM) {
     const missingCriteria = criteriaItems.filter((item) => !isCovered(item.criterion));
     if (checklistRate < 1) {
       findings.push({
-        code: 'funder_prompt_or_criterion_coverage_approximate',
-        message: 'One or more extracted funder prompts or scoring criteria may not be addressed. Coverage is a keyword heuristic, not a semantic or official review.',
+        code: "funder_prompt_or_criterion_coverage_approximate",
+        message:
+          "One or more extracted funder prompts or scoring criteria may not be addressed. Coverage is a keyword heuristic, not a semantic or official review.",
       });
     } else {
       findings.push({
-        code: 'funder_prompt_or_criterion_keywords_found',
-        message: 'Keyword checks found text associated with every extracted funder prompt and criterion; this does not prove a complete answer.',
+        code: "funder_prompt_or_criterion_keywords_found",
+        message:
+          "Keyword checks found text associated with every extracted funder prompt and criterion; this does not prove a complete answer.",
       });
     }
     if (missingPrompts.length) {
       findings.push({
-        code: 'funder_prompts_unverified',
-        message: `Review these exact extracted prompts against the draft: ${missingPrompts.map((item) => item.question).join('; ')}.`,
+        code: "funder_prompts_unverified",
+        message: `Review these exact extracted prompts against the draft: ${missingPrompts.map((item) => item.question).join("; ")}.`,
       });
     }
     if (missingCriteria.length) {
       findings.push({
-        code: 'funder_criteria_unverified',
-        message: `Review these exact extracted scoring criteria against the draft: ${missingCriteria.map((item) => item.criterion).join('; ')}.`,
+        code: "funder_criteria_unverified",
+        message: `Review these exact extracted scoring criteria against the draft: ${missingCriteria.map((item) => item.criterion).join("; ")}.`,
       });
     }
   } else {
     findings.push({
-      code: 'funder_specific_rubric_unavailable',
-      message: 'No verified funder-specific prompts or scoring criteria were provided; this is a general structure review only.',
+      code: "funder_specific_rubric_unavailable",
+      message:
+        "No verified funder-specific prompts or scoring criteria were provided; this is a general structure review only.",
     });
   }
-  const baseRate = headingsRate * 0.6 + wordRate * 0.4;
+  const baseRate = headingsRate * 0.6 + limitRate * 0.4;
   return {
     rate: requiredItems.length ? baseRate * 0.6 + checklistRate * 0.4 : baseRate,
     findings,
@@ -262,18 +348,28 @@ function evaluateStructure(text: string, bom: GrantRequirementBOM) {
 function evaluateEvidence(input: RedTeamInput) {
   const mandatory = input.bom.userRequiredEvidence.filter((evidence) => evidence.isMandatory);
   const available = new Set(input.availableEvidenceIds ?? []);
-  const missing = mandatory.filter((evidence) =>
-    !available.has(evidence.evidenceId) && !available.has(evidence.autoMatchVaultTag),
+  const missing = mandatory.filter(
+    (evidence) => !available.has(evidence.evidenceId) && !available.has(evidence.autoMatchVaultTag),
   );
   const findings: RedTeamFinding[] = mandatory.length
     ? missing.length
-      ? [{
-        code: 'required_evidence_missing',
-        message: `Unavailable mandatory evidence: ${missing.map((item) => item.name).join('; ')}.`,
-      }]
-      : [{ code: 'required_evidence_available', message: 'All mandatory evidence is available.' }]
-    : [{ code: 'no_mandatory_evidence', message: 'The BOM has no mandatory evidence requirements.' }];
-  return { rate: mandatory.length ? (mandatory.length - missing.length) / mandatory.length : 1, findings };
+      ? [
+          {
+            code: "required_evidence_missing",
+            message: `Unavailable mandatory evidence: ${missing.map((item) => item.name).join("; ")}.`,
+          },
+        ]
+      : [{ code: "required_evidence_available", message: "All mandatory evidence is available." }]
+    : [
+        {
+          code: "no_mandatory_evidence",
+          message: "The BOM has no mandatory evidence requirements.",
+        },
+      ];
+  return {
+    rate: mandatory.length ? (mandatory.length - missing.length) / mandatory.length : 1,
+    findings,
+  };
 }
 
 function evaluateWriting(text: string) {
@@ -281,40 +377,65 @@ function evaluateWriting(text: string) {
   if (!text.trim()) {
     return {
       rate: 0,
-      findings: [{ code: 'empty_proposal', message: 'Proposal text is empty.' }],
+      findings: [{ code: "empty_proposal", message: "Proposal text is empty." }],
     };
   }
 
   const lower = text.toLowerCase();
   const bannedMatches = redTeamBannedTerms.filter((term) => lower.includes(term));
   const bannedRate = Math.max(0, 1 - bannedMatches.length / 3);
-  findings.push(bannedMatches.length
-    ? { code: 'banned_terms_found', message: `Banned terms found: ${bannedMatches.join('; ')}.` }
-    : { code: 'no_banned_terms', message: 'No configured banned terms were found.' });
+  findings.push(
+    bannedMatches.length
+      ? { code: "banned_terms_found", message: `Banned terms found: ${bannedMatches.join("; ")}.` }
+      : { code: "no_banned_terms", message: "No configured banned terms were found." },
+  );
 
-  const sentences = text.split(/[.!?]+(?:\s|$)/u).map((sentence) => sentence.trim().toLowerCase()).filter(Boolean);
+  const sentences = text
+    .split(/[.!?]+(?:\s|$)/u)
+    .map((sentence) => sentence.trim().toLowerCase())
+    .filter(Boolean);
   const uniqueSentences = new Set(sentences);
-  const sentenceDuplicateRate = sentences.length ? (sentences.length - uniqueSentences.size) / sentences.length : 0;
+  const sentenceDuplicateRate = sentences.length
+    ? (sentences.length - uniqueSentences.size) / sentences.length
+    : 0;
   const paragraphs = text
     .split(/\n\s*\n/u)
-    .map((paragraph) => countWords(paragraph.replace(/^#{1,6}\s+.*$/gmu, '')))
+    .map((paragraph) => countWords(paragraph.replace(/^#{1,6}\s+.*$/gmu, "")))
     .filter((count) => count > 0);
-  const lengthDuplicateRate = paragraphs.length >= 3
-    ? 1 - new Set(paragraphs).size / paragraphs.length
-    : 0;
+  const lengthDuplicateRate =
+    paragraphs.length >= 3 ? 1 - new Set(paragraphs).size / paragraphs.length : 0;
   const repetitionRate = Math.max(sentenceDuplicateRate, lengthDuplicateRate);
   const repetitionScore = 1 - repetitionRate;
-  findings.push(repetitionRate > 0
-    ? { code: 'repetitive_lengths_or_sentences', message: 'Repeated sentence text or identical paragraph lengths were detected.' }
-    : { code: 'varied_lengths', message: 'No repeated sentence text or identical paragraph lengths were detected.' });
+  findings.push(
+    repetitionRate > 0
+      ? {
+          code: "repetitive_lengths_or_sentences",
+          message: "Repeated sentence text or identical paragraph lengths were detected.",
+        }
+      : {
+          code: "varied_lengths",
+          message: "No repeated sentence text or identical paragraph lengths were detected.",
+        },
+  );
 
-  const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+  const lines = text
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
   const bulletLines = lines.filter((line) => /^(?:[-*+]|\d+[.)])\s+/u.test(line)).length;
   const bulletRate = lines.length ? bulletLines / lines.length : 0;
   const bulletScore = Math.max(0, Math.min(1, 1 - Math.max(0, bulletRate - 0.2) / 0.6));
-  findings.push(bulletRate > 0.2
-    ? { code: 'bullet_heavy', message: `${bulletLines} of ${lines.length} non-empty lines are bullets or numbered list items.` }
-    : { code: 'bullets_within_threshold', message: 'Bullet use is within the heuristic 20% threshold.' });
+  findings.push(
+    bulletRate > 0.2
+      ? {
+          code: "bullet_heavy",
+          message: `${bulletLines} of ${lines.length} non-empty lines are bullets or numbered list items.`,
+        }
+      : {
+          code: "bullets_within_threshold",
+          message: "Bullet use is within the heuristic 20% threshold.",
+        },
+  );
 
   return {
     rate: (bannedRate + repetitionScore + bulletScore) / 3,
@@ -326,17 +447,26 @@ function evaluateBudget(proposalText: string, budget: RedTeamBudget | undefined)
   const checks: boolean[] = [];
   const findings: RedTeamFinding[] = [];
   if (budget?.ceiling === undefined) {
-    findings.push({ code: 'ceiling_unspecified', message: 'No grant award ceiling was supplied for comparison.' });
+    findings.push({
+      code: "ceiling_unspecified",
+      message: "No grant award ceiling was supplied for comparison.",
+    });
   } else if (budget.requestedAmount === undefined) {
     checks.push(false);
-    findings.push({ code: 'requested_amount_missing', message: 'A grant ceiling is known, but the requested amount is missing.' });
+    findings.push({
+      code: "requested_amount_missing",
+      message: "A grant ceiling is known, but the requested amount is missing.",
+    });
   } else if (budget.requestedAmount <= budget.ceiling) {
     checks.push(true);
-    findings.push({ code: 'within_ceiling', message: 'The requested grant amount does not exceed the ceiling.' });
+    findings.push({
+      code: "within_ceiling",
+      message: "The requested grant amount does not exceed the ceiling.",
+    });
   } else {
     checks.push(false);
     findings.push({
-      code: 'ceiling_exceeded',
+      code: "ceiling_exceeded",
       message: `Requested amount ${budget.requestedAmount} exceeds the grant ceiling ${budget.ceiling}.`,
     });
   }
@@ -345,14 +475,16 @@ function evaluateBudget(proposalText: string, budget: RedTeamBudget | undefined)
     .map((match) => Number(match[1]?.replace(/,/gu, "")))
     .filter(Number.isFinite);
   for (const [label, amount] of [
-    ['grant request', budget?.requestedAmount],
-    ['required match', budget?.requiredMatchAmount],
+    ["grant request", budget?.requestedAmount],
+    ["required match", budget?.requiredMatchAmount],
   ] as const) {
     if (amount === undefined || amount === 0) continue;
     const amountIsMentioned = currencyAmounts.some((candidate) => candidate === amount);
     checks.push(amountIsMentioned);
     findings.push({
-      code: amountIsMentioned ? 'budget_total_narrative_aligned' : 'budget_total_narrative_mismatch',
+      code: amountIsMentioned
+        ? "budget_total_narrative_aligned"
+        : "budget_total_narrative_mismatch",
       message: amountIsMentioned
         ? `The ${label} amount appears in the proposal text.`
         : `The ${label} amount ${amount} does not appear as a matching currency amount in the proposal text.`,
@@ -364,20 +496,23 @@ function evaluateBudget(proposalText: string, budget: RedTeamBudget | undefined)
     const normalizedLabel = normalizeHeading(item.label);
     const labelIsMentioned = normalizedLabel.length > 3 && narrative.includes(normalizedLabel);
     const purposeIsMentioned = !item.purpose || narrative.includes(normalizeHeading(item.purpose));
-    const milestoneIsMentioned = !item.milestone || narrative.includes(normalizeHeading(item.milestone));
-    const itemIsAligned = amountIsMentioned && labelIsMentioned && purposeIsMentioned && milestoneIsMentioned;
+    const milestoneIsMentioned =
+      !item.milestone || narrative.includes(normalizeHeading(item.milestone));
+    const itemIsAligned =
+      amountIsMentioned && labelIsMentioned && purposeIsMentioned && milestoneIsMentioned;
     checks.push(itemIsAligned);
     findings.push({
-      code: itemIsAligned ? 'budget_item_narrative_aligned' : 'budget_item_narrative_mismatch',
+      code: itemIsAligned ? "budget_item_narrative_aligned" : "budget_item_narrative_mismatch",
       message: itemIsAligned
         ? `${item.label} and its amount, purpose, and milestone appear in the proposal text.`
         : `${item.label} needs review: verify its exact amount, purpose, and milestone are reflected in the proposal narrative.`,
     });
   }
-  if (!(budget?.lineItems?.length)) {
+  if (!budget?.lineItems?.length) {
     findings.push({
-      code: 'budget_line_items_not_supplied',
-      message: 'Structured budget line items were not supplied, so narrative-to-budget alignment could not be checked.',
+      code: "budget_line_items_not_supplied",
+      message:
+        "Structured budget line items were not supplied, so narrative-to-budget alignment could not be checked.",
     });
   }
   return {
@@ -390,44 +525,61 @@ function evaluateMatch(budget: RedTeamBudget | undefined) {
   if (budget?.matchRequired !== true) {
     return {
       rate: 1,
-      findings: [{
-        code: budget?.matchRequired === false ? 'match_not_required' : 'match_requirement_unspecified',
-        message: budget?.matchRequired === false
-          ? 'No matching funds are required.'
-          : 'No match requirement was supplied; consistency cannot be assessed.',
-      }],
+      findings: [
+        {
+          code:
+            budget?.matchRequired === false
+              ? "match_not_required"
+              : "match_requirement_unspecified",
+          message:
+            budget?.matchRequired === false
+              ? "No matching funds are required."
+              : "No match requirement was supplied; consistency cannot be assessed.",
+        },
+      ],
     };
   }
 
-  const required = budget.requiredMatchAmount
-    ?? (budget.requestedAmount !== undefined && budget.matchRate !== undefined
+  const required =
+    budget.requiredMatchAmount ??
+    (budget.requestedAmount !== undefined && budget.matchRate !== undefined
       ? budget.requestedAmount * budget.matchRate
       : undefined);
   if (required === undefined || budget.committedMatchAmount === undefined) {
     return {
       rate: 0,
-      findings: [{
-        code: 'match_details_missing',
-        message: 'Matching funds are required, but the required amount or documented commitment is missing.',
-      }],
+      findings: [
+        {
+          code: "match_details_missing",
+          message:
+            "Matching funds are required, but the required amount or documented commitment is missing.",
+        },
+      ],
     };
   }
   if (required <= 0) {
     return {
       rate: 1,
-      findings: [{ code: 'match_amount_satisfied', message: 'No positive match amount is required.' }],
+      findings: [
+        { code: "match_amount_satisfied", message: "No positive match amount is required." },
+      ],
     };
   }
 
   const rate = Math.min(1, Math.max(0, budget.committedMatchAmount / required));
   return {
     rate,
-    findings: [budget.committedMatchAmount >= required
-      ? { code: 'match_amount_satisfied', message: 'Documented matching funds meet or exceed the requirement.' }
-      : {
-        code: 'match_shortfall',
-        message: `Documented matching funds ${budget.committedMatchAmount} are below the required ${required}.`,
-      }],
+    findings: [
+      budget.committedMatchAmount >= required
+        ? {
+            code: "match_amount_satisfied",
+            message: "Documented matching funds meet or exceed the requirement.",
+          }
+        : {
+            code: "match_shortfall",
+            message: `Documented matching funds ${budget.committedMatchAmount} are below the required ${required}.`,
+          },
+    ],
   };
 }
 
@@ -437,31 +589,46 @@ function evaluateMatch(budget: RedTeamBudget | undefined) {
  */
 export function evaluateProposalRedTeam(input: RedTeamInput): RedTeamResult {
   const modules = [
-    makeModule('structure', ...(() => {
-      const result = evaluateStructure(input.proposalText, input.bom);
-      return [result.rate, result.findings] as const;
-    })()),
-    makeModule('evidence', ...(() => {
-      const result = evaluateEvidence(input);
-      return [result.rate, result.findings] as const;
-    })()),
-    makeModule('writing', ...(() => {
-      const result = evaluateWriting(input.proposalText);
-      return [result.rate, result.findings] as const;
-    })()),
-    makeModule('budgetCeiling', ...(() => {
-      const result = evaluateBudget(input.proposalText, input.budget);
-      return [result.rate, result.findings] as const;
-    })()),
-    makeModule('matchConsistency', ...(() => {
-      const result = evaluateMatch(input.budget);
-      return [result.rate, result.findings] as const;
-    })()),
+    makeModule(
+      "structure",
+      ...(() => {
+        const result = evaluateStructure(input.proposalText, input.bom);
+        return [result.rate, result.findings] as const;
+      })(),
+    ),
+    makeModule(
+      "evidence",
+      ...(() => {
+        const result = evaluateEvidence(input);
+        return [result.rate, result.findings] as const;
+      })(),
+    ),
+    makeModule(
+      "writing",
+      ...(() => {
+        const result = evaluateWriting(input.proposalText);
+        return [result.rate, result.findings] as const;
+      })(),
+    ),
+    makeModule(
+      "budgetCeiling",
+      ...(() => {
+        const result = evaluateBudget(input.proposalText, input.budget);
+        return [result.rate, result.findings] as const;
+      })(),
+    ),
+    makeModule(
+      "matchConsistency",
+      ...(() => {
+        const result = evaluateMatch(input.budget);
+        return [result.rate, result.findings] as const;
+      })(),
+    ),
   ];
   return {
     score: modules.reduce((total, module) => total + module.score, 0),
     maxScore: 100,
-    assessment: 'deterministic heuristic; semantic coverage is approximate',
+    assessment: "deterministic heuristic; semantic coverage is approximate",
     modules,
   };
 }

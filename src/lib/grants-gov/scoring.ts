@@ -87,7 +87,15 @@ export type ScoringOpportunity = {
 };
 
 export type CompetitionComponent = {
-  id: "award_rate" | "applicant_scarcity" | "awards_per_cycle" | "niche_advantage" | "geographic_fence" | "friction_passed" | "fast_turnaround" | "set_aside_lock";
+  id:
+    | "award_rate"
+    | "applicant_scarcity"
+    | "awards_per_cycle"
+    | "niche_advantage"
+    | "geographic_fence"
+    | "friction_passed"
+    | "fast_turnaround"
+    | "set_aside_lock";
   label: string;
   score: number;
   source: "reported" | "estimated";
@@ -214,19 +222,31 @@ function stateMatches(allowedStates: readonly string[], profileLocation: string)
   const stateName = stateFromLocation(profileLocation);
   return allowedStates.some((allowed) => {
     const value = allowed.trim().toUpperCase();
-    return value === "ALL" || value === "NATIONAL" || value === "US" ||
-      value === stateCode || allowed.trim().toLowerCase() === stateName?.toLowerCase();
+    return (
+      value === "ALL" ||
+      value === "NATIONAL" ||
+      value === "US" ||
+      value === stateCode ||
+      allowed.trim().toLowerCase() === stateName?.toLowerCase()
+    );
   });
 }
 
-function tenureRange(profile: GrantScoringProfile): { minimum: number; maximum: number | null } | null {
+function tenureRange(
+  profile: GrantScoringProfile,
+): { minimum: number; maximum: number | null } | null {
   const explicitMonths = profile.monthsInBusiness;
-  if (typeof explicitMonths === "number" && Number.isFinite(explicitMonths) && explicitMonths >= 0) {
+  if (
+    typeof explicitMonths === "number" &&
+    Number.isFinite(explicitMonths) &&
+    explicitMonths >= 0
+  ) {
     return { minimum: explicitMonths, maximum: explicitMonths };
   }
   const stage = normalize(profile.lifecycleStage);
   if (/idea|pre launch|not registered/.test(stage)) return { minimum: 0, maximum: 0 };
-  if (/new startup|under 1 year|early stage startup/.test(stage)) return { minimum: 0, maximum: 11 };
+  if (/new startup|under 1 year|early stage startup/.test(stage))
+    return { minimum: 0, maximum: 11 };
   if (/established|1\+ years|operating business|growth|expansion/.test(stage)) {
     return { minimum: 12, maximum: null };
   }
@@ -237,7 +257,13 @@ function computeVaultReadiness(
   opportunity: ScoringOpportunity,
   profile: GrantScoringProfile,
   evidence: readonly GrantScoringEvidence[],
-): { score: number; readyDocuments: number; totalDocuments: number; missing: string[]; reasons: string[] } {
+): {
+  score: number;
+  readyDocuments: number;
+  totalDocuments: number;
+  missing: string[];
+  reasons: string[];
+} {
   const mandatory = opportunity.requiredEvidence?.filter((item) => item.isMandatory) ?? [];
   const matchingEvidence = (tag: string) =>
     evidence.some(
@@ -259,7 +285,9 @@ function computeVaultReadiness(
     };
   }
 
-  const baseline = coreDocSlots(profile.entityType, profile.lifecycleStage).filter((slot) => slot.required);
+  const baseline = coreDocSlots(profile.entityType, profile.lifecycleStage).filter(
+    (slot) => slot.required,
+  );
   const available = baseline.filter((slot) => matchingEvidence(slot.key));
   const missing = baseline.filter((slot) => !matchingEvidence(slot.key));
   return {
@@ -353,19 +381,27 @@ function buildCompetitionComponents(
   if (prerequisites.length) {
     const hasSam = prerequisites.some((item) => /SAM|UEI|CAGE/i.test(item));
     const hasRegistration = prerequisites.some((item) => /state|registration/i.test(item));
-    const hasMatch = opportunity.costSharePercentage !== null &&
+    const hasMatch =
+      opportunity.costSharePercentage !== null &&
       opportunity.costSharePercentage !== undefined &&
       opportunity.costSharePercentage > 0;
-    const samPassed = hasSam && evidence.some((doc) =>
-      /sam|uei|cage/i.test(`${doc.slotKey} ${doc.categoryTag ?? ""}`),
-    );
-    const registrationPassed = hasRegistration && evidence.some((doc) =>
-      /registration|good.standing|license|permit/i.test(`${doc.slotKey} ${doc.categoryTag ?? ""}`),
-    );
+    const samPassed =
+      hasSam &&
+      evidence.some((doc) => /sam|uei|cage/i.test(`${doc.slotKey} ${doc.categoryTag ?? ""}`));
+    const registrationPassed =
+      hasRegistration &&
+      evidence.some((doc) =>
+        /registration|good.standing|license|permit/i.test(
+          `${doc.slotKey} ${doc.categoryTag ?? ""}`,
+        ),
+      );
     const matchPassed = evidence.some((doc) =>
-      /financial|budget|match|cost.share|vendor.quote/i.test(`${doc.slotKey} ${doc.categoryTag ?? ""}`),
+      /financial|budget|match|cost.share|vendor.quote/i.test(
+        `${doc.slotKey} ${doc.categoryTag ?? ""}`,
+      ),
     );
-    const passedCount = (samPassed ? 1 : 0) + (registrationPassed ? 1 : 0) + (hasMatch ? (matchPassed ? 1 : 0) : 0);
+    const passedCount =
+      (samPassed ? 1 : 0) + (registrationPassed ? 1 : 0) + (hasMatch ? (matchPassed ? 1 : 0) : 0);
     if (passedCount > 0) {
       const passedLabels = [
         samPassed ? "SAM.gov/UEI" : "",
@@ -394,7 +430,9 @@ function buildCompetitionComponents(
   if (open && close) {
     const windowDays = Math.ceil((close.getTime() - open.getTime()) / 86400000);
     if (windowDays > 0 && windowDays < 30) {
-      const coreReady = evidence.some((doc) => /ein|business_plan|photo_id|pitch_deck/i.test(doc.slotKey));
+      const coreReady = evidence.some((doc) =>
+        /ein|business_plan|photo_id|pitch_deck/i.test(doc.slotKey),
+      );
       result.push({
         id: "fast_turnaround",
         label: "Fast-turnaround window",
@@ -407,10 +445,13 @@ function buildCompetitionComponents(
 
   const setAsides = opportunity.demographicSetAsides ?? [];
   if (opportunity.grantTier && (opportunity.naicsCodes?.length || setAsides.length)) {
-    const profileText = `${profile.industry} ${profile.sectorCode} ${profile.demographics.join(" ")}`.toLowerCase();
+    const profileText =
+      `${profile.industry} ${profile.sectorCode} ${profile.demographics.join(" ")}`.toLowerCase();
     const matchedSetAside = setAsides.some((item) => matchesSetAside(item, profile.demographics));
-    const matchedNaics = opportunity.naicsCodes?.some((code) =>
-      profileText.includes(code.toLowerCase()) || profile.industry.toLowerCase().includes(code.toLowerCase()),
+    const matchedNaics = opportunity.naicsCodes?.some(
+      (code) =>
+        profileText.includes(code.toLowerCase()) ||
+        profile.industry.toLowerCase().includes(code.toLowerCase()),
     );
     if (matchedSetAside || matchedNaics) {
       result.push({
@@ -670,7 +711,9 @@ export function scoreGrantOpportunity(input: {
 
   const competitionComponents = buildCompetitionComponents(opportunity, profile, evidence);
   const legacyComponents = competitionComponents.filter((component) =>
-    ["award_rate", "applicant_scarcity", "awards_per_cycle", "niche_advantage"].includes(component.id),
+    ["award_rate", "applicant_scarcity", "awards_per_cycle", "niche_advantage"].includes(
+      component.id,
+    ),
   );
   const legacyWeight = legacyComponents.reduce(
     (total, component) => total + COMPETITION_WEIGHTS[component.id],
@@ -685,12 +728,18 @@ export function scoreGrantOpportunity(input: {
       )
     : null;
   const structuralComponents = competitionComponents.filter((component) =>
-    ["geographic_fence", "friction_passed", "fast_turnaround", "set_aside_lock"].includes(component.id),
+    ["geographic_fence", "friction_passed", "fast_turnaround", "set_aside_lock"].includes(
+      component.id,
+    ),
   );
-  const structuralPoints = structuralComponents.reduce((total, component) => total + component.score, 0);
-  const lowCompetitionScore = legacyScore !== null || structuralPoints > 0
-    ? Math.min(100, (legacyScore ?? 35) + structuralPoints)
-    : null;
+  const structuralPoints = structuralComponents.reduce(
+    (total, component) => total + component.score,
+    0,
+  );
+  const lowCompetitionScore =
+    legacyScore !== null || structuralPoints > 0
+      ? Math.min(100, (legacyScore ?? 35) + structuralPoints)
+      : null;
   const personalLowCompetitionScore =
     eligible && lowCompetitionScore !== null
       ? Math.round((lowCompetitionScore * fitScore) / 50)
@@ -713,16 +762,26 @@ export function scoreGrantOpportunity(input: {
         : lowCompetitionScore >= 40
           ? "Moderate"
           : "High";
-  const hasReportedData = competitionComponents.some((component) => component.source === "reported");
+  const hasReportedData = competitionComponents.some(
+    (component) => component.source === "reported",
+  );
   const dataConfidence: "Reported" | "Estimated" = hasReportedData ? "Reported" : "Estimated";
   const whyLowCompetition = competitionComponents
-    .filter((component) =>
-      ["geographic_fence", "friction_passed", "fast_turnaround", "set_aside_lock", "award_rate"].includes(component.id) &&
-      component.score > 0,
+    .filter(
+      (component) =>
+        [
+          "geographic_fence",
+          "friction_passed",
+          "fast_turnaround",
+          "set_aside_lock",
+          "award_rate",
+        ].includes(component.id) && component.score > 0,
     )
     .map((component) => `${component.label}: ${component.explanation}.`);
   if (!whyLowCompetition.length) {
-    whyLowCompetition.push("Estimated low-competition score; verify applicant volume and current award history on the official source.");
+    whyLowCompetition.push(
+      "Estimated low-competition score; verify applicant volume and current award history on the official source.",
+    );
   }
   const qualificationProof = [
     ...eligibilityReasons,
@@ -781,7 +840,9 @@ export function scoringInputFromLiveGrant(grant: LiveGrant): ScoringOpportunity 
     ...(grant.naicsCodes ? { naicsCodes: grant.naicsCodes } : {}),
     openDate: grant.openDate,
     closeDate: grant.closeDate,
-    ...(grant.costSharePercentage !== undefined ? { costSharePercentage: grant.costSharePercentage } : {}),
+    ...(grant.costSharePercentage !== undefined
+      ? { costSharePercentage: grant.costSharePercentage }
+      : {}),
     costSharingRequired: (grant.costSharePercentage ?? 0) > 0,
     ...(grant.prerequisites ? { prerequisites: grant.prerequisites } : {}),
     competitionMetrics: {
@@ -805,8 +866,13 @@ export function scoringInputFromUnifiedGrant(grant: UnifiedGrant): ScoringOpport
   return {
     id: grant.id,
     title: grant.title,
-    grantTier: grant.grantTier ??
-      (grant.poolTier === "state_territory" ? "State" : grant.poolTier === "foundation" ? "Foundation" : "Federal"),
+    grantTier:
+      grant.grantTier ??
+      (grant.poolTier === "state_territory"
+        ? "State"
+        : grant.poolTier === "foundation"
+          ? "Foundation"
+          : "Federal"),
     eligibleEntityTypes: grant.eligibleEntityTypes,
     demographicSetAsides: grant.demographicSetAsides,
     ...(grant.demographicTags !== undefined ? { demographicTags: grant.demographicTags } : {}),
@@ -831,10 +897,19 @@ export function scoringInputFromUnifiedGrant(grant: UnifiedGrant): ScoringOpport
     ...(grant.naicsCodes ? { naicsCodes: grant.naicsCodes } : {}),
     ...(grant.openDate ? { openDate: grant.openDate } : {}),
     ...(grant.closeDate ? { closeDate: grant.closeDate } : {}),
-    ...(grant.costSharingPercentage !== undefined ? { costSharePercentage: grant.costSharingPercentage } : {}),
+    ...(grant.costSharingPercentage !== undefined
+      ? { costSharePercentage: grant.costSharingPercentage }
+      : {}),
     ...(grant.prerequisites ? { prerequisites: grant.prerequisites } : {}),
     ...(grant.historicalApplicantCount !== undefined
-      ? { competitionMetrics: { applicantCount: { value: grant.historicalApplicantCount, sourceUrl: grant.officialApplicationUrl ?? grant.directApplyUrl } } }
+      ? {
+          competitionMetrics: {
+            applicantCount: {
+              value: grant.historicalApplicantCount,
+              sourceUrl: grant.officialApplicationUrl ?? grant.directApplyUrl,
+            },
+          },
+        }
       : {}),
   };
 }

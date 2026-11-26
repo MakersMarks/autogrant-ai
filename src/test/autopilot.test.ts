@@ -4,6 +4,7 @@ import {
   canTransitionProposalStatus,
   createPostAwardChecklist,
   proposalPreflightBlockers,
+  proposalStatusBlockers,
 } from "@/lib/autopilot";
 
 const row = (status: string) => ({
@@ -59,6 +60,58 @@ describe("application tracker status adapter", () => {
     expect(proposalPreflightBlockers("All figures are supported by the uploaded records.")).toEqual(
       [],
     );
+  });
+
+  it("requires saved content, all attestations, and resolved evidence before submission-ready", () => {
+    const attestations = {
+      accuracy: true,
+      funderRules: true,
+      requirements: true,
+      auditReviewed: true,
+      freshEyes: true,
+    };
+    expect(
+      proposalStatusBlockers({
+        currentStatus: "draft",
+        nextStatus: "submission_ready",
+        narrative: "A reviewed proposal.",
+        attestations,
+      }),
+    ).toEqual([]);
+    expect(
+      proposalStatusBlockers({
+        currentStatus: "draft",
+        nextStatus: "submission_ready",
+        narrative: "Draft contains [MISSING_USER_EVIDENCE: current revenue].",
+        attestations,
+      }),
+    ).toEqual(["[MISSING_USER_EVIDENCE: current revenue]"]);
+    expect(
+      proposalStatusBlockers({
+        currentStatus: "draft",
+        nextStatus: "submission_ready",
+        narrative: "A reviewed proposal.",
+      }),
+    ).toContain("All human review confirmations are required.");
+  });
+
+  it("requires a ready status and explicit manual submission confirmation", () => {
+    expect(
+      proposalStatusBlockers({
+        currentStatus: "draft",
+        nextStatus: "submitted",
+        narrative: "A proposal.",
+        externalSubmissionConfirmed: true,
+      }),
+    ).toContain("Confirm manual submission from the submission-ready state.");
+    expect(
+      proposalStatusBlockers({
+        currentStatus: "submission_ready",
+        nextStatus: "submitted",
+        narrative: "A proposal.",
+        externalSubmissionConfirmed: true,
+      }),
+    ).toEqual([]);
   });
 
   it("creates a post-award follow-through checklist", () => {

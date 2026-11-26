@@ -25,7 +25,7 @@ import {
 } from "./proposal-policy";
 import { extractDocumentText } from "./documents.server";
 import { evaluateProposalRedTeam, type RedTeamBudget } from "./red-team";
-import { canTransitionProposalStatus, proposalPreflightBlockers } from "@/lib/autopilot";
+import { proposalStatusBlockers } from "@/lib/autopilot";
 import {
   grantRequirementBOMSchema,
   verifyExtractedRequirements,
@@ -256,7 +256,9 @@ async function fetchGrantPage(value: string) {
     size += chunk.byteLength;
     if (size > (isPdf ? 5_000_000 : 1_000_000)) {
       await reader.cancel();
-      throw new Error(`The grant source is larger than the ${isPdf ? "5 MB" : "1 MB"} reading limit.`);
+      throw new Error(
+        `The grant source is larger than the ${isPdf ? "5 MB" : "1 MB"} reading limit.`,
+      );
     }
     chunks.push(chunk);
   }
@@ -269,9 +271,8 @@ async function fetchGrantPage(value: string) {
   const rawText = isPdf
     ? await extractDocumentText(bytes, "application/pdf")
     : new TextDecoder().decode(bytes);
-  const text = isPdf || contentType.includes("text/plain")
-    ? rawText.trim()
-    : stripHtmlDocument(rawText);
+  const text =
+    isPdf || contentType.includes("text/plain") ? rawText.trim() : stripHtmlDocument(rawText);
   if (!text) throw new Error("The grant webpage did not contain readable text.");
   const linkedGuidelines = isPdf
     ? []
@@ -279,7 +280,12 @@ async function fetchGrantPage(value: string) {
         .flatMap((match) => {
           const href = match[1];
           const label = stripHtmlDocument(match[2] ?? "");
-          if (!href || !/\.pdf(?:$|[?#])|guideline|nofo|notice|application|instructions/i.test(`${href} ${label}`)) {
+          if (
+            !href ||
+            !/\.pdf(?:$|[?#])|guideline|nofo|notice|application|instructions/i.test(
+              `${href} ${label}`,
+            )
+          ) {
             return [];
           }
           try {
@@ -301,7 +307,10 @@ async function fetchGrantGuidelineSources(url: string) {
     if (sources.reduce((total, source) => total + source.text.length, 0) >= 30000) break;
     try {
       const linked = await fetchGrantPage(guidelineUrl);
-      const remaining = Math.max(0, 30000 - sources.reduce((total, source) => total + source.text.length, 0));
+      const remaining = Math.max(
+        0,
+        30000 - sources.reduce((total, source) => total + source.text.length, 0),
+      );
       sources.push({ url: linked.url, text: linked.text.slice(0, remaining) });
     } catch (error) {
       notes.push(
@@ -387,7 +396,9 @@ export const copilotChat = createServerFn({ method: "POST" })
             ...(agency === undefined ? {} : { agency }),
             ...(category === undefined ? {} : { category }),
             ...(state === null ? {} : { state }),
-            ...(profile?.lifecycle_stage === undefined ? {} : { lifecycleStage: profile.lifecycle_stage }),
+            ...(profile?.lifecycle_stage === undefined
+              ? {}
+              : { lifecycleStage: profile.lifecycle_stage }),
             ...(profile?.entity_type === undefined ? {} : { entityType: profile.entity_type }),
             maxAward: maxAward ?? 25000,
             includeFederal: includeFederal ?? false,
@@ -486,7 +497,9 @@ export const copilotChat = createServerFn({ method: "POST" })
             .from("vault")
             .upload(path, bytes, { contentType: "text/plain" });
           if (uploadError) {
-            throw new Error(`Could not save budget line item to Vault storage: ${uploadError.message}`);
+            throw new Error(
+              `Could not save budget line item to Vault storage: ${uploadError.message}`,
+            );
           }
           const safeSlug = description
             .toLowerCase()
@@ -526,21 +539,44 @@ export const copilotChat = createServerFn({ method: "POST" })
       }),
       update_application_status: tool({
         description:
-          "Update the status of a proposal in the Application Tracker (draft, submission_ready, or submitted).",
+          "Return a proposal to draft or record a manually confirmed submission. Use the Application Tracker for submission-ready attestations.",
         inputSchema: z.object({
           applicationId: z.string().uuid(),
           newStatus: z.enum(["draft", "submission_ready", "submitted"]),
           confirmationReceipt: z.string().trim().max(200).optional(),
         }),
         execute: async ({ applicationId, newStatus, confirmationReceipt }) => {
-          const { error } = await context.supabase
+          const { data: application, error: readError } = await context.supabase
             .from("applications")
-            .update({
-              status: confirmationReceipt ? `${newStatus}::${confirmationReceipt}` : newStatus,
-            })
+            .select("id, status, narrative")
             .eq("id", applicationId)
-            .eq("user_id", context.userId);
-          if (error) throw new Error(`Could not update application: ${error.message}`);
+            .eq("user_id", context.userId)
+            .maybeSingle();
+          if (readError || !application)
+            throw new Error("That application could not be found in your tracker.");
+          const blockers = proposalStatusBlockers({
+            currentStatus: application.status,
+            nextStatus: newStatus,
+            narrative: application.narrative,
+            externalSubmissionConfirmed: Boolean(confirmationReceipt),
+          });
+          if (blockers.length) throw new Error(blockers.join(" "));
+
+          const status =
+            newStatus === "submitted" && confirmationReceipt
+              ? `submitted::${confirmationReceipt}`
+              : newStatus;
+          const { data: updated, error: updateError } = await context.supabase
+            .from("applications")
+            .update({ status })
+            .eq("id", applicationId)
+            .eq("user_id", context.userId)
+            .select("id")
+            .maybeSingle();
+          if (updateError || !updated)
+            throw new Error(
+              `Could not update application${updateError ? `: ${updateError.message}` : "."}`,
+            );
           return {
             status: "success",
             applicationId,
@@ -605,20 +641,27 @@ export const copilotChat = createServerFn({ method: "POST" })
           grantId: z.string().trim().min(1).max(200),
           draftText: z.string().trim().min(1).max(50000),
           guidelinesUrl: z.string().trim().url().max(2048).optional(),
-          budget: z.object({
-            requestedAmount: z.number().nonnegative().optional(),
-            ceiling: z.number().nonnegative().optional(),
-            matchRequired: z.boolean().optional(),
-            matchRate: z.number().min(0).max(1).optional(),
-            requiredMatchAmount: z.number().nonnegative().optional(),
-            committedMatchAmount: z.number().nonnegative().optional(),
-            lineItems: z.array(z.object({
-              label: z.string().trim().min(1).max(300),
-              amount: z.number().nonnegative(),
-              purpose: z.string().trim().max(500).optional(),
-              milestone: z.string().trim().max(500).optional(),
-            })).max(100).optional(),
-          }).optional(),
+          budget: z
+            .object({
+              requestedAmount: z.number().nonnegative().optional(),
+              ceiling: z.number().nonnegative().optional(),
+              matchRequired: z.boolean().optional(),
+              matchRate: z.number().min(0).max(1).optional(),
+              requiredMatchAmount: z.number().nonnegative().optional(),
+              committedMatchAmount: z.number().nonnegative().optional(),
+              lineItems: z
+                .array(
+                  z.object({
+                    label: z.string().trim().min(1).max(300),
+                    amount: z.number().nonnegative(),
+                    purpose: z.string().trim().max(500).optional(),
+                    milestone: z.string().trim().max(500).optional(),
+                  }),
+                )
+                .max(100)
+                .optional(),
+            })
+            .optional(),
         }),
         execute: async ({ grantId, draftText, guidelinesUrl, budget }) => {
           const grant = await getSiteGrantDetails(grantId);
@@ -668,9 +711,10 @@ export const copilotChat = createServerFn({ method: "POST" })
                 grantId,
                 grantTitle: title,
                 guidelinesUrl: sourceUrl,
-                note: fetchError instanceof Error
-                  ? `Could not read the public guidelines: ${fetchError.message}`
-                  : "No readable public guidelines text was found.",
+                note:
+                  fetchError instanceof Error
+                    ? `Could not read the public guidelines: ${fetchError.message}`
+                    : "No readable public guidelines text was found.",
               });
             }
           } else {
@@ -695,9 +739,7 @@ export const copilotChat = createServerFn({ method: "POST" })
               ? { requestedAmount: budget.requestedAmount }
               : {}),
             ...(budget?.ceiling !== undefined ? { ceiling: budget.ceiling } : {}),
-            ...(budget?.matchRequired !== undefined
-              ? { matchRequired: budget.matchRequired }
-              : {}),
+            ...(budget?.matchRequired !== undefined ? { matchRequired: budget.matchRequired } : {}),
             ...(budget?.matchRate !== undefined ? { matchRate: budget.matchRate } : {}),
             ...(budget?.requiredMatchAmount !== undefined
               ? { requiredMatchAmount: budget.requiredMatchAmount }
@@ -715,12 +757,14 @@ export const copilotChat = createServerFn({ method: "POST" })
             ...evaluateProposalRedTeam({
               proposalText: draftText,
               bom,
+              availableEvidenceIds: documents.data.map((document) => document.slot_key),
               budget: auditBudget,
             }),
             extractionStatus: bom.extractionStatus,
-            rubricStatus: bom.extractionStatus === "full"
-              ? "Public prompts and criteria were extracted with source-quote verification."
-              : "A complete funder-specific rubric could not be verified; see extraction notes and confirm portal instructions.",
+            rubricStatus:
+              bom.extractionStatus === "full"
+                ? "Public prompts and criteria were extracted with source-quote verification."
+                : "A complete funder-specific rubric could not be verified; see extraction notes and confirm portal instructions.",
             extractionNotes: [...(bom.extractionNotes ?? []), ...budgetWarnings],
           };
         },
@@ -812,10 +856,13 @@ If you write a plain text response instead of JSON, that is also fine—just mak
     }
     if (
       action.type === "edit_vault_file" &&
-      !documents.data.some((doc) => doc.id === action.documentId && doc.mime_type.startsWith("text/"))
+      !documents.data.some(
+        (doc) => doc.id === action.documentId && doc.mime_type.startsWith("text/"),
+      )
     ) {
       return {
-        reply: "I could not match an editable text document in your Vault, so I have not proposed an edit.",
+        reply:
+          "I could not match an editable text document in your Vault, so I have not proposed an edit.",
         action: { type: "none" as const },
       };
     }
@@ -845,7 +892,8 @@ export const executeCopilotAction = createServerFn({ method: "POST" })
       const upload = await context.supabase.storage
         .from("vault")
         .upload(path, bytes, { contentType: "text/plain" });
-      if (upload.error) throw new Error("Summary was drafted but could not be saved to your Vault.");
+      if (upload.error)
+        throw new Error("Summary was drafted but could not be saved to your Vault.");
       const inserted = await context.supabase
         .from("vault_documents")
         .insert({
@@ -910,9 +958,7 @@ export const executeCopilotAction = createServerFn({ method: "POST" })
       }
       if (!document.storage_path.startsWith(`${context.userId}/`))
         throw new Error("Vault ownership verification failed.");
-      const current = await context.supabase.storage
-        .from("vault")
-        .download(document.storage_path);
+      const current = await context.supabase.storage.from("vault").download(document.storage_path);
       if (current.error || !current.data)
         throw new Error("Could not read the selected Vault document.");
       const currentText = await current.data.text();
@@ -937,8 +983,7 @@ export const executeCopilotAction = createServerFn({ method: "POST" })
           contentType: document.mime_type,
           upsert: true,
         });
-      if (upload.error)
-        throw new Error(`Could not save revised document: ${upload.error.message}`);
+      if (upload.error) throw new Error(`Could not save revised document: ${upload.error.message}`);
       const update = await context.supabase
         .from("vault_documents")
         .update({ size_bytes: bytes.length })
@@ -1009,9 +1054,7 @@ export const executeCopilotAction = createServerFn({ method: "POST" })
     }
     let backup: Blob | null = null;
     if (document.storage_path) {
-      const download = await context.supabase.storage
-        .from("vault")
-        .download(document.storage_path);
+      const download = await context.supabase.storage.from("vault").download(document.storage_path);
       if (download.error || !download.data)
         throw new Error("Could not verify the Vault file before deletion.");
       backup = download.data;
@@ -1118,19 +1161,23 @@ async function extractGrantRequirements(input: {
         guidelinesUrl: "optional official source URL",
         extractionStatus: "full | partial | portal_only",
         extractionNotes: [],
-        extractedPrompts: [{
-          question: "exact funder question",
-          evidenceQuote: "verbatim supporting source text",
-          sourceUrl: "URL containing the quote",
-          maxWords: "optional explicit positive integer",
-          maxCharacters: "optional explicit positive integer",
-        }],
-        rubricCriteria: [{
-          criterion: "explicit evaluation criterion",
-          evidenceQuote: "verbatim supporting source text",
-          sourceUrl: "URL containing the quote",
-          weightPercent: "optional explicitly stated weight",
-        }],
+        extractedPrompts: [
+          {
+            question: "exact funder question",
+            evidenceQuote: "verbatim supporting source text",
+            sourceUrl: "URL containing the quote",
+            maxWords: "optional explicit positive integer",
+            maxCharacters: "optional explicit positive integer",
+          },
+        ],
+        rubricCriteria: [
+          {
+            criterion: "explicit evaluation criterion",
+            evidenceQuote: "verbatim supporting source text",
+            sourceUrl: "URL containing the quote",
+            weightPercent: "optional explicitly stated weight",
+          },
+        ],
         formatting: {
           submissionMedium: "pdf_upload | portal_text_fields | hard_copy_mail | not_stated",
           pageLimit: "optional positive integer",
@@ -1139,51 +1186,55 @@ async function extractGrantRequirements(input: {
           evidenceQuote: "verbatim quote supporting any non-default formatting requirements",
           sourceUrl: "URL containing the quote",
         },
-        aiDraftableDocuments: [{
-          documentType: "supported document type",
-          requiredHeadings: [],
-          wordLimitsPerSection: {},
-          fileFormats: ["formats explicitly stated for this document"],
-          evidenceQuote: "verbatim quote supporting every listed heading, limit, and file format",
-          sourceUrl: "URL containing the quote",
-        }],
-        userRequiredEvidence: [{
-          evidenceId: "stable id",
-          name: "exact requested item",
-          category: "legal_tax | license_permit | financial | vendor_quote",
-          isMandatory: true,
-          reason: "short cited requirement text",
-          evidenceQuote: "verbatim supporting source text",
-          sourceUrl: "URL containing the quote when publicly available",
-          autoMatchVaultTag: "Vault slot key or category tag",
-          fileFormats: ["formats explicitly stated for this attachment"],
-        }],
+        aiDraftableDocuments: [
+          {
+            documentType: "supported document type",
+            requiredHeadings: [],
+            wordLimitsPerSection: {},
+            fileFormats: ["formats explicitly stated for this document"],
+            evidenceQuote: "verbatim quote supporting every listed heading, limit, and file format",
+            sourceUrl: "URL containing the quote",
+          },
+        ],
+        userRequiredEvidence: [
+          {
+            evidenceId: "stable id",
+            name: "exact requested item",
+            category: "legal_tax | license_permit | financial | vendor_quote",
+            isMandatory: true,
+            reason: "short cited requirement text",
+            evidenceQuote: "verbatim supporting source text",
+            sourceUrl: "URL containing the quote when publicly available",
+            autoMatchVaultTag: "Vault slot key or category tag",
+            fileFormats: ["formats explicitly stated for this attachment"],
+          },
+        ],
       },
       grantId: input.grantId,
       grantTitle: input.grantTitle,
       sources: input.sources,
     }),
   );
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw new Error("The requirement parser returned invalid JSON. No checklist was saved.");
-    }
-    const result = grantRequirementBOMSchema.safeParse(parsed);
-    if (!result.success)
-      throw new Error(
-        "The requirement parser returned an unsupported checklist shape. No checklist was saved.",
-      );
-  const verified = verifyExtractedRequirements({
-    ...result.data,
-    grantId: input.grantId,
-    grantTitle: input.grantTitle,
-    extractionNotes: [
-      ...(result.data.extractionNotes ?? []),
-      ...(input.extractionNotes ?? []),
-    ],
-  }, input.sources);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("The requirement parser returned invalid JSON. No checklist was saved.");
+  }
+  const result = grantRequirementBOMSchema.safeParse(parsed);
+  if (!result.success)
+    throw new Error(
+      "The requirement parser returned an unsupported checklist shape. No checklist was saved.",
+    );
+  const verified = verifyExtractedRequirements(
+    {
+      ...result.data,
+      grantId: input.grantId,
+      grantTitle: input.grantTitle,
+      extractionNotes: [...(result.data.extractionNotes ?? []), ...(input.extractionNotes ?? [])],
+    },
+    input.sources,
+  );
   const guidelinesUrl = input.sources.find((source) => source.url.startsWith("https://"))?.url;
   return {
     ...verified,
@@ -1216,9 +1267,9 @@ function portalOnlyRequirements(input: {
 
 async function grantRequirementsSlotKey(grantId: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(grantId));
-  const key = Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
+  const key = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
   return `grant-requirements-${key}`;
 }
 
@@ -1236,9 +1287,15 @@ async function saveGrantRequirementsToVault(
     .eq("user_id", userId)
     .eq("slot_key", slotKey)
     .maybeSingle();
-  if (readError) throw new Error(`Could not check for a saved guidelines checklist: ${readError.message}`);
+  if (readError)
+    throw new Error(`Could not check for a saved guidelines checklist: ${readError.message}`);
 
-  const fileName = `Verified Grant Requirements - ${requirements.grantTitle.replace(/[^a-z0-9 -]/giu, "").trim().slice(0, 80) || "Grant"}.txt`;
+  const fileName = `Verified Grant Requirements - ${
+    requirements.grantTitle
+      .replace(/[^a-z0-9 -]/giu, "")
+      .trim()
+      .slice(0, 80) || "Grant"
+  }.txt`;
   const storagePath = `${userId}/${slotKey}-${crypto.randomUUID()}.txt`;
   const bytes = new TextEncoder().encode(JSON.stringify(requirements, null, 2));
   const { error: uploadError } = await supabase.storage
@@ -1516,8 +1573,7 @@ export const generateGrantDocument = createServerFn({ method: "POST" })
         })
         .select("id")
         .single();
-      if (insErr || !app)
-        throw new Error("Saved to Vault, but the tracker could not be updated.");
+      if (insErr || !app) throw new Error("Saved to Vault, but the tracker could not be updated.");
       appId = app.id;
     }
     return {
@@ -1682,47 +1738,16 @@ export const updateApplicationStatus = createServerFn({ method: "POST" })
     if (readError || !application)
       throw new Error("That application could not be found in your tracker.");
 
-    const currentStatus = application.status.split("::", 1)[0]!.trim().toLowerCase();
-    if (
-      data.status === "submission_ready" &&
-      (!application.narrative.trim() ||
-        !data.attestations?.accuracy ||
-        !data.attestations.funderRules ||
-        !data.attestations.requirements ||
-        !data.attestations.auditReviewed ||
-        !data.attestations.freshEyes)
-    ) {
-      throw new Error(
-        "A saved proposal and all human review confirmations are required before marking this draft submission-ready.",
-      );
-    }
-    if (data.status === "submission_ready") {
-      const blockers = proposalPreflightBlockers(application.narrative);
-      if (blockers.length) {
-        throw new Error(
-          `Resolve these evidence placeholders before marking the draft submission-ready: ${blockers.join("; ")}`,
-        );
-      }
-    }
-    if (
-      data.status === "submitted" &&
-      (currentStatus !== "submission_ready" || data.externalSubmissionConfirmed !== true)
-    ) {
-      throw new Error(
-        "Mark the draft submission-ready and confirm that you personally submitted it through the official portal first.",
-      );
-    }
-    if (
-      ["under_review", "awarded", "not_selected"].includes(data.status) &&
-      !["submitted", "under_review"].includes(currentStatus)
-    ) {
-      throw new Error(
-        "Only an externally submitted application can be moved into review or a decision status.",
-      );
-    }
-    if (!canTransitionProposalStatus(currentStatus, data.status)) {
-      throw new Error(`Application status cannot change from ${currentStatus} to ${data.status}.`);
-    }
+    const blockers = proposalStatusBlockers({
+      currentStatus: application.status,
+      nextStatus: data.status,
+      narrative: application.narrative,
+      ...(data.attestations === undefined ? {} : { attestations: data.attestations }),
+      ...(data.externalSubmissionConfirmed === undefined
+        ? {}
+        : { externalSubmissionConfirmed: data.externalSubmissionConfirmed }),
+    });
+    if (blockers.length) throw new Error(blockers.join(" "));
 
     const existingConfirmation = application.status.includes("::")
       ? application.status.slice(application.status.indexOf("::") + 2)
@@ -1730,8 +1755,7 @@ export const updateApplicationStatus = createServerFn({ method: "POST" })
     const status =
       data.status === "submitted" && data.confirmation
         ? `submitted::${data.confirmation}`
-        : ["under_review", "awarded", "not_selected"].includes(data.status) &&
-            existingConfirmation
+        : ["under_review", "awarded", "not_selected"].includes(data.status) && existingConfirmation
           ? `${data.status}::${existingConfirmation}`
           : data.status;
     const { data: updated, error: updateError } = await context.supabase
