@@ -135,7 +135,7 @@ export function buildBudgetJustification(input: BudgetInput, calculation: Budget
   const equipment = input.equipment
     .map((item) => ({ ...item, total: money(item.quantity * item.unitCost + item.freight + item.tax) }))
     .filter((item) => item.total > 0)
-    .map((item) => `${item.vendor}: ${item.quantity} unit(s) at ${formatMoney(item.unitCost)} each, plus ${formatMoney(item.freight)} freight and ${formatMoney(item.tax)} tax. Purpose: ${item.purpose}. Milestone: ${item.milestone}.`)
+    .map((item) => `${item.vendor}: ${item.quantity} unit(s) at ${formatMoney(item.unitCost)} each, plus ${formatMoney(item.freight)} freight and ${formatMoney(item.tax)} tax; line total ${formatMoney(item.total)}. Purpose: ${item.purpose}. Milestone: ${item.milestone}.`)
     .join("; ");
   const institutional = input.institutional
     .filter((item) => item.amount > 0)

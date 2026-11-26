@@ -11,6 +11,7 @@ describe("application package export", () => {
       funder: "Example Funder",
       amount: "Check current cycle",
       portalUrl: "https://example.gov/apply",
+      guidelinesUrl: "https://example.gov/nofo",
       documents: [{
         fileName: "Need Narrative.txt",
         sections: [{ title: "Project Need", body: "A community needs this project." }],
@@ -26,8 +27,24 @@ describe("application package export", () => {
           category: "vendor_quote",
           isMandatory: true,
           reason: "The notice requires a cost quote.",
+          evidenceQuote: "Applicants must upload a vendor quote.",
+          sourceUrl: "https://example.gov/nofo",
           autoMatchVaultTag: "vendor_quote",
           fileFormats: ["PDF"],
+        }],
+        extractionStatus: "partial",
+        guidelinesUrl: "https://example.gov/nofo",
+        extractedPrompts: [{
+          question: "Describe the expected measurable outcomes.",
+          evidenceQuote: "Applicants must describe measurable outcomes.",
+          sourceUrl: "https://example.gov/nofo",
+          maxWords: 250,
+        }],
+        rubricCriteria: [{
+          criterion: "Project outcomes",
+          evidenceQuote: "Outcomes receive 30 points.",
+          sourceUrl: "https://example.gov/nofo",
+          weightPercent: 30,
         }],
       },
     }));
@@ -39,7 +56,14 @@ describe("application package export", () => {
     expect(strFromU8(archive["narratives/Need Narrative.txt"]!)).toContain("A community needs this project.");
     expect(strFromU8(archive["requirements/compliance-checklist.txt"]!)).toContain("Vendor quote");
     expect(strFromU8(archive["requirements/compliance-checklist.txt"]!)).toContain("formats: PDF");
+    expect(strFromU8(archive["requirements/compliance-checklist.txt"]!)).toContain("Applicants must upload a vendor quote.");
+    expect(strFromU8(archive["requirements/compliance-checklist.txt"]!)).toContain("Describe the expected measurable outcomes.");
+    expect(strFromU8(archive["requirements/compliance-checklist.txt"]!)).toContain("Outcomes receive 30 points.");
+    expect(strFromU8(archive["submission-checklist.txt"]!)).toContain(
+      "Verify exact prompt wording and rubric weights directly in the funder's official guidelines before submitting.",
+    );
     expect(strFromU8(archive["submission-checklist.txt"]!)).toContain("https://example.gov/apply");
+    expect(strFromU8(archive["submission-checklist.txt"]!)).toContain("https://example.gov/nofo");
     expect(strFromU8(archive["README.txt"]!)).toContain("not official SF-424/SF-424A forms");
   });
 

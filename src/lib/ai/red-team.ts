@@ -22,6 +22,12 @@ export interface RedTeamBudget {
   requiredMatchAmount?: number;
   /** Match funds documented or committed in the proposal. */
   committedMatchAmount?: number;
+  lineItems?: readonly {
+    label: string;
+    amount: number;
+    purpose?: string;
+    milestone?: string;
+  }[];
 }
 
 export interface RedTeamInput {
@@ -192,7 +198,65 @@ function evaluateStructure(text: string, bom: GrantRequirementBOM) {
   const wordRate = wordChecks ? wordPasses / wordChecks : 1;
   if (!wordChecks) findings.push({ code: 'word_limits_unspecified', message: 'The BOM does not specify word limits.' });
   else if (wordPasses === wordChecks) findings.push({ code: 'word_limits_met', message: 'All configured word limits were met.' });
-  return { rate: headingsRate * 0.6 + wordRate * 0.4, findings };
+  const promptItems = bom.extractedPrompts ?? [];
+  const criteriaItems = bom.rubricCriteria ?? [];
+  const requiredItems = [
+    ...promptItems.map((item) => ({ kind: 'prompt', text: item.question })),
+    ...criteriaItems.map((item) => ({ kind: 'criterion', text: item.criterion })),
+  ];
+  let checklistRate = 1;
+  if (requiredItems.length) {
+    const normalizedProposal = normalizeHeading(text);
+    const isCovered = (target: string) => {
+      const normalizedTarget = normalizeHeading(target);
+      if (normalizedTarget && normalizedProposal.includes(normalizedTarget)) return true;
+      const terms = [...new Set(
+        normalizedTarget
+          .split(/\s+/u)
+          .filter((term) => term.length > 3 && !['what', 'when', 'where', 'which', 'your', 'this', 'that', 'with', 'from', 'have', 'will', 'does'].includes(term)),
+      )];
+      if (!terms.length) return false;
+      const matchingTerms = terms.filter((term) => normalizedProposal.includes(term));
+      return matchingTerms.length >= Math.max(2, Math.ceil(terms.length * 0.6));
+    };
+    const covered = requiredItems.filter(({ text: target }) => isCovered(target)).length;
+    checklistRate = covered / requiredItems.length;
+    const missingPrompts = promptItems.filter((item) => !isCovered(item.question));
+    const missingCriteria = criteriaItems.filter((item) => !isCovered(item.criterion));
+    if (checklistRate < 1) {
+      findings.push({
+        code: 'funder_prompt_or_criterion_coverage_approximate',
+        message: 'One or more extracted funder prompts or scoring criteria may not be addressed. Coverage is a keyword heuristic, not a semantic or official review.',
+      });
+    } else {
+      findings.push({
+        code: 'funder_prompt_or_criterion_keywords_found',
+        message: 'Keyword checks found text associated with every extracted funder prompt and criterion; this does not prove a complete answer.',
+      });
+    }
+    if (missingPrompts.length) {
+      findings.push({
+        code: 'funder_prompts_unverified',
+        message: `Review these exact extracted prompts against the draft: ${missingPrompts.map((item) => item.question).join('; ')}.`,
+      });
+    }
+    if (missingCriteria.length) {
+      findings.push({
+        code: 'funder_criteria_unverified',
+        message: `Review these exact extracted scoring criteria against the draft: ${missingCriteria.map((item) => item.criterion).join('; ')}.`,
+      });
+    }
+  } else {
+    findings.push({
+      code: 'funder_specific_rubric_unavailable',
+      message: 'No verified funder-specific prompts or scoring criteria were provided; this is a general structure review only.',
+    });
+  }
+  const baseRate = headingsRate * 0.6 + wordRate * 0.4;
+  return {
+    rate: requiredItems.length ? baseRate * 0.6 + checklistRate * 0.4 : baseRate,
+    findings,
+  };
 }
 
 function evaluateEvidence(input: RedTeamInput) {
@@ -258,31 +322,67 @@ function evaluateWriting(text: string) {
   };
 }
 
-function evaluateBudget(budget: RedTeamBudget | undefined) {
+function evaluateBudget(proposalText: string, budget: RedTeamBudget | undefined) {
+  const checks: boolean[] = [];
+  const findings: RedTeamFinding[] = [];
   if (budget?.ceiling === undefined) {
-    return {
-      rate: 1,
-      findings: [{ code: 'ceiling_unspecified', message: 'No grant award ceiling was supplied for comparison.' }],
-    };
-  }
-  if (budget.requestedAmount === undefined) {
-    return {
-      rate: 0,
-      findings: [{ code: 'requested_amount_missing', message: 'A grant ceiling is known, but the requested amount is missing.' }],
-    };
-  }
-  if (budget.requestedAmount <= budget.ceiling) {
-    return {
-      rate: 1,
-      findings: [{ code: 'within_ceiling', message: 'The requested grant amount does not exceed the ceiling.' }],
-    };
-  }
-  return {
-    rate: 0,
-    findings: [{
+    findings.push({ code: 'ceiling_unspecified', message: 'No grant award ceiling was supplied for comparison.' });
+  } else if (budget.requestedAmount === undefined) {
+    checks.push(false);
+    findings.push({ code: 'requested_amount_missing', message: 'A grant ceiling is known, but the requested amount is missing.' });
+  } else if (budget.requestedAmount <= budget.ceiling) {
+    checks.push(true);
+    findings.push({ code: 'within_ceiling', message: 'The requested grant amount does not exceed the ceiling.' });
+  } else {
+    checks.push(false);
+    findings.push({
       code: 'ceiling_exceeded',
       message: `Requested amount ${budget.requestedAmount} exceeds the grant ceiling ${budget.ceiling}.`,
-    }],
+    });
+  }
+
+  const currencyAmounts = [...proposalText.matchAll(/(?:\$|USD\s*)(\d[\d,]*(?:\.\d{1,2})?)/giu)]
+    .map((match) => Number(match[1]?.replace(/,/gu, "")))
+    .filter(Number.isFinite);
+  for (const [label, amount] of [
+    ['grant request', budget?.requestedAmount],
+    ['required match', budget?.requiredMatchAmount],
+  ] as const) {
+    if (amount === undefined || amount === 0) continue;
+    const amountIsMentioned = currencyAmounts.some((candidate) => candidate === amount);
+    checks.push(amountIsMentioned);
+    findings.push({
+      code: amountIsMentioned ? 'budget_total_narrative_aligned' : 'budget_total_narrative_mismatch',
+      message: amountIsMentioned
+        ? `The ${label} amount appears in the proposal text.`
+        : `The ${label} amount ${amount} does not appear as a matching currency amount in the proposal text.`,
+    });
+  }
+  for (const item of budget?.lineItems ?? []) {
+    const amountIsMentioned = currencyAmounts.some((amount) => amount === item.amount);
+    const narrative = normalizeHeading(proposalText);
+    const normalizedLabel = normalizeHeading(item.label);
+    const labelIsMentioned = normalizedLabel.length > 3 && narrative.includes(normalizedLabel);
+    const purposeIsMentioned = !item.purpose || narrative.includes(normalizeHeading(item.purpose));
+    const milestoneIsMentioned = !item.milestone || narrative.includes(normalizeHeading(item.milestone));
+    const itemIsAligned = amountIsMentioned && labelIsMentioned && purposeIsMentioned && milestoneIsMentioned;
+    checks.push(itemIsAligned);
+    findings.push({
+      code: itemIsAligned ? 'budget_item_narrative_aligned' : 'budget_item_narrative_mismatch',
+      message: itemIsAligned
+        ? `${item.label} and its amount, purpose, and milestone appear in the proposal text.`
+        : `${item.label} needs review: verify its exact amount, purpose, and milestone are reflected in the proposal narrative.`,
+    });
+  }
+  if (!(budget?.lineItems?.length)) {
+    findings.push({
+      code: 'budget_line_items_not_supplied',
+      message: 'Structured budget line items were not supplied, so narrative-to-budget alignment could not be checked.',
+    });
+  }
+  return {
+    rate: checks.length ? checks.filter(Boolean).length / checks.length : 1,
+    findings,
   };
 }
 
@@ -350,7 +450,7 @@ export function evaluateProposalRedTeam(input: RedTeamInput): RedTeamResult {
       return [result.rate, result.findings] as const;
     })()),
     makeModule('budgetCeiling', ...(() => {
-      const result = evaluateBudget(input.budget);
+      const result = evaluateBudget(input.proposalText, input.budget);
       return [result.rate, result.findings] as const;
     })()),
     makeModule('matchConsistency', ...(() => {

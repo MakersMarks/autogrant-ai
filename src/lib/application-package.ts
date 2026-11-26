@@ -199,6 +199,7 @@ export function buildApplicationPackage(input: {
   amount: string;
   documents: PackageDocument[];
   portalUrl?: string;
+  guidelinesUrl?: string;
   budget?: { input: BudgetInput; calculation: BudgetCalculation };
   requirements?: GrantRequirementBOM;
   attachments?: PackageAttachment[];
@@ -236,19 +237,45 @@ export function buildApplicationPackage(input: {
       `Page limit: ${input.requirements.formatting.pageLimit ?? "Not stated"}`,
       `Word limit: ${input.requirements.formatting.wordCountLimit ?? "Not stated"}`,
       `Required font: ${input.requirements.formatting.fontFamilyRequired ?? "Not stated"}`,
+      ...(input.requirements.formatting.evidenceQuote
+        ? [`Formatting source quote: "${input.requirements.formatting.evidenceQuote}"${input.requirements.formatting.sourceUrl ? ` — ${input.requirements.formatting.sourceUrl}` : ""}`]
+        : []),
       "",
       "AI-draftable documents:",
       ...input.requirements.aiDraftableDocuments.flatMap((document) => [
         `- ${document.documentType.replaceAll("_", " ")}${document.fileFormats?.length ? ` (formats: ${document.fileFormats.join(", ")})` : " (file format not stated)"}`,
         ...document.requiredHeadings.map((heading) => `  - ${heading}${document.wordLimitsPerSection?.[heading] ? ` (up to ${document.wordLimitsPerSection[heading]} words)` : ""}`),
+        ...(document.evidenceQuote
+          ? [`  Source quote: "${document.evidenceQuote}"${document.sourceUrl ? ` — ${document.sourceUrl}` : ""}`]
+          : []),
       ]),
       "",
       "Applicant-provided evidence:",
       ...(input.requirements.userRequiredEvidence.length
-        ? input.requirements.userRequiredEvidence.map((item) => `- ${item.isMandatory ? "Mandatory" : "Requested"}: ${item.name}${item.fileFormats?.length ? ` (formats: ${item.fileFormats.join(", ")})` : ""} — ${item.reason}`)
+        ? input.requirements.userRequiredEvidence.flatMap((item) => [
+          `- ${item.isMandatory ? "Mandatory" : "Requested"}: ${item.name}${item.fileFormats?.length ? ` (formats: ${item.fileFormats.join(", ")})` : ""} — ${item.reason}`,
+          ...(item.evidenceQuote ? [`  Source quote: "${item.evidenceQuote}"${item.sourceUrl ? ` — ${item.sourceUrl}` : ""}`] : []),
+        ])
         : ["- No evidence attachments were identified by the parser."]),
       "",
-      "This checklist was extracted by AI from user-provided text. Verify every item against the current official notice.",
+      "Verified application prompts:",
+      ...(input.requirements.extractedPrompts?.length
+        ? input.requirements.extractedPrompts.flatMap((item) => [
+          `- ${item.question}${item.maxWords ? ` (max ${item.maxWords} words)` : ""}${item.maxCharacters ? ` (max ${item.maxCharacters} characters)` : ""}`,
+          `  Source quote: "${item.evidenceQuote}"${item.sourceUrl ? ` — ${item.sourceUrl}` : ""}`,
+        ])
+        : ["- No exact application prompts were verified."]),
+      "",
+      "Verified evaluation criteria:",
+      ...(input.requirements.rubricCriteria?.length
+        ? input.requirements.rubricCriteria.map((item) =>
+          `- ${item.criterion}${item.weightPercent === undefined ? "" : ` (${item.weightPercent}%)`} — "${item.evidenceQuote}"${item.sourceUrl ? ` — ${item.sourceUrl}` : ""}`,
+        )
+        : ["- No exact scoring criteria or weights were verified."]),
+      "",
+      `Extraction status: ${input.requirements.extractionStatus ?? "partial"}.`,
+      ...(input.requirements.extractionNotes ?? []).map((note) => `Extraction note: ${note}`),
+      "Verify exact prompt wording and rubric weights directly in the funder's official guidelines before submitting. This checklist is not an authoritative compliance determination.",
     ].join("\n");
     files["requirements/compliance-checklist.txt"] = strToU8(checklist);
   }
@@ -256,6 +283,7 @@ export function buildApplicationPackage(input: {
   files["submission-checklist.txt"] = strToU8([
     `Program: ${input.grantTitle}`,
     `Official application portal: ${input.portalUrl?.trim() || "Not listed; verify the official funder site."}`,
+    `Official guidelines: ${input.guidelinesUrl?.trim() || "Not listed; locate the current official notice before drafting or submitting."}`,
     "",
     "Before submitting:",
     "- Confirm the program is open and that this notice is the current funding cycle.",
@@ -263,6 +291,7 @@ export function buildApplicationPackage(input: {
     "- Review every generated draft and replace each [Needs evidence: ...] note with verified applicant information.",
     "- Attach every mandatory form and evidence item required by the current solicitation.",
     "- Confirm budget totals, matching funds, file formats, and page or word limits.",
+    "- Verify exact prompt wording and rubric weights directly in the funder's official guidelines before submitting.",
     "- Submit through the official portal and save the submission confirmation.",
   ].join("\n"));
 
@@ -272,12 +301,14 @@ export function buildApplicationPackage(input: {
     `Program: ${input.grantTitle}`,
     `Listed award: ${input.amount}`,
     `Official application portal: ${input.portalUrl?.trim() || "Not listed; verify the official funder site."}`,
+    `Official guidelines: ${input.guidelinesUrl?.trim() || "Not listed; locate the current official notice before drafting or submitting."}`,
     "",
     "Use submission-checklist.txt before filing.",
     "Generated narratives are editable working drafts. Review all facts, headings, limits, and evidence against the current official solicitation.",
+    "Verify exact prompt wording and rubric weights directly in the funder's official guidelines before submitting; unavailable or gated instructions are never inferred.",
     "Narrative drafts are exported as PDF, DOCX, and TXT. Budget exports are PDF, CSV, and plain-text justification. Other required formats must be prepared in the funder's official system or with an approved tool.",
     "These are working drafts, not official SF-424/SF-424A forms. Verify SAM.gov registration and submit through the funder's official portal.",
-    "Any included compliance checklist is AI-extracted from user-provided text and must be checked against the current official notice.",
+    "Any included compliance checklist is AI-extracted from publicly fetched guidelines or user-provided text and must be checked against the current official notice.",
     "Vault attachments are included only when the user selected the include-evidence option.",
   ].join("\n"));
 

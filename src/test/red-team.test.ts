@@ -31,6 +31,7 @@ const completeProposal = [
   '',
   '## 2. Project Plan',
   'We will build a scheduling tool and test it with three clinics. Staff will review results monthly.',
+  'The grant request is $8,000 and includes a required match of $2,000, with $2,500 committed.',
 ].join('\n');
 
 describe('deterministic proposal red-team rubric', () => {
@@ -142,5 +143,47 @@ describe('deterministic proposal red-team rubric', () => {
       'varied_lengths',
       'bullet_heavy',
     ]));
+  });
+
+  it('flags uncovered verified funder prompts and criteria instead of treating the general rubric as complete', () => {
+    const result = evaluateProposalRedTeam({
+      proposalText: completeProposal,
+      bom: {
+        ...bom,
+        extractedPrompts: [{
+          question: 'How will project activities improve measurable rural access?',
+          evidenceQuote: 'Describe measurable improvements to rural access.',
+        }],
+        rubricCriteria: [{
+          criterion: 'Project outcomes and evaluation',
+          evidenceQuote: 'Projects will be evaluated on outcomes and evaluation methods.',
+          weightPercent: 25,
+        }],
+      },
+    });
+    const structure = result.modules.find(({ id }) => id === 'structure');
+    expect(structure?.findings.map(({ code }) => code)).toContain('funder_prompts_unverified');
+    expect(structure?.findings.map(({ code }) => code)).toContain('funder_criteria_unverified');
+    expect(structure?.findings.map(({ code }) => code)).toContain(
+      'funder_prompt_or_criterion_coverage_approximate',
+    );
+  });
+
+  it('reports a budget line item whose amount or narrative activity is missing', () => {
+    const result = evaluateProposalRedTeam({
+      proposalText: `${completeProposal}\nWe will purchase equipment for the project.`,
+      bom,
+      budget: {
+        requestedAmount: 8000,
+        lineItems: [{
+          label: 'Scheduling software',
+          amount: 3500,
+          purpose: 'Build the scheduling platform',
+          milestone: 'Pilot launch',
+        }],
+      },
+    });
+    const budget = result.modules.find(({ id }) => id === 'budgetCeiling');
+    expect(budget?.findings.map(({ code }) => code)).toContain('budget_item_narrative_mismatch');
   });
 });

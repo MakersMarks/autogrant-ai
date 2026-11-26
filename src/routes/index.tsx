@@ -923,6 +923,7 @@ function IndexComponent() {
                     eligibilityReason: `Grants.gov ${federal.number}. Eligible: ${federal.eligibility.join("; ") || "see listing"}. Closes ${federal.closeDate}.`.slice(0, 500),
                     deadline: federal.closeDate,
                     officialUrl: federal.url,
+                    guidelinesUrl: federal.url,
                   });
                 } else {
                   const pool = g as UnifiedGrant;
@@ -941,6 +942,7 @@ function IndexComponent() {
                     eligibilityReason: `${pool.summaryText} Confirm current eligibility and open funding cycle on the official funder site.`,
                     deadline: pool.directoryOnly ? "Check current cycle" : pool.isRolling ? "Rolling" : (pool.deadline ?? "Check current cycle"),
                     officialUrl: pool.officialApplicationUrl || pool.directApplyUrl,
+                    ...(pool.sourceSolicitationUrl ? { guidelinesUrl: pool.sourceSolicitationUrl } : {}),
                     ...(pool.publicWinnerHistoryUrl ? { publicWinnerHistoryUrl: pool.publicWinnerHistoryUrl } : {}),
                   });
                 }

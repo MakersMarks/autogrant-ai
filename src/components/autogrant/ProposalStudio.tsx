@@ -74,6 +74,9 @@ export function ProposalStudio({
   const [budgetInput, setBudgetInput] = useState<BudgetInput | null>(null);
   const [budgetCalculation, setBudgetCalculation] = useState<BudgetCalculation | null>(null);
   const [solicitationText, setSolicitationText] = useState("");
+  const [guidelinesUrl, setGuidelinesUrl] = useState(
+    grant.guidelinesUrl ?? grant.officialUrl ?? grant.portalUrl ?? "",
+  );
   const [parsedBOM, setParsedBOM] = useState<GrantRequirementBOM | null>(null);
   const [parseBusy, setParseBusy] = useState(false);
   const [parseError, setParseError] = useState("");
@@ -113,10 +116,19 @@ export function ProposalStudio({
     setParseError("");
     try {
       const result = await parseRequirements({
-        data: { grantId: grant.id, grantTitle: grant.title, solicitationText },
+        data: {
+          grantId: grant.id,
+          grantTitle: grant.title,
+          ...(solicitationText.trim().length >= 100 ? { solicitationText } : {}),
+          ...(guidelinesUrl.trim() ? { guidelinesUrl: guidelinesUrl.trim() } : {}),
+        },
       });
       setParsedBOM(result);
-      toast.success("Grant-specific requirements extracted; review them against the official notice.");
+      toast.success(
+        result.extractionStatus === "portal_only"
+          ? "Public instructions were unavailable; verify the exact prompts and rubric in the funder portal."
+          : "Guidelines analyzed. Review every extracted item and its source quote against the official notice.",
+      );
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not analyze the solicitation.";
       setParseError(message);
@@ -142,6 +154,7 @@ export function ProposalStudio({
           ...((grant.portalUrl ?? grant.officialUrl)
             ? { portalUrl: grant.portalUrl ?? grant.officialUrl }
             : {}),
+          ...(guidelinesUrl.trim() ? { guidelinesUrl: guidelinesUrl.trim() } : {}),
           applicationId: appId,
           requirements: parsedBOM ?? undefined,
         },
@@ -221,6 +234,7 @@ export function ProposalStudio({
         ...((grant.portalUrl ?? grant.officialUrl)
           ? { portalUrl: grant.portalUrl ?? grant.officialUrl }
           : {}),
+        ...(guidelinesUrl.trim() ? { guidelinesUrl: guidelinesUrl.trim() } : {}),
         ...(parsedBOM ? { requirements: parsedBOM } : {}),
         ...(budget ? { budget } : {}),
         attachments,
@@ -272,9 +286,37 @@ export function ProposalStudio({
     setBusy(false);
   };
   const proposalText = Object.values(docs).flatMap((doc) => doc?.sections ?? []).map((section) => `## ${section.title}\n${section.body}`).join("\n\n");
-  const audit = proposalText
+  const budgetJustificationForAudit = budgetInput && budgetCalculation?.valid
+    ? buildBudgetJustification(budgetInput, budgetCalculation)
+    : "";
+  const auditProposalText = [proposalText, budgetJustificationForAudit].filter(Boolean).join("\n\n");
+  const budgetLineItems = budgetInput
+    ? budgetInput.track === "federal" && budgetInput.federalCosts
+      ? Object.entries(budgetInput.federalCosts)
+          .filter(([, amount]) => amount > 0)
+          .map(([label, amount]) => ({ label, amount }))
+      : [
+          ...budgetInput.equipment
+            .map((item) => ({
+              label: `${item.vendor}: ${item.quantity} unit(s)`,
+              amount: Math.round((item.quantity * item.unitCost + item.freight + item.tax + Number.EPSILON) * 100) / 100,
+              ...(item.purpose ? { purpose: item.purpose } : {}),
+              ...(item.milestone ? { milestone: item.milestone } : {}),
+            }))
+            .filter((item) => item.amount > 0),
+          ...budgetInput.institutional
+            .filter((item) => item.amount > 0)
+            .map((item) => ({
+              label: item.category,
+              amount: item.amount,
+              ...(item.purpose ? { purpose: item.purpose } : {}),
+              ...(item.milestone ? { milestone: item.milestone } : {}),
+            })),
+        ]
+    : [];
+  const audit = auditProposalText
     ? evaluateProposalRedTeam({
-      proposalText,
+      proposalText: auditProposalText,
       bom,
       availableEvidenceIds,
       budget: {
@@ -285,15 +327,16 @@ export function ProposalStudio({
         } : {}),
         ...(budgetInput?.awardCeiling != null ? { ceiling: budgetInput.awardCeiling } : {}),
         ...(budgetInput?.costSharingPercentage != null ? { matchRate: budgetInput.costSharingPercentage / 100 } : {}),
+        ...(budgetLineItems.length ? { lineItems: budgetLineItems } : {}),
       },
     })
     : null;
   const moduleLabels: Record<string, string> = {
-    structure: "Format & Word Counts",
+    structure: "Format, Prompts & Rubric",
     evidence: "Vault Evidence",
     writing: "Anti-AI Diction",
-    budgetCeiling: "Budget Math",
-    matchConsistency: "Mandatory Headings",
+    budgetCeiling: "Budget & Narrative Consistency",
+    matchConsistency: "Match Funding Consistency",
   };
 
   return (
@@ -348,22 +391,34 @@ export function ProposalStudio({
           {view === "requirements" ? (
             <div className="space-y-5">
               <section className="space-y-3">
-                <h4 className="font-bold text-sm">Extract this funder’s checklist</h4>
-                <p className="text-xs text-muted-foreground">Paste the official notice or application instructions. Only explicitly stated requirements are extracted. This checklist is session-only; verify it against the funder’s current instructions.</p>
+                <h4 className="font-bold text-sm">Extract prompts, rubric, and requirements</h4>
+                <p className="text-xs text-muted-foreground">AutoGrant can read a public guidelines page and up to two linked PDF notices, or analyze pasted text. Extracted checklists are saved in your private Vault for reference; they are not yet shared in the public grant catalog. Items are kept only when an exact supporting quote is found. Verify everything in the current official instructions.</p>
+                <label className="block space-y-1 text-xs">
+                  <span>Official guidelines / NOFO URL</span>
+                  <input
+                    aria-label="Official guidelines URL"
+                    type="url"
+                    value={guidelinesUrl}
+                    onChange={(event) => setGuidelinesUrl(event.target.value)}
+                    maxLength={2048}
+                    placeholder="https://funder.gov/current-guidelines"
+                    className="w-full rounded-xl border border-border bg-background p-3 text-sm"
+                  />
+                </label>
                 <textarea
                   aria-label="Grant solicitation text"
                   value={solicitationText}
                   onChange={(event) => setSolicitationText(event.target.value)}
                   rows={9}
                   maxLength={30000}
-                  placeholder="Paste the official solicitation or application instructions here (100–30,000 characters)…"
+                  placeholder="Optional: paste official solicitation text here (100–30,000 characters)…"
                   className="w-full rounded-xl border border-border bg-background p-3 text-sm"
                 />
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-xs text-muted-foreground">{solicitationText.length}/30,000 characters</span>
-                  <button type="button" disabled={parseBusy || solicitationText.trim().length < 100} onClick={parseSolicitation}
+                  <button type="button" disabled={parseBusy || (solicitationText.trim().length < 100 && !guidelinesUrl.trim())} onClick={parseSolicitation}
                     className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-40">
-                    {parseBusy ? "Analyzing…" : parsedBOM ? "Re-analyze solicitation" : "Extract requirements"}
+                    {parseBusy ? "Analyzing…" : parsedBOM ? "Re-analyze guidelines" : "Fetch and extract"}
                   </button>
                 </div>
                 {parseError && <p role="alert" className="text-xs text-destructive">{parseError}</p>}
@@ -373,6 +428,57 @@ export function ProposalStudio({
                   <h4 className="font-bold text-sm">Requirement checklist</h4>
                   <span className="text-xs text-muted-foreground">Submission format: {bom.formatting.submissionMedium.replaceAll("_", " ")}</span>
                 </div>
+                {parsedBOM && (
+                  <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+                    <p className="text-xs font-semibold">
+                      Guidelines extraction: {parsedBOM.extractionStatus ?? "partial"}
+                    </p>
+                    {parsedBOM.guidelinesUrl && (
+                      <a className="text-xs text-primary underline" href={parsedBOM.guidelinesUrl} target="_blank" rel="noreferrer">
+                        Open extracted source
+                      </a>
+                    )}
+                    {parsedBOM.extractionNotes?.map((note) => (
+                      <p key={note} className="text-xs text-amber-700">{note}</p>
+                    ))}
+                    {(parsedBOM.extractedPrompts?.length ?? 0) > 0 ? (
+                      parsedBOM.extractedPrompts?.map((item, index) => (
+                        <article key={`${index}-${item.question}`} className="border-t border-border pt-2">
+                          <p className="text-xs font-semibold">Prompt {index + 1}: {item.question}</p>
+                          {(item.maxWords || item.maxCharacters) && (
+                            <p className="text-xs text-muted-foreground">
+                              Limits: {item.maxWords ? `${item.maxWords} words` : ""}
+                              {item.maxWords && item.maxCharacters ? " · " : ""}
+                              {item.maxCharacters ? `${item.maxCharacters} characters` : ""}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground">Verified source quote: “{item.evidenceQuote}”</p>
+                          {item.sourceUrl && <a className="text-xs text-primary underline" href={item.sourceUrl} target="_blank" rel="noreferrer">Open prompt source</a>}
+                        </article>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No exact application prompt was verified.</p>
+                    )}
+                    {(parsedBOM.rubricCriteria?.length ?? 0) > 0 ? (
+                      parsedBOM.rubricCriteria?.map((item, index) => (
+                        <article key={`${index}-${item.criterion}`} className="border-t border-border pt-2">
+                          <p className="text-xs font-semibold">
+                            {item.criterion}{item.weightPercent === undefined ? "" : ` · ${item.weightPercent}%`}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Verified source quote: “{item.evidenceQuote}”</p>
+                          {item.sourceUrl && <a className="text-xs text-primary underline" href={item.sourceUrl} target="_blank" rel="noreferrer">Open criterion source</a>}
+                        </article>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No exact scoring criterion or weight was verified.</p>
+                    )}
+                    {parsedBOM.extractionStatus !== "full" && (
+                      <p role="alert" className="text-xs text-amber-700">
+                        Verify exact prompt wording and rubric weights directly in the funder’s official guidelines before submitting. AutoGrant will not invent missing instructions.
+                      </p>
+                    )}
+                  </div>
+                )}
                 {bom.formatting.pageLimit && <p className="text-xs">Page limit: {bom.formatting.pageLimit}</p>}
                 {bom.formatting.wordCountLimit && <p className="text-xs">Word limit: {bom.formatting.wordCountLimit}</p>}
                 {bom.formatting.fontFamilyRequired && <p className="text-xs">Required font: {bom.formatting.fontFamilyRequired}</p>}
@@ -392,6 +498,8 @@ export function ProposalStudio({
                     <div key={item.evidenceId} className="p-3 rounded-lg border border-border bg-background">
                       <p className="text-sm font-semibold"><span className={available ? "text-success" : "text-amber-600"}>{available ? "✓" : "!"}</span> {item.name} {item.isMandatory ? "(mandatory)" : "(requested)"}</p>
                       <p className="text-xs text-muted-foreground mt-1">{item.reason} · {item.category.replaceAll("_", " ")}</p>
+                      {item.evidenceQuote && <p className="text-xs text-muted-foreground mt-1">Verified source quote: “{item.evidenceQuote}”</p>}
+                      {item.sourceUrl && <a className="text-xs text-primary underline" href={item.sourceUrl} target="_blank" rel="noreferrer">Open evidence requirement source</a>}
                       <p className="text-xs mt-1">Required file format: {item.fileFormats?.join(", ") || "Not stated"}</p>
                       <p className="text-xs mt-1">{available ? "Matching Vault slot or category tag found; confirm the file is the requested evidence." : "Not found in the matching Vault slot or category; upload or confirm the required evidence."}</p>
                     </div>
@@ -416,6 +524,11 @@ export function ProposalStudio({
                   })}
                 </div>
                 {parsedBOM && <p className="text-[11px] text-amber-700">AI-extracted text is not an authoritative compliance determination. Confirm every requirement, eligibility rule, and deadline in the current official notice.</p>}
+                {!parsedBOM && (
+                  <p role="alert" className="text-[11px] text-amber-700">
+                    No funder-specific prompts or rubric have been verified. Any draft is a baseline only; verify exact prompt wording and rubric weights directly in the funder’s official guidelines before submitting.
+                  </p>
+                )}
               </section>
             </div>
           ) : view === "submit" ? (

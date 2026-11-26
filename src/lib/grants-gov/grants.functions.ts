@@ -417,8 +417,12 @@ export async function getSiteGrantDetails(grantId: string) {
       eligibilitySummary: listed.summaryText,
       minimumMonthsInBusiness: listed.minMonthsInBusiness ?? null,
       officialUrl: listed.directApplyUrl,
+      guidelinesUrl: listed.sourceSolicitationUrl ?? listed.directApplyUrl,
       solicitationText: null,
       scoringCriteria: null,
+      extractedPrompts: [],
+      rubricCriteria: [],
+      extractionStatus: "portal_only" as const,
       requirementsSource:
         "Directory entry only; the full current solicitation was not stored in AutoGrant.",
     };
@@ -436,8 +440,12 @@ export async function getSiteGrantDetails(grantId: string) {
     description: grant.description,
     costSharing: grant.costSharing,
     officialUrl: grant.moreInfoUrl ?? grantUrl(grantId),
+    guidelinesUrl: grant.moreInfoUrl ?? null,
     solicitationText: null,
     scoringCriteria: null,
+    extractedPrompts: [],
+    rubricCriteria: [],
+    extractionStatus: "portal_only" as const,
     requirementsSource:
       "Grants.gov listing details; the full RFP/NOFO and scoring rubric are not included in this response.",
   };

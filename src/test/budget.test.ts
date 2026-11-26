@@ -78,6 +78,7 @@ describe("budget calculations", () => {
     const input = budget();
     const result = calculateBudget(input);
     const justification = buildBudgetJustification(input, result);
+    expect(justification).toContain("line total $220.00");
     expect(justification).toContain("Purpose: Purchase lab supplies for the pilot.");
     expect(justification).toContain("Milestone: Complete the first 20 pilot tests.");
     expect(justification).toContain("Purpose: Pay a project coordinator.");

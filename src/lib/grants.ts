@@ -19,6 +19,7 @@ export type Grant = {
   summaryText?: string;
   prerequisites?: string[];
   portalUrl?: string;
+  guidelinesUrl?: string;
   officialUrl?: string;
   publicWinnerHistoryUrl?: string;
 };
