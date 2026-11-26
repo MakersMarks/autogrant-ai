@@ -32,6 +32,18 @@ describe("live grant rules", () => {
       expect(isUnifiedGrantOpen({ isRolling: false, closeDate: "not a date" }, now)).toBe(false);
     });
   });
+
+  it("does not infer more than one year of operating history from an established-stage label", () => {
+    const result = evaluateHonestEligibility(
+      { min_months_in_business: 24 },
+      { lifecycle_stage: "Established Business" },
+    );
+
+    expect(result.eligible).toBe(false);
+    expect(result.disqualifierReasons).toContain(
+      "Requires at least 24 months in business (you entered 12).",
+    );
+  });
   it("reports award-scale signals without treating them as competition statistics", () => {
     expect(grantAwardScaleSignals({ awardCeiling: 100000, numberOfAwards: 1 })).toEqual([
       "award_ceiling_at_most_100k",
@@ -65,7 +77,9 @@ import {
   entityMode,
   eligibilityCodesFor,
   isEntityEligible,
+  demographicRequirementMatches,
   scoutKeywords,
+  interleaveUniqueSearchResults,
 } from "@/lib/grants-gov/rules";
 describe("scout + entity gate", () => {
   it("nonprofits get nonprofit codes, companies get business codes", () => {
@@ -163,6 +177,43 @@ describe("scout + entity gate", () => {
     expect(k).toContain("artificial intelligence");
     expect(k).toContain("sbir");
   });
+  it("keeps broad minority and immigrant searches alongside technical profile terms", () => {
+    const blackOwned = scoutKeywords({
+      industry: "AI and GovTech",
+      fundingPurpose: "Product development",
+      entityType: "LLC / Corporation",
+      demographics: ["black_owned"],
+    });
+    expect(blackOwned).toContain("black-owned small business grants");
+    expect(blackOwned).toContain("minority business grants");
+    expect(blackOwned).toContain("sbir");
+    expect(blackOwned).toContain("ai and govtech");
+    expect(blackOwned).toHaveLength(5);
+
+    expect(
+      scoutKeywords({ demographics: ["immigrant_owned"] }),
+    ).toContain("immigrant entrepreneur grants");
+    expect(scoutKeywords({ demographics: ["SEDI"] })).toContain("sedi small business grants");
+    expect(scoutKeywords({ demographics: ["LMI"] })).toContain(
+      "lmi and opportunity zone small business grants",
+    );
+  });
+  it("interleaves unique results so later query categories reach detail lookup", () => {
+    const selected = interleaveUniqueSearchResults(
+      [
+        [{ id: "a" }, { id: "b" }, { id: "c" }],
+        [{ id: "a" }, { id: "d" }, { id: "e" }],
+      ],
+      (result) => result.id,
+      4,
+    );
+    expect(selected.map((result) => result.id)).toEqual(["a", "b", "d", "c"]);
+  });
+  it("treats a self-reported minority group as matching a broad minority set-aside", () => {
+    expect(demographicRequirementMatches(["minority_owned"], ["black_owned"])).toBe(true);
+    expect(demographicRequirementMatches(["black_owned"], ["minority_owned"])).toBe(false);
+    expect(demographicRequirementMatches(["women_owned"], ["black_owned"])).toBe(false);
+  });
   it("scouts specific project language and sector synonyms", () => {
     const k = scoutKeywords({
       industry: "Food service",
@@ -174,7 +225,7 @@ describe("scout + entity gate", () => {
     expect(k).toContain("commercial kitchen");
     expect(k).toContain("kitchen equipment");
     expect(k.length).toBeGreaterThanOrEqual(3);
-    expect(k.length).toBeLessThanOrEqual(4);
+    expect(k.length).toBeLessThanOrEqual(5);
   });
 });
 

@@ -73,6 +73,39 @@ describe("Live grants feed effects", () => {
     });
   });
 
+  it("adds saved founder demographics to discovery keywords", async () => {
+    render(
+      <LiveGrantsFeed
+        signedIn
+        drafting={false}
+        onDraft={() => {}}
+        profile={{
+          projectName: "Example business",
+          sector: "BC",
+          industry: "AI and GovTech",
+          lifecycleStage: "Established Business",
+          fundingPurpose: "Product development",
+          fundingGoal: "25000",
+          location: "Des Moines, Iowa",
+          entityType: "LLC / Corporation",
+          demographics: ["black_owned"],
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(serverFns.searchLiveGrants).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          keywords: expect.arrayContaining([
+            "black-owned small business grants",
+            "minority business grants",
+            "sbir",
+          ]),
+        }),
+      });
+    });
+  });
+
   it("keeps portal directories distinct from confirmed open opportunities", () => {
     const mapped = mapSiteGrantToUnified({
       id: "program-directory",

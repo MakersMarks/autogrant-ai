@@ -335,7 +335,7 @@ export function CopilotDrawer({
                   ref={fileInput}
                   type="file"
                   className="sr-only"
-                  accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,application/pdf,text/plain,text/csv,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file) void uploadAndReview(file);

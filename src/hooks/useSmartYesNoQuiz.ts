@@ -7,7 +7,11 @@ import {
   type YesNoQuestion,
 } from "@/data/yesNoQuestionBank";
 import { getMultiPoolRegistry } from "@/lib/grants-gov/grants.functions";
-import { evaluateHonestEligibility, stateCodeFromLocation } from "@/lib/grants-gov/rules";
+import {
+  demographicRequirementMatches,
+  evaluateHonestEligibility,
+  stateCodeFromLocation,
+} from "@/lib/grants-gov/rules";
 import { standardizedDemographicTags } from "@/lib/grants-gov/scoring";
 import { trackLovableEvent } from "@/lib/lovable-error-reporting";
 
@@ -60,22 +64,37 @@ function matchesSmartMatchProfile(
   const demographicTags = standardizedDemographicTags(
     grant.demographicTags?.length ? grant.demographicTags : (grant.demographicSetAsides ?? []),
   );
+  const profileDemographicTags = standardizedDemographicTags(profile.demographics);
+  if (
+    grant.requiresStrictDemographic === true &&
+    demographicTags.length > 0 &&
+    !demographicRequirementMatches(demographicTags, profileDemographicTags)
+  ) {
+    return false;
+  }
+  const states = grant.states ?? grant.eligibleStates;
   return evaluateHonestEligibility(
     {
-      status: grant.status,
-      directory_only: grant.directoryOnly,
-      states: grant.states ?? grant.eligibleStates,
-      eligible_entity_types: grant.eligibleEntityTypes,
-      min_months_in_business: grant.minMonthsInBusiness,
-      stage_tags: grant.stageTags,
+      ...(grant.status === undefined ? {} : { status: grant.status }),
+      ...(grant.directoryOnly === undefined ? {} : { directory_only: grant.directoryOnly }),
+      ...(states === undefined ? {} : { states }),
+      ...(grant.eligibleEntityTypes === undefined
+        ? {}
+        : { eligible_entity_types: grant.eligibleEntityTypes }),
+      ...(grant.minMonthsInBusiness === undefined
+        ? {}
+        : { min_months_in_business: grant.minMonthsInBusiness }),
+      ...(grant.stageTags === undefined ? {} : { stage_tags: grant.stageTags }),
       demographic_tags: demographicTags,
-      requires_strict_demographic: grant.requiresStrictDemographic,
+      ...(grant.requiresStrictDemographic === undefined
+        ? {}
+        : { requires_strict_demographic: grant.requiresStrictDemographic }),
     },
     {
       state: profile.state,
       lifecycle_stage: profile.lifecycleStage,
       entity_type: profile.entityType,
-      demographic_tags: standardizedDemographicTags(profile.demographics),
+      demographic_tags: profileDemographicTags,
     },
   ).eligible;
 }
@@ -114,16 +133,28 @@ async function loadMatchCount(
     if (
       matchesSmartMatchProfile(
         {
-          status: grant.status,
-          directoryOnly: grant.directory_only,
-          states: grant.states,
-          eligibleStates: grant.eligible_states,
-          eligibleEntityTypes: grant.eligible_entity_types,
-          minMonthsInBusiness: grant.min_months_in_business,
-          stageTags: grant.stage_tags,
-          demographicTags: grant.demographic_tags,
-          demographicSetAsides: grant.demographic_set_asides,
-          requiresStrictDemographic: grant.requires_strict_demographic,
+          ...(grant.status === undefined ? {} : { status: grant.status }),
+          ...(grant.directory_only === undefined ? {} : { directoryOnly: grant.directory_only }),
+          ...(grant.states === undefined ? {} : { states: grant.states }),
+          ...(grant.eligible_states === undefined
+            ? {}
+            : { eligibleStates: grant.eligible_states }),
+          ...(grant.eligible_entity_types === undefined
+            ? {}
+            : { eligibleEntityTypes: grant.eligible_entity_types }),
+          ...(grant.min_months_in_business === undefined
+            ? {}
+            : { minMonthsInBusiness: grant.min_months_in_business }),
+          ...(grant.stage_tags === undefined ? {} : { stageTags: grant.stage_tags }),
+          ...(grant.demographic_tags === undefined
+            ? {}
+            : { demographicTags: grant.demographic_tags }),
+          ...(grant.demographic_set_asides === undefined
+            ? {}
+            : { demographicSetAsides: grant.demographic_set_asides }),
+          ...(grant.requires_strict_demographic === undefined
+            ? {}
+            : { requiresStrictDemographic: grant.requires_strict_demographic }),
         },
         profile,
       )
@@ -135,15 +166,25 @@ async function loadMatchCount(
     if (
       matchesSmartMatchProfile(
         {
-          status: grant.status,
-          directoryOnly: grant.directoryOnly,
-          states: grant.eligibleStates,
-          eligibleEntityTypes: grant.eligibleEntityTypes,
-          minMonthsInBusiness: grant.minMonthsInBusiness,
-          stageTags: grant.stageTags,
-          demographicTags: grant.demographicTags,
-          demographicSetAsides: grant.demographicSetAsides,
-          requiresStrictDemographic: grant.requiresStrictDemographic,
+          ...(grant.status === undefined ? {} : { status: grant.status }),
+          ...(grant.directoryOnly === undefined ? {} : { directoryOnly: grant.directoryOnly }),
+          ...(grant.eligibleStates === undefined ? {} : { states: grant.eligibleStates }),
+          ...(grant.eligibleEntityTypes === undefined
+            ? {}
+            : { eligibleEntityTypes: grant.eligibleEntityTypes }),
+          ...(grant.minMonthsInBusiness === undefined
+            ? {}
+            : { minMonthsInBusiness: grant.minMonthsInBusiness }),
+          ...(grant.stageTags === undefined ? {} : { stageTags: grant.stageTags }),
+          ...(grant.demographicTags === undefined
+            ? {}
+            : { demographicTags: grant.demographicTags }),
+          ...(grant.demographicSetAsides === undefined
+            ? {}
+            : { demographicSetAsides: grant.demographicSetAsides }),
+          ...(grant.requiresStrictDemographic === undefined
+            ? {}
+            : { requiresStrictDemographic: grant.requiresStrictDemographic }),
         },
         profile,
       )

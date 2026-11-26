@@ -4,7 +4,14 @@ import { createFileRoute } from '@tanstack/react-router';
 import { ApplicationTracker } from '../components/ApplicationTracker';
 import { AuthModal } from '../components/AuthModal';
 import { deleteVaultDocument, processDocumentUpload } from '../lib/vault';
-import { Grant, type UnifiedGrant } from '../lib/grants';
+import {
+  coreDocSlots,
+  CUSTOM_DOC_SLOTS,
+  Grant,
+  inferVaultSlotKey,
+  resolveVaultSlotKey,
+  type UnifiedGrant,
+} from '../lib/grants';
 import { LiveGrantsFeed } from '@/components/autogrant/LiveGrantsFeed';
 import { applicationToProposal } from '../lib/autopilot';
 import { useServerFn } from '@tanstack/react-start';
@@ -140,6 +147,22 @@ function IndexComponent() {
       ...(!intake.funding_goal?.trim() ? ["Funding goal"] : []),
     ]
     : ["Sign in and complete your profile"];
+  const coreVaultSlots = useMemo(
+    () => coreDocSlots(intake?.entity_type ?? "", intake?.lifecycle_stage ?? ""),
+    [intake?.entity_type, intake?.lifecycle_stage],
+  );
+  const vaultSlotOptions = useMemo(() => {
+    const industrySlots = getIndustryDocumentRequirements(
+      intake?.industry ?? "",
+      intake?.entity_type ?? "",
+    ).map((requirement) => ({ key: requirement.key, name: requirement.name, required: true }));
+    return [
+      ...new Map([...coreVaultSlots, ...CUSTOM_DOC_SLOTS, ...industrySlots].map((slot) => [slot.key, slot])).values(),
+    ];
+  }, [coreVaultSlots, intake?.entity_type, intake?.industry]);
+  const coreVaultReadyCount = coreVaultSlots.filter((slot) =>
+    vaultDocs.some((doc) => doc.slotKey === slot.key),
+  ).length;
   const intakeComplete = profileMissingFields.length === 0;
   const autopilotGate = evaluateAutopilotGate({
     projectName: intake?.project_name ?? "",
@@ -334,7 +357,7 @@ function IndexComponent() {
       type: d.mime_type,
       uploadedAt: d.created_at,
       storagePath: d.storage_path,
-      slotKey: d.slot_key,
+      slotKey: resolveVaultSlotKey(d.slot_key, d.file_name),
       ...(d.category_tag ? { categoryTag: d.category_tag } : {}),
       ...(d.grant_id ? { grantId: d.grant_id } : {}),
     })));
@@ -375,13 +398,19 @@ function IndexComponent() {
     try {
       setStatusMessage(`Uploading ${file.name} (Max 15MB)...`);
       const categoryTag = options.autoCategorize ? options.categoryTag : options.categoryTag ?? uploadCategory;
+      const slotKey = (options.slotKey ?? uploadSlotKey) || inferVaultSlotKey(file.name);
       const doc = await processDocumentUpload(file, {
         ...(categoryTag ? { categoryTag } : {}),
         ...(selectedGrant?.id ? { grantId: selectedGrant.id } : {}),
-        ...(options.slotKey ? { slotKey: options.slotKey } : uploadSlotKey ? { slotKey: uploadSlotKey } : {}),
+        ...(slotKey ? { slotKey } : {}),
       });
       setVaultDocs((prev) => [doc, ...prev]);
-      setStatusMessage(doc.metadataWarning ? `${doc.metadataWarning} Saved: ${doc.name}` : `Saved successfully: ${doc.name}`);
+      setUploadSlotKey("");
+      setStatusMessage(
+        doc.metadataWarning
+          ? `${doc.metadataWarning} Saved: ${doc.name}`
+          : `Saved successfully: ${doc.name}${doc.slotKey ? ` (${doc.slotKey.replaceAll("_", " ")})` : ""}`,
+      );
       return true;
     } catch (err) {
       setStatusMessage(`Upload error: ${err instanceof Error ? err.message : "Unknown upload error."}`);
@@ -562,7 +591,7 @@ function IndexComponent() {
                 <input
                   type="file"
                   className="sr-only"
-                  accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,application/pdf,text/plain,text/csv,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file) void uploadVaultFile(file, { categoryTag: "legal_tax", slotKey: "photo_id" });
@@ -577,7 +606,7 @@ function IndexComponent() {
                 <input
                   type="file"
                   className="sr-only"
-                  accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,application/pdf,text/plain,text/csv,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file) void uploadVaultFile(file);
@@ -652,7 +681,7 @@ function IndexComponent() {
       <header className="border-b border-slate-800 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
-            AutoGrant AI <span className="text-xs font-mono bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800">v2.6 Secure Live</span>
+            AutoGrant AI             <span className="text-xs font-mono bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800">Applicant Workspace</span>
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
             {businessStage === 'pre_launch'
@@ -849,7 +878,10 @@ function IndexComponent() {
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ReadinessItem label="Profile complete" ready={intakeComplete} />
-                <ReadinessItem label="Legal / tax evidence" ready={vaultDocs.some((doc) => doc.categoryTag === "legal_tax")} />
+                <ReadinessItem
+                  label={`Core Vault documents ${coreVaultReadyCount}/${coreVaultSlots.length}`}
+                  ready={coreVaultReadyCount === coreVaultSlots.length}
+                />
                 <ReadinessItem label="Vendor quotes" ready={vaultDocs.some((doc) => doc.categoryTag === "vendor_quote")} />
                 <ReadinessItem label="Active proposal" ready={!!selectedGrant} />
               </div>
@@ -977,8 +1009,24 @@ function IndexComponent() {
                   <option value="financial">Financial</option>
                 </select>
               </label>
+              <label className="block text-xs text-slate-400">Document type
+                <select
+                  aria-label="Vault document type"
+                  value={uploadSlotKey}
+                  onChange={(event) => setUploadSlotKey(event.target.value)}
+                  className="mt-1 block w-full bg-slate-950 border border-slate-700 rounded px-2 py-2 text-xs text-white"
+                >
+                  <option value="">Auto-detect from file name</option>
+                  {vaultSlotOptions.map((slot) => (
+                    <option key={slot.key} value={slot.key}>{slot.name}</option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-[10px] text-slate-500">
+                  Choose a type to connect this upload to grant matching and Vault readiness.
+                </span>
+              </label>
               <label className="block text-xs text-slate-400">Upload file
-                <input type="file" aria-label="Upload evidence" accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileUpload} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white" />
+                <input type="file" aria-label="Upload evidence" accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,application/pdf,text/plain,text/csv,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileUpload} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white" />
               </label>
               {vaultDocs.length === 0 && <p className="text-xs text-slate-400">No evidence uploaded yet.</p>}
               <div className="grid gap-2 sm:grid-cols-2">
@@ -1185,7 +1233,14 @@ function IndexComponent() {
           <DocumentViewer
             doc={viewing}
             onClose={() => setViewing(null)}
-            onSaved={(id, size) => setVaultDocs((current) => current.map((doc) => doc.id === id ? { ...doc, size } : doc))}
+            onSaved={(id, update) => {
+              setVaultDocs((current) => current.map((doc) => doc.id === id
+                ? { ...doc, size: update.size, storagePath: update.storagePath }
+                : doc));
+              setViewing((current) => current?.id === id
+                ? { ...current, size: update.size, storagePath: update.storagePath }
+                : current);
+            }}
           />
         </div>
       </main>

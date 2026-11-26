@@ -7,14 +7,19 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 export type ViewerDoc = VaultDocument;
 
 /** Opens any Vault file inside the app: text, PDF, or photo. */
-export function DocumentViewer({ doc, onClose, onSaved }: { doc: ViewerDoc | null; onClose: () => void; onSaved?: (id: string, size: number) => void }) {
+export function DocumentViewer({ doc, onClose, onSaved }: { doc: ViewerDoc | null; onClose: () => void; onSaved?: (id: string, update: { size: number; storagePath: string }) => void }) {
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setWarning("");
+  }, [doc?.id]);
 
   useEffect(() => {
     if (!doc?.storagePath) return;
@@ -58,10 +63,11 @@ export function DocumentViewer({ doc, onClose, onSaved }: { doc: ViewerDoc | nul
     setSaving(true);
     setError("");
     try {
-      const size = await updateVaultTextDocument(doc, draft);
+      const update = await updateVaultTextDocument(doc, draft);
       setText(draft);
       setEditing(false);
-      onSaved?.(doc.id, size);
+      setWarning(update.cleanupWarning ?? "");
+      onSaved?.(doc.id, update);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The edited document could not be saved.");
     } finally {
@@ -76,6 +82,7 @@ export function DocumentViewer({ doc, onClose, onSaved }: { doc: ViewerDoc | nul
         <div className="mt-4">
           {loading && <p className="text-sm text-muted-foreground">Opening document…</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {warning && <p role="status" className="text-sm text-amber-700">{warning}</p>}
           {text && doc?.type.startsWith("text/") && (
             <div className="space-y-2">
               {editing

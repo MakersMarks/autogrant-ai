@@ -107,6 +107,7 @@ export function LiveGrantsFeed({
             problemStatement: profileProblem,
             solutionArchitecture: profileSolution,
             fundingGoal: profile?.fundingGoal,
+            demographics: profile?.demographics,
           })
         : [],
     [
@@ -117,6 +118,7 @@ export function LiveGrantsFeed({
       profileProblem,
       profileSolution,
       profile?.fundingGoal,
+      profile?.demographics,
     ],
   );
   const [category, setCategory] = useState(
@@ -681,7 +683,7 @@ export function LiveGrantsFeed({
                           href={createGrantIssueUrl({
                             id: grant.id,
                             title: grant.title,
-                            sourceUrl: portalUrl,
+                            ...(portalUrl ? { sourceUrl: portalUrl } : {}),
                           })}
                           target="_blank"
                           rel="noreferrer"
@@ -772,7 +774,7 @@ export function LiveGrantsFeed({
                           href={createGrantIssueUrl({
                             id: grant.id,
                             title: grant.title,
-                            sourceUrl: directUrl,
+                            ...(directUrl ? { sourceUrl: directUrl } : {}),
                           })}
                           target="_blank"
                           rel="noreferrer"
@@ -934,7 +936,7 @@ export function LiveGrantsFeed({
                     href={createGrantIssueUrl({
                       id: grant.id,
                       title: grant.title,
-                      sourceUrl: directApplyHref,
+                      ...(directApplyHref ? { sourceUrl: directApplyHref } : {}),
                     })}
                     target="_blank"
                     rel="noreferrer"

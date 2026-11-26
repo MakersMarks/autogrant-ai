@@ -7,6 +7,7 @@ import {
   isEntityEligible,
   isInstitutionOnlyTitle,
   entityMode,
+  interleaveUniqueSearchResults,
   type LiveGrant,
 } from "./rules";
 import { corporateRegistry } from "@/lib/grants/sources/corporate-registry";
@@ -491,16 +492,14 @@ export const searchLiveGrants = createServerFn({ method: "POST" })
       }),
     );
 
-    const seen = new Map<string, { h: JsonRecord; keyword: string }>();
-    for (const result of results) {
-      for (const hit of result.hits) {
-        if (typeof hit["id"] !== "string" && typeof hit["id"] !== "number") continue;
-        const key = String(hit["id"]);
-        if (!seen.has(key)) seen.set(key, { h: hit, keyword: result.keyword });
-      }
-    }
-
-    const selectedHits = [...seen.values()].slice(0, MAX_DETAIL_LOOKUPS);
+    const selectedHits = interleaveUniqueSearchResults(
+      results.map((result) => result.hits.map((hit) => ({ h: hit, keyword: result.keyword }))),
+      (result) =>
+        typeof result.h["id"] === "string" || typeof result.h["id"] === "number"
+          ? String(result.h["id"])
+          : null,
+      MAX_DETAIL_LOOKUPS,
+    );
     const grants: LiveGrant[] = await Promise.all(
       selectedHits.map(async ({ h, keyword }) => {
         const extra = await detail(String(h["id"]));
@@ -631,7 +630,8 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }): Promise<{ pools: Record<string, UnifiedGrant[]> }> => {
-    const isCurrent = (grant: UnifiedGrant) => isUnifiedGrantOpen(grant);
+    const isCurrent = (grant: UnifiedGrant) =>
+      grant.directoryOnly === true || isUnifiedGrantOpen(grant);
     const earlyStage = /idea|pre.?launch|new startup|under 1 year|creator/i.test(
       data.lifecycleStage,
     );
@@ -643,6 +643,7 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
     const stateMatches = stateRegistry
       .filter(
         (grant) =>
+          grant.directoryOnly === true ||
           !data.state ||
           !grant.geographicScope.allowedStates?.length ||
           grant.geographicScope.allowedStates.includes(data.state.toUpperCase()),
@@ -653,6 +654,7 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
     const localMatches = localRegistry
       .filter(
         (grant) =>
+          grant.directoryOnly === true ||
           !data.state ||
           !grant.geographicScope.allowedStates?.length ||
           grant.geographicScope.allowedStates.includes(data.state.toUpperCase()),
@@ -667,19 +669,15 @@ export const getMultiPoolRegistry = createServerFn({ method: "POST" })
         Local: localMatches.filter((grant) => !grant.directoryOnly && isCurrent(grant)),
         Corporate: corporateRegistry.filter(
           (grant) =>
-            !grant.directoryOnly &&
             grant.poolTier === "corporate_diversity" &&
-            isCurrent(grant) &&
-            stageEligible(grant) &&
-            withinBudget(grant),
+            (grant.directoryOnly ||
+              (isCurrent(grant) && stageEligible(grant) && withinBudget(grant))),
         ),
         Foundation: corporateRegistry.filter(
           (grant) =>
-            !grant.directoryOnly &&
             grant.poolTier === "foundation" &&
-            isCurrent(grant) &&
-            stageEligible(grant) &&
-            withinBudget(grant),
+            (grant.directoryOnly ||
+              (isCurrent(grant) && stageEligible(grant) && withinBudget(grant))),
         ),
       },
     };

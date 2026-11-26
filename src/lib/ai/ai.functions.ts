@@ -25,7 +25,7 @@ import {
 } from "./proposal-policy";
 import { extractDocumentText } from "./documents.server";
 import { evaluateProposalRedTeam, type RedTeamBudget } from "./red-team";
-import { canTransitionProposalStatus } from "@/lib/autopilot";
+import { canTransitionProposalStatus, proposalPreflightBlockers } from "@/lib/autopilot";
 import {
   grantRequirementBOMSchema,
   verifyExtractedRequirements,
@@ -1695,6 +1695,14 @@ export const updateApplicationStatus = createServerFn({ method: "POST" })
       throw new Error(
         "A saved proposal and all human review confirmations are required before marking this draft submission-ready.",
       );
+    }
+    if (data.status === "submission_ready") {
+      const blockers = proposalPreflightBlockers(application.narrative);
+      if (blockers.length) {
+        throw new Error(
+          `Resolve these evidence placeholders before marking the draft submission-ready: ${blockers.join("; ")}`,
+        );
+      }
     }
     if (
       data.status === "submitted" &&

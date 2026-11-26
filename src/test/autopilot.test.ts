@@ -3,6 +3,7 @@ import {
   applicationToProposal,
   canTransitionProposalStatus,
   createPostAwardChecklist,
+  proposalPreflightBlockers,
 } from "@/lib/autopilot";
 
 const row = (status: string) => ({
@@ -47,6 +48,17 @@ describe("application tracker status adapter", () => {
     expect(canTransitionProposalStatus("draft", "awarded")).toBe(false);
     expect(canTransitionProposalStatus("awarded", "draft")).toBe(false);
     expect(canTransitionProposalStatus("not_selected", "submitted")).toBe(false);
+  });
+
+  it("blocks unresolved missing-evidence placeholders in a proposal preflight", () => {
+    expect(
+      proposalPreflightBlockers(
+        "## Plan\n[Needs evidence: current revenue] and [MISSING_USER_EVIDENCE: vendor quote]",
+      ),
+    ).toEqual(["[Needs evidence: current revenue]", "[MISSING_USER_EVIDENCE: vendor quote]"]);
+    expect(proposalPreflightBlockers("All figures are supported by the uploaded records.")).toEqual(
+      [],
+    );
   });
 
   it("creates a post-award follow-through checklist", () => {

@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { coreDocSlots, type Grant, type UnifiedGrant } from "@/lib/grants";
+import { coreDocSlots, resolveVaultSlotKey, type Grant, type UnifiedGrant } from "@/lib/grants";
 import { AuthScreen } from "./AuthScreen";
 import { Onboarding, type ProfileInput } from "./Onboarding";
 import { LiveGrantsFeed } from "./LiveGrantsFeed";
@@ -59,7 +59,12 @@ function Platform({ userId }: { userId: string }) {
       toast.error(`Could not load your Vault: ${error.message}`);
       return;
     }
-    setDocs(data ?? []);
+    setDocs(
+      (data ?? []).map((document) => ({
+        ...document,
+        slot_key: resolveVaultSlotKey(document.slot_key, document.file_name),
+      })),
+    );
   }, [userId]);
   const loadApps = useCallback(async () => {
     const { data, error } = await supabase.from("applications").select("*").eq("user_id", userId).order("created_at", { ascending: false });

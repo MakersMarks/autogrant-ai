@@ -2,7 +2,7 @@ import { extractText, getDocumentProxy } from 'unpdf';
 import { unzipSync, strFromU8 } from 'fflate';
 
 export async function extractDocumentText(bytes: Uint8Array, mime: string): Promise<string> {
-  if (mime === 'text/plain' || mime === 'text/markdown') return new TextDecoder().decode(bytes);
+  if (mime === 'text/plain' || mime === 'text/markdown' || mime === 'text/csv') return new TextDecoder().decode(bytes);
   if (mime === 'application/pdf') {
     const pdf = await getDocumentProxy(bytes, { maxImageSize: 16_777_216 });
     const result = await extractText(pdf, { mergePages: true });

@@ -39,6 +39,11 @@ export function canTransitionProposalStatus(current: string, next: ProposalDraft
   return isProposalStatus(current) && ALLOWED_STATUS_TRANSITIONS[current].includes(next);
 }
 
+export function proposalPreflightBlockers(narrative: string): string[] {
+  const markers = narrative.match(/\[(?:needs evidence|missing_user_evidence)\s*:?[^\]]*\]/giu) ?? [];
+  return [...new Set(markers.map((marker) => marker.trim()))];
+}
+
 /** Adapter for persisted application rows; AI generation is server-only in ai.functions.ts. */
 export function applicationToProposal(row: {
   id: string;

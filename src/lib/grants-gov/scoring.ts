@@ -1,6 +1,7 @@
 import { coreDocSlots, sectorName, type UnifiedGrant } from "@/lib/grants";
 import {
   evaluateHonestEligibility,
+  demographicRequirementMatches,
   entityMode,
   isEntityEligible,
   isOtherStateOnly,
@@ -188,17 +189,7 @@ function overlapScore(needles: string[], haystack: string): number {
 }
 
 function matchesSetAside(setAside: string, demographics: readonly string[]): boolean {
-  const profileTags = demographics.map(normalize);
-  const aliases: Record<string, string[]> = {
-    women_owned: ["woman owned", "women owned", "female", "wosb"],
-    minority_owned: ["minority", "black african diaspora", "hispanic latino", "native american"],
-    veteran_owned: ["veteran", "disabled veteran"],
-    rural: ["rural county", "rural", "appalachian delta region"],
-    african_diaspora: ["black african diaspora", "african diaspora", "black owned"],
-    lgbtq: ["lgbtq", "lgbtq owned"],
-  };
-  const candidates = aliases[setAside] ?? [normalize(setAside)];
-  return profileTags.some((tag) => candidates.some((candidate) => tag.includes(candidate)));
+  return demographicRequirementMatches([setAside], demographics);
 }
 
 function entityMatchesUnifiedGrant(
@@ -564,7 +555,7 @@ export function scoreGrantOpportunity(input: {
   if (
     opportunity.requiresStrictDemographic === true &&
     grantTags.length > 0 &&
-    !grantTags.some((tag) => profileTags.includes(tag))
+    !demographicRequirementMatches(grantTags, profileTags)
   ) {
     hardDisqualifiers.push(`Restricted to founders matching: ${grantTags.join(", ")}.`);
   }

@@ -26,6 +26,49 @@ export type LiveGrant = {
   eligibilityNotes?: string;
 };
 
+const MINORITY_GROUP_TAGS = new Set([
+  "black_owned",
+  "hispanic_owned",
+  "asian_owned",
+  "pacific_islander_owned",
+  "indigenous_owned",
+  "mena_owned",
+]);
+
+function canonicalDemographicTag(tag: string): string {
+  const value = tag.toLowerCase().replace(/[_-]+/g, " ").trim();
+  if (/black|african diaspora|african american/.test(value)) return "black_owned";
+  if (/hispanic|latino/.test(value)) return "hispanic_owned";
+  if (/asian/.test(value)) return "asian_owned";
+  if (/pacific islander|native hawaiian/.test(value)) return "pacific_islander_owned";
+  if (/indigenous|native american|alaska native|tribal/.test(value)) return "indigenous_owned";
+  if (/middle eastern|north african|mena/.test(value)) return "mena_owned";
+  if (/minority|underrepresented/.test(value)) return "minority_owned";
+  if (/immigrant|refugee|first generation/.test(value)) return "immigrant_owned";
+  if (/women owned|woman owned|female|wosb/.test(value)) return "women_owned";
+  if (/lgbtq/.test(value)) return "lgbtq_owned";
+  if (/veteran/.test(value)) return "veteran_owned";
+  if (/disability|disabled founder/.test(value)) return "disability_owned";
+  if (/rural/.test(value)) return "rural_business";
+  if (/hubzone|opportunity zone|low income/.test(value)) return "hubzone_or_low_income";
+  return value.replace(/\s+/g, "_");
+}
+
+export function demographicRequirementMatches(
+  requiredTags: readonly string[],
+  profileTags: readonly string[],
+): boolean {
+  const normalizedProfileTags = new Set(profileTags.map(canonicalDemographicTag));
+  return requiredTags.some((tag) => {
+    const required = canonicalDemographicTag(tag);
+    if (normalizedProfileTags.has(required)) return true;
+    return (
+      required === "minority_owned" &&
+      [...normalizedProfileTags].some((profileTag) => MINORITY_GROUP_TAGS.has(profileTag))
+    );
+  });
+}
+
 export const ELIGIBILITY_OPTIONS = [
   { value: "23|22|99|25", label: "For-profit & small business (all)" },
   { value: "12|13|99|25", label: "Nonprofits (all)" },
@@ -80,6 +123,31 @@ export function matchesAmount(
   if (!min && !max) return true;
   if (g.awardCeiling === null) return false;
   return (!min || g.awardCeiling >= min) && (!max || g.awardCeiling <= max);
+}
+
+export function interleaveUniqueSearchResults<T>(
+  resultSets: readonly (readonly T[])[],
+  getId: (result: T) => string | null,
+  limit: number,
+): T[] {
+  const selected: T[] = [];
+  const seen = new Set<string>();
+  const maxRows = Math.max(0, Math.floor(limit));
+  for (let index = 0; selected.length < maxRows; index += 1) {
+    let foundAtIndex = false;
+    for (const resultSet of resultSets) {
+      const result = resultSet[index];
+      if (result === undefined) continue;
+      foundAtIndex = true;
+      const id = getId(result);
+      if (id === null || seen.has(id)) continue;
+      seen.add(id);
+      selected.push(result);
+      if (selected.length >= maxRows) break;
+    }
+    if (!foundAtIndex) break;
+  }
+  return selected;
 }
 
 export function formatMoney(n: number | null): string {
@@ -252,7 +320,7 @@ const KEYWORD_STOP_WORDS = new Set([
   "would",
 ]);
 
-/** Derive targeted Grants.gov keywords from profile and project intent (max 4). */
+/** Derive a balanced set of profile, demographic, and project keywords (max 5). */
 export function scoutKeywords(p: {
   industry?: string | null;
   fundingPurpose?: string | null;
@@ -260,27 +328,48 @@ export function scoutKeywords(p: {
   problemStatement?: string | null;
   solutionArchitecture?: string | null;
   fundingGoal?: string | null;
+  demographics?: readonly string[] | null;
 }): string[] {
   const safeIndustry = typeof p.industry === "string" ? p.industry : "";
   const safePurpose = typeof p.fundingPurpose === "string" ? p.fundingPurpose : "";
   const safeProblem = typeof p.problemStatement === "string" ? p.problemStatement : "";
   const safeSolution = typeof p.solutionArchitecture === "string" ? p.solutionArchitecture : "";
   const text = `${safeIndustry} ${safePurpose} ${safeProblem} ${safeSolution}`;
-  const out: string[] = [];
   const ind = safeIndustry
     .trim()
     .replace(/[^\w\s&-]/g, " ")
     .replace(/\s+/g, " ")
     .slice(0, 60);
-  if (ind) out.push(ind);
   const purpose = safePurpose
     .trim()
     .replace(/[^\w\s&-]/g, " ")
     .replace(/\s+/g, " ")
     .slice(0, 60);
-  if (purpose) out.push(purpose);
-
   const intent = `${safeProblem} ${safeSolution}`.toLowerCase();
+  const demographicKeywords: string[] = [];
+  const demographicPatterns: Array<[RegExp, string[]]> = [
+    [/black|african diaspora/, ["Black-owned small business grants", "minority business grants"]],
+    [/hispanic|latino/, ["Hispanic-owned small business grants"]],
+    [/asian/, ["Asian-owned small business grants"]],
+    [/pacific islander|native hawaiian/, ["Native Hawaiian and Pacific Islander business grants"]],
+    [/indigenous|native american|alaska native|tribal/, ["Native American and tribal business grants"]],
+    [/middle eastern|north african|mena/, ["MENA entrepreneur grants"]],
+    [/immigrant|refugee|first generation/, ["immigrant entrepreneur grants"]],
+    [/women owned|woman owned|female|wosb/, ["women-owned small business grants"]],
+    [/lgbtq/, ["LGBTQ-owned small business grants"]],
+    [/veteran/, ["veteran-owned small business grants"]],
+    [/disability|disabled founder/, ["disability-owned small business grants"]],
+    [/rural/, ["rural small business grants"]],
+    [/hubzone/, ["HUBZone small business grants"]],
+    [/opportunity zone|low income|lmi/, ["LMI and Opportunity Zone small business grants"]],
+    [/sedi/, ["SEDI small business grants"]],
+    [/minority|underrepresented|underserved/, ["minority business grants", "underserved small business grants"]],
+  ];
+  for (const tag of p.demographics ?? []) {
+    const normalized = tag.toLowerCase().replace(/[_-]+/g, " ");
+    const match = demographicPatterns.find(([pattern]) => pattern.test(normalized));
+    if (match) demographicKeywords.push(...match[1]);
+  }
   const intentPhrases = [
     "commercial kitchen",
     "kitchen equipment",
@@ -292,15 +381,18 @@ export function scoutKeywords(p: {
     "youth mentorship",
     "veteran recognition",
     "supply chain",
+    "community impact",
+    "business council",
   ];
-  out.push(...intentPhrases.filter((phrase) => intent.includes(phrase)));
+  const matchedIntentPhrases = intentPhrases.filter((phrase) => intent.includes(phrase));
 
+  const domainKeywords: string[] = [];
   if (/\b(food|hospitality|restaurant|cater|kitchen|agriculture)\b/i.test(text)) {
-    out.push("food service", "kitchen equipment", "agriculture", "supply chain");
+    domainKeywords.push("food service", "kitchen equipment", "agriculture", "supply chain");
   } else if (/\b(mining|mineral|industrial|extraction)\b/i.test(text)) {
-    out.push("mineral exploration", "industrial machinery", "clean extraction", "export");
+    domainKeywords.push("mineral exploration", "industrial machinery", "clean extraction", "export");
   } else if (/\b(arts?|humanities|cultural|oral history|performing)\b/i.test(text)) {
-    out.push("cultural preservation", "veteran recognition", "performing arts", "youth mentorship");
+    domainKeywords.push("cultural preservation", "performing arts", "youth mentorship");
   }
 
   const anchors = `${safeProblem} ${safeSolution}`
@@ -308,20 +400,33 @@ export function scoutKeywords(p: {
     .replace(/[^\p{L}\p{N}\s-]/gu, " ")
     .split(/\s+/u)
     .filter((word) => word.length >= 4 && !KEYWORD_STOP_WORDS.has(word));
-  out.push(...anchors.slice(0, 3));
-
+  const capabilityKeywords: string[] = [];
   if (TECH.test(text)) {
-    out.push(
-      "artificial intelligence",
+    capabilityKeywords.push(
       entityMode(p.entityType) === "forprofit" ? "SBIR" : "technology capacity",
+      "artificial intelligence",
       "software",
     );
   } else if (entityMode(p.entityType) === "forprofit") {
-    out.push("small business", "small business grants");
+    capabilityKeywords.push("small business grants");
   } else {
-    out.push("community", "community grants");
+    capabilityKeywords.push("community grants");
   }
-  return [...new Set(out.map((k) => k.toLowerCase()))].slice(0, 4);
+  return [
+    ...new Set(
+      [
+        ind,
+        purpose,
+        ...demographicKeywords,
+        ...capabilityKeywords,
+        ...matchedIntentPhrases,
+        ...domainKeywords,
+        ...anchors.slice(0, 3),
+      ]
+        .map((keyword) => keyword.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ].slice(0, 5);
 }
 
 /** Tech profiles also search Science & Technology alongside their sector. */
@@ -448,7 +553,7 @@ export function evaluateHonestEligibility(
     : /early|startup|under 1 year|0.to.12/.test(stage)
       ? 6
       : /established|operating|growth/.test(stage)
-        ? 36
+        ? 12
         : null;
   const monthsInBusiness = profile.months_in_business ?? derivedMonths ?? 0;
   const minimumMonths = grant.min_months_in_business ?? 0;
@@ -458,10 +563,10 @@ export function evaluateHonestEligibility(
     );
   }
 
-  const profileTags = new Set(profile.demographic_tags ?? []);
+  const profileTags = profile.demographic_tags ?? [];
   const grantTags = grant.demographic_tags ?? [];
   if (grant.requires_strict_demographic === true && grantTags.length > 0) {
-    if (!grantTags.some((tag) => profileTags.has(tag))) {
+    if (!demographicRequirementMatches(grantTags, profileTags)) {
       reasons.push(`Restricted to founders matching: ${grantTags.join(", ")}.`);
     }
   }
@@ -491,7 +596,7 @@ export function evaluateHonestEligibility(
     (stageTags.some((tag) => /early_stage/.test(tag)) &&
       monthsInBusiness >= 12 &&
       monthsInBusiness < 36) ||
-    (stageTags.some((tag) => /established/.test(tag)) && monthsInBusiness >= 36);
+    (stageTags.some((tag) => /established/.test(tag)) && monthsInBusiness >= 12);
   if (exactStage || grant.min_months_in_business === 0) {
     operatingStage = 15;
   } else if (
@@ -534,7 +639,7 @@ export function evaluateHonestEligibility(
   }
   const awardAndMatchBurden = awardSizeFit + matchBurdenFit;
 
-  const matchesPriority = grantTags.some((tag) => profileTags.has(tag));
+  const matchesPriority = demographicRequirementMatches(grantTags, profileTags);
   const hasStateRestriction =
     states.length > 0 &&
     !states.some((state) => ["ALL", "US", "NATIONAL"].includes(state.toUpperCase()));

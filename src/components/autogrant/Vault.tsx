@@ -100,12 +100,12 @@ export function Vault({ userId, entityType, lifecycleStage = "", industry = "", 
         {err && !busy[slot.key] && <p className="text-xs text-destructive font-semibold">{err}</p>}
         {!doc && !busy[slot.key] && (
           <label className="border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-4 flex flex-col items-center cursor-pointer bg-card/50">
-            <span className="text-xs font-semibold">📁 Browse for PDF, DOCX, TXT, JPG, or PNG</span>
+            <span className="text-xs font-semibold">📁 Browse for PDF, DOCX, TXT, CSV, JPG, or PNG</span>
             <span className="text-[10px] text-muted-foreground mt-1">Max size: 15MB</span>
             <input
               type="file"
               aria-label={`Upload ${slot.name}`}
-              accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,image/jpeg,image/png"
+              accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,image/jpeg,image/png"
               onChange={(e) => upload(slot, e)}
               className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-xs file:font-semibold file:text-primary-foreground"
             />
@@ -119,7 +119,7 @@ export function Vault({ userId, entityType, lifecycleStage = "", industry = "", 
     <div className="space-y-6">
       <div className="bg-success/10 border border-success/30 p-4 rounded-xl">
         <span className="text-xs font-bold text-success uppercase tracking-wider block">🔒 Private Encrypted Vault</span>
-        <p className="text-xs mt-1">Files are stored privately, encrypted at rest, and only visible to your account.</p>
+        <p className="text-xs mt-1">Files are stored in private account-scoped storage and encrypted at rest. When you use AI features, readable Vault text may be sent to Lovable's AI Gateway for processing. Review the current provider terms for retention and model-training details; AutoGrant cannot independently verify those policies.</p>
       </div>
       <section id="industry-compliance" className="bg-card p-6 rounded-xl border border-border">
         <h3 className="text-lg font-display font-bold mb-1">Core Credentials ({entityType})</h3>
@@ -127,8 +127,8 @@ export function Vault({ userId, entityType, lifecycleStage = "", industry = "", 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{coreDocSlots(entityType, lifecycleStage).map(slotCard)}</div>
       </section>
       <section className="bg-card p-6 rounded-xl border border-border">
-        <h3 className="text-lg font-display font-bold mb-1">Additional Business Assets & Pitch Documents</h3>
-        <p className="text-xs text-muted-foreground mb-4">Pitch decks, business plans, or market research (PDF/DOCX).</p>
+        <h3 className="text-lg font-display font-bold mb-1">Typed Evidence & Business Assets</h3>
+        <p className="text-xs text-muted-foreground mb-4">Organize entity, financial, founder, partner, traction, and project evidence by type.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{CUSTOM_DOC_SLOTS.map(slotCard)}</div>
       </section>
       {industryRequirements.length > 0 && (

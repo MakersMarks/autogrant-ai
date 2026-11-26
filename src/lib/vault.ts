@@ -20,6 +20,7 @@ const ALLOWED_MIME_BY_EXT: Record<string, readonly string[]> = {
   ".pdf": ["application/pdf"],
   ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
   ".txt": ["text/plain"],
+  ".csv": ["text/csv"],
   ".jpg": ["image/jpeg"],
   ".jpeg": ["image/jpeg"],
   ".png": ["image/png"],
@@ -42,7 +43,7 @@ export function validateVaultFile(file: File): { valid: boolean; error?: string 
   const allowedMimes = ALLOWED_MIME_BY_EXT[ext];
   const mimeMatchesExt = !file.type || (allowedMimes?.includes(file.type) ?? false);
   if (!allowedMimes || !mimeMatchesExt) {
-    return { valid: false, error: 'Invalid file format. Please upload PDF, DOCX, TXT, JPG, or PNG.' };
+    return { valid: false, error: 'Invalid file format. Please upload PDF, DOCX, TXT, CSV, JPG, or PNG.' };
   }
   return { valid: true };
 }
@@ -70,6 +71,15 @@ export async function processDocumentUpload(
   const resolvedMimeType = resolveMimeType(file, ext);
   const filePath = `${user.id}/${Date.now()}_${Math.random().toString(36).substring(2, 7)}${safeExt}`;
   const slotKey = options.slotKey ?? `custom-${crypto.randomUUID()}`;
+  const { data: previousDocument, error: previousDocumentError } = await supabase
+    .from("vault_documents")
+    .select("storage_path")
+    .eq("user_id", user.id)
+    .eq("slot_key", slotKey)
+    .maybeSingle();
+  if (previousDocumentError) {
+    throw new Error(`Could not check for an existing Vault document: ${previousDocumentError.message}`);
+  }
 
   const { error: storageError } = await supabase.storage
     .from('vault')
@@ -89,7 +99,7 @@ export async function processDocumentUpload(
 
   let { data: dbData, error: dbError } = await supabase
     .from('vault_documents')
-    .insert(metadata)
+    .upsert(metadata, { onConflict: "user_id,slot_key" })
     .select()
     .single();
   let metadataWarning: string | undefined;
@@ -105,14 +115,14 @@ export async function processDocumentUpload(
     }
     const fallback = await supabase
       .from('vault_documents')
-      .insert({
+      .upsert({
         user_id: user.id,
         file_name: file.name,
         size_bytes: file.size,
         mime_type: resolvedMimeType,
         storage_path: filePath,
         slot_key: slotKey,
-      })
+      }, { onConflict: "user_id,slot_key" })
       .select()
       .single();
     dbData = fallback.data;
@@ -126,6 +136,16 @@ export async function processDocumentUpload(
     throw new Error('Document metadata could not be saved. Upload was rolled back.');
   }
 
+  let cleanupWarning: string | undefined;
+  if (previousDocument?.storage_path && previousDocument.storage_path !== filePath) {
+    const { error: cleanupError } = await supabase.storage
+      .from("vault")
+      .remove([previousDocument.storage_path]);
+    if (cleanupError) {
+      cleanupWarning = `New file saved, but previous file cleanup failed: ${cleanupError.message}`;
+    }
+  }
+
   return {
     id: dbData.id,
     name: file.name,
@@ -135,7 +155,9 @@ export async function processDocumentUpload(
     storagePath: filePath,
     ...(options.categoryTag ? { categoryTag: options.categoryTag } : {}),
     ...(options.grantId ? { grantId: options.grantId } : {}),
-    ...(metadataWarning ? { metadataWarning } : {}),
+    ...((metadataWarning || cleanupWarning)
+      ? { metadataWarning: [metadataWarning, cleanupWarning].filter(Boolean).join(" ") }
+      : {}),
     slotKey,
   };
 }
@@ -173,7 +195,16 @@ export async function deleteVaultDocument(doc: VaultDocument): Promise<void> {
   }
 }
 
-export async function updateVaultTextDocument(doc: VaultDocument, content: string): Promise<number> {
+export type VaultTextUpdateResult = {
+  size: number;
+  storagePath: string;
+  cleanupWarning?: string;
+};
+
+export async function updateVaultTextDocument(
+  doc: VaultDocument,
+  content: string,
+): Promise<VaultTextUpdateResult> {
   if (!doc.type.startsWith("text/") || !doc.storagePath) {
     throw new Error("Only stored text documents can be edited in the Vault.");
   }
@@ -183,32 +214,40 @@ export async function updateVaultTextDocument(doc: VaultDocument, content: strin
   if (!doc.storagePath.startsWith(`${user.id}/`)) {
     throw new Error("This document is outside your private Vault and cannot be edited from this account.");
   }
-  const current = await supabase.storage.from("vault").download(doc.storagePath);
-  if (current.error || !current.data) {
-    throw new Error(`Could not verify the current document before editing: ${current.error?.message ?? "file not found"}`);
-  }
 
   const blob = new Blob([content], { type: doc.type });
-  const upload = await supabase.storage.from("vault").upload(doc.storagePath, blob, {
+  const safeName = doc.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "document.txt";
+  const storagePath = `${user.id}/${crypto.randomUUID()}-${safeName}`;
+  const upload = await supabase.storage.from("vault").upload(storagePath, blob, {
     contentType: doc.type,
-    upsert: true,
   });
-  if (upload.error) throw new Error(`Could not save edited document: ${upload.error.message}`);
+  if (upload.error) throw new Error(`Could not upload the edited document: ${upload.error.message}`);
 
   const update = await supabase.from("vault_documents")
-    .update({ size_bytes: blob.size })
+    .update({ storage_path: storagePath, size_bytes: blob.size })
     .eq("id", doc.id)
     .eq("user_id", user.id)
     .select("id")
     .maybeSingle();
-  if (!update.error && update.data) return blob.size;
-
-  const rollback = await supabase.storage.from("vault").upload(doc.storagePath, current.data, {
-    contentType: doc.type,
-    upsert: true,
-  });
-  if (rollback.error) {
-    throw new Error(`Document metadata update failed (${update.error?.message ?? "record not found"}) and the original file could not be restored (${rollback.error.message}). Contact support to repair this document.`);
+  if (update.error || !update.data) {
+    const cleanup = await supabase.storage.from("vault").remove([storagePath]);
+    if (cleanup.error) {
+      throw new Error(
+        `Document metadata update failed (${update.error?.message ?? "record not found or not owned by this user"}) and the new file could not be removed (${cleanup.error.message}). The original document remains unchanged.`,
+      );
+    }
+    throw new Error(
+      `Document metadata update failed: ${update.error?.message ?? "record not found or not owned by this user"}`,
+    );
   }
-  throw new Error(`Document metadata update failed: ${update.error?.message ?? "record not found or not owned by this user"}`);
+
+  const cleanup = await supabase.storage.from("vault").remove([doc.storagePath]);
+  if (cleanup.error) {
+    return {
+      size: blob.size,
+      storagePath,
+      cleanupWarning: `The edited document was saved, but the previous stored file could not be removed: ${cleanup.error.message}`,
+    };
+  }
+  return { size: blob.size, storagePath };
 }

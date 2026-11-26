@@ -63,7 +63,22 @@ export interface UnifiedGrant {
     "for_profit" | "nonprofit_501c3" | "fiscal_sponsor" | "church" | "individual"
   >;
   demographicSetAsides: Array<
-    "women_owned" | "minority_owned" | "veteran_owned" | "rural" | "african_diaspora" | "lgbtq"
+    | "women_owned"
+    | "minority_owned"
+    | "veteran_owned"
+    | "rural"
+    | "african_diaspora"
+    | "lgbtq"
+    | "hispanic_owned"
+    | "asian_owned"
+    | "pacific_islander_owned"
+    | "indigenous_owned"
+    | "mena_owned"
+    | "immigrant_owned"
+    | "military_spouse_owned"
+    | "disability_owned"
+    | "hubzone_or_low_income"
+    | "student_founder"
   >;
   geographicScope: {
     level: "national" | "state_specific" | "local_county" | "international";
@@ -120,9 +135,48 @@ export function coreDocSlots(entityType: string, lifecycleStage = ""): DocSlot[]
   ];
 }
 
+export function inferVaultSlotKey(fileName: string): string | undefined {
+  const name = fileName.toLowerCase().replace(/[_-]+/g, " ");
+  if (/business plan|executive summary/.test(name)) return "business_plan";
+  if (/photo.?id|passport|driver.?s? license|identity document/.test(name)) return "photo_id";
+  if (/\bein\b|cp\s?575|employer identification/.test(name)) return "ein";
+  if (/tax return|form 1120|form 1040/.test(name)) return "tax_returns";
+  if (/formation|articles of organization|incorporation|501c3 letter|entity proof/.test(name)) return "entity_proof";
+  if (/profit.?and.?loss|balance sheet|financial statement|bank statement/.test(name)) return "financial_statement";
+  if (/founder resume|founder bio|curriculum vitae|\bcv\b/.test(name)) return "founder_resume";
+  if (/letter of support|support letter|partner commitment/.test(name)) return "support_letter";
+  if (/milestone|pilot metric|traction|waitlist|letter of intent|\bloi\b/.test(name)) return "milestone_metric";
+  if (/good standing|certificate of status/.test(name)) return "good_standing";
+  if (/sam.?gov|uei|cage code/.test(name)) return "sam_registration_record";
+  if (/pitch deck/.test(name)) return "pitch_deck";
+  if (/market research|customer discovery/.test(name)) return "market_research";
+  if (/\bw.?9\b/.test(name)) return "w9";
+  if (/vendor quote|vendor estimate/.test(name)) return "vendor_quote";
+  if (/budget/.test(name)) return "budget";
+  return undefined;
+}
+
+export function resolveVaultSlotKey(storedSlotKey: string | null | undefined, fileName: string) {
+  if (
+    storedSlotKey &&
+    !storedSlotKey.startsWith("custom-") &&
+    !storedSlotKey.startsWith("chat-upload-")
+  ) {
+    return storedSlotKey;
+  }
+  return inferVaultSlotKey(fileName) ?? storedSlotKey ?? "";
+}
+
 export const CUSTOM_DOC_SLOTS: DocSlot[] = [
+  { key: "business_plan", name: "Business Plan & Executive Summary", required: false },
   { key: "pitch_deck", name: "Pitch Deck / Executive Summary", required: false },
   { key: "market_research", name: "Customer Discovery & Market Research Data", required: false },
+  { key: "entity_proof", name: "Entity Formation / Tax-Exempt Proof", required: false },
+  { key: "tax_document", name: "Additional Tax Document", required: false },
+  { key: "financial_statement", name: "Financial Statement / P&L / Balance Sheet", required: false },
+  { key: "founder_resume", name: "Founder Resume / Biography", required: false },
+  { key: "support_letter", name: "Support Letter / Partner Commitment", required: false },
+  { key: "milestone_metric", name: "Traction, LOI, Pilot, or Milestone Evidence", required: false },
   { key: "sam_registration_record", name: "SAM.gov Entity Registration / UEI / CAGE record (if required; not externally verified)", required: false },
   { key: "w9", name: "W-9 (if requested by the funder; sensitive tax details)", required: false },
 ];
@@ -137,6 +191,7 @@ export function validateVaultFile(file: { name: string; type: string; size: numb
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/plain",
+    "text/csv",
     "image/jpeg",
     "image/png",
   ];
@@ -144,6 +199,7 @@ export function validateVaultFile(file: { name: string; type: string; size: numb
     ".pdf": ["application/pdf"],
     ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
     ".txt": ["text/plain"],
+    ".csv": ["text/csv"],
     ".jpg": ["image/jpeg"],
     ".jpeg": ["image/jpeg"],
     ".png": ["image/png"],
@@ -153,7 +209,7 @@ export function validateVaultFile(file: { name: string; type: string; size: numb
   const extOk = allowedExt.includes(ext);
   const mimeMatchesExt = file.type === "" || matchingTypes[ext]?.includes(file.type);
   if (!extOk || !typeOk || !mimeMatchesExt) {
-    return `Rejected: "${file.name}" must be a valid PDF, DOCX, TXT, JPG, or PNG document.`;
+    return `Rejected: "${file.name}" must be a valid PDF, DOCX, TXT, CSV, JPG, or PNG document.`;
   }
   if (file.size > MAX_UPLOAD_BYTES) return "Rejected: File exceeds 15MB limit.";
   return null;

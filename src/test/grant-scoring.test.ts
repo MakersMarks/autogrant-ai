@@ -124,6 +124,24 @@ describe("grant eligibility and competition scoring", () => {
     expect(womanOwnedBusiness.eligible).toBe(true);
   });
 
+  it("matches an explicit minority-owned requirement to a saved Black-owned profile tag", () => {
+    const result = scoreGrantOpportunity({
+      opportunity: {
+        ...opportunity,
+        demographicSetAsides: [],
+        demographicTags: ["minority_owned"],
+        requiresStrictDemographic: true,
+      },
+      profile: { ...profile, demographics: ["black_owned"] },
+      evidence,
+    });
+
+    expect(result.eligible).toBe(true);
+    expect(result.hardDisqualifiers).not.toContain(
+      "Restricted to founders matching: minority_owned.",
+    );
+  });
+
   it("scores required Vault documents and warns when SAM.gov registration is not active", () => {
     const result = scoreGrantOpportunity({
       opportunity: {
