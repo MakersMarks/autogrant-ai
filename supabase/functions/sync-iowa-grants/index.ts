@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { inferEntityTypes, stripHtml } from "./rules.ts";
+import { inferEntityTypes, inferOpportunityColumns, stripHtml } from "./rules.ts";
 
 interface SiteGrantUpsert {
   id: string;
@@ -66,8 +66,11 @@ async function fetchIowaGrantsGov(): Promise<SiteGrantUpsert[]> {
 
       const hrefMatch = rowHtml.match(/href=["']([^"']*(?:foId|fundingOpportunity|storefront)[^"']*)["']/i);
       const rawId = stripHtml(cells[0]);
-      const title = stripHtml(cells[1]);
-      const agency = stripHtml(cells[2]);
+      const { title: rawTitle, agency: rawAgency } = inferOpportunityColumns(
+        cells.map((cell) => stripHtml(cell)),
+      );
+      const title = rawTitle;
+      const agency = rawAgency;
       const closeDate = stripHtml(cells[cells.length - 1]);
 
       if (!title || title.length < 4 || /opportunity title/i.test(title)) continue;

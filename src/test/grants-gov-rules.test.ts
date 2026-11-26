@@ -61,6 +61,7 @@ describe("location relevance", () => {
 });
 
 import {
+  evaluateHonestEligibility,
   entityMode,
   eligibilityCodesFor,
   isEntityEligible,
@@ -70,6 +71,76 @@ describe("scout + entity gate", () => {
   it("nonprofits get nonprofit codes, companies get business codes", () => {
     expect(eligibilityCodesFor(entityMode("501(c)(3) Nonprofit"))).toBe("12|13|99|25");
     expect(eligibilityCodesFor(entityMode("LLC / Corporation"))).toBe("23|22|99|25");
+  });
+
+  describe("honest two-stage eligibility scoring", () => {
+    const applicant = {
+      state: "IA",
+      entity_type: "sole_proprietorship",
+      lifecycle_stage: "pre_launch",
+      months_in_business: 0,
+      annual_revenue: 0,
+      demographic_tags: ["women_owned"],
+      sam_status: "not_started",
+    };
+
+    it("returns plain-language hard disqualifiers and a zero score before fit scoring", () => {
+      const result = evaluateHonestEligibility(
+        {
+          status: "closed",
+          directory_only: true,
+          eligible_states: ["TN"],
+          eligible_entity_types: ["llc"],
+          min_months_in_business: 2,
+          requires_strict_demographic: true,
+          demographic_tags: ["veteran_owned"],
+        },
+        applicant,
+      );
+      expect(result.eligible).toBe(false);
+      expect(result.fitScore).toBe(0);
+      expect(result.disqualifierReasons).toContain("This grant is currently closed.");
+      expect(result.disqualifierReasons).toContain(
+        "Directory listing only — no direct grant application available.",
+      );
+      expect(result.disqualifierReasons).toContain(
+        "Requires at least 2 months in business (you entered 0).",
+      );
+    });
+
+    it("scores a qualifying pre-launch grant on four transparent pillars and flags SAM lead time", () => {
+      const result = evaluateHonestEligibility(
+        {
+          states: ["IA"],
+          eligible_entity_types: ["for_profit"],
+          min_months_in_business: 0,
+          stage_tags: ["pre_launch", "0_to_12_months"],
+          demographic_tags: ["women_owned"],
+          required_documents: ["ein_letter", "sam_gov_registration"],
+        },
+        applicant,
+        ["ein_letter"],
+      );
+      expect(result).toMatchObject({
+        eligible: true,
+        fitScore: 45,
+        requiresSamWarning: true,
+        fitBreakdown: {
+          operatingStage: 15,
+          awardAndMatchBurden: 15,
+          demographicAndGeographicPriority: 10,
+          vaultReadiness: 5,
+        },
+      });
+    });
+
+    it("gives open-to-all grants a neutral priority score and full readiness when documents are not specified", () => {
+      const result = evaluateHonestEligibility({}, applicant);
+      expect(result.eligible).toBe(true);
+      expect(result.fitBreakdown.demographicAndGeographicPriority).toBe(5);
+      expect(result.fitBreakdown.vaultReadiness).toBe(10);
+      expect(result.fitScore).toBe(40);
+    });
   });
   it("hides university-only grants from a for-profit", () => {
     expect(

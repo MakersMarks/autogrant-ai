@@ -172,7 +172,10 @@ export function stateCodeFromLocation(location: string | null | undefined): stri
 }
 
 /** True when a grant title is restricted to a different named state than the user's. */
-export function isOtherStateOnly(title: string | null | undefined, userState: string | null): boolean {
+export function isOtherStateOnly(
+  title: string | null | undefined,
+  userState: string | null,
+): boolean {
   if (!userState || typeof title !== "string" || !title.trim()) return false;
   const named = Object.values(STATES).filter((s) => new RegExp(`\\b${s}\\b`, "i").test(title));
   if (named.length === 0) return false;
@@ -190,7 +193,10 @@ export function eligibilityCodesFor(mode: EntityMode): string {
 }
 
 /** Hard gate: only retain grants that explicitly include the user's entity type. */
-export function isEntityEligible(applicantTypes: string[] | null | undefined, mode: EntityMode): boolean {
+export function isEntityEligible(
+  applicantTypes: string[] | null | undefined,
+  mode: EntityMode,
+): boolean {
   if (!Array.isArray(applicantTypes) || applicantTypes.length === 0) return false;
   return applicantTypes.some((type) => {
     if (typeof type !== "string") return false;
@@ -205,11 +211,45 @@ export function isEntityEligible(applicantTypes: string[] | null | undefined, mo
 const TECH =
   /\b(ai|a\.i\.|artificial intelligence|machine learning|software|saas|tech|data|automation|platform|app)\b/i;
 const KEYWORD_STOP_WORDS = new Set([
-  "about", "after", "also", "and", "are", "because", "been", "being", "build",
-  "business", "can", "could", "create", "currently", "for", "from", "have",
-  "help", "into", "its", "make", "more", "need", "our", "project", "provide",
-  "should", "solution", "support", "that", "their", "there", "these", "this",
-  "through", "those", "will", "with", "would",
+  "about",
+  "after",
+  "also",
+  "and",
+  "are",
+  "because",
+  "been",
+  "being",
+  "build",
+  "business",
+  "can",
+  "could",
+  "create",
+  "currently",
+  "for",
+  "from",
+  "have",
+  "help",
+  "into",
+  "its",
+  "make",
+  "more",
+  "need",
+  "our",
+  "project",
+  "provide",
+  "should",
+  "solution",
+  "support",
+  "that",
+  "their",
+  "there",
+  "these",
+  "this",
+  "through",
+  "those",
+  "will",
+  "with",
+  "would",
 ]);
 
 /** Derive targeted Grants.gov keywords from profile and project intent (max 4). */
@@ -233,7 +273,11 @@ export function scoutKeywords(p: {
     .replace(/\s+/g, " ")
     .slice(0, 60);
   if (ind) out.push(ind);
-  const purpose = safePurpose.trim().replace(/[^\w\s&-]/g, " ").replace(/\s+/g, " ").slice(0, 60);
+  const purpose = safePurpose
+    .trim()
+    .replace(/[^\w\s&-]/g, " ")
+    .replace(/\s+/g, " ")
+    .slice(0, 60);
   if (purpose) out.push(purpose);
 
   const intent = `${safeProblem} ${safeSolution}`.toLowerCase();
@@ -281,7 +325,10 @@ export function scoutKeywords(p: {
 }
 
 /** Tech profiles also search Science & Technology alongside their sector. */
-export function scoutCategories(sector: string | null | undefined, industry: string | null | undefined): string {
+export function scoutCategories(
+  sector: string | null | undefined,
+  industry: string | null | undefined,
+): string {
   const safeSector = typeof sector === "string" ? sector : "";
   const safeIndustry = typeof industry === "string" ? industry : "";
   const set = new Set([safeSector, ...(TECH.test(safeIndustry) ? ["ST"] : [])].filter(Boolean));
@@ -291,7 +338,10 @@ export function scoutCategories(sector: string | null | undefined, industry: str
 const INSTITUTION_ONLY =
   /\b(colleges?|universit(y|ies)|tribal|tribes?|hispanic[- ]serving|HBCUs?|invasive species)\b/i;
 /** Blocks university/tribal-only programs that slip into for-profit feeds via "Others". */
-export function isInstitutionOnlyTitle(title: string | null | undefined, mode: EntityMode): boolean {
+export function isInstitutionOnlyTitle(
+  title: string | null | undefined,
+  mode: EntityMode,
+): boolean {
   if (typeof title !== "string") return false;
   return mode === "forprofit" && INSTITUTION_ONLY.test(title);
 }
@@ -299,6 +349,7 @@ export function isInstitutionOnlyTitle(title: string | null | undefined, mode: E
 export type HonestEligibilityProfile = {
   state?: string | null;
   entity_type?: string | null;
+  lifecycle_stage?: string | null;
   months_in_business?: number | null;
   annual_revenue?: number | null;
   demographic_tags?: readonly string[] | null;
@@ -347,22 +398,55 @@ export function evaluateHonestEligibility(
     reasons.push("Directory listing only — no direct grant application available.");
   }
 
-  const states = grant.states?.length ? grant.states : grant.eligible_states ?? [];
-  const profileState = (profile.state ?? "").toUpperCase();
+  const states = grant.states?.length ? grant.states : (grant.eligible_states ?? []);
+  const profileState = stateCodeFromLocation(profile.state) || (profile.state ?? "").toUpperCase();
   if (
     states.length > 0 &&
     !states.some((state) => ["ALL", "US", "NATIONAL"].includes(state.toUpperCase())) &&
-    !states.some((state) => state.toUpperCase() === profileState)
+    !states.some(
+      (state) =>
+        stateCodeFromLocation(state) === profileState || state.toUpperCase() === profileState,
+    )
   ) {
-    reasons.push(`Restricted to businesses in: ${states.join(", ")}. Your profile is set to ${profile.state ?? "unspecified"}.`);
+    reasons.push(
+      `Restricted to businesses in: ${states.join(", ")}. Your profile is set to ${profile.state ?? "unspecified"}.`,
+    );
   }
 
   const entityTypes = grant.eligible_entity_types ?? [];
-  if (entityTypes.length > 0 && !entityTypes.includes(profile.entity_type ?? "")) {
+  const normalizedEntity = (profile.entity_type ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const entityMatches = (entityType: string) => {
+    const required = entityType
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    if (required === normalizedEntity) return true;
+    if (required.includes("sole") || required.includes("individual")) {
+      return /sole|individual|pre formation/.test(normalizedEntity);
+    }
+    if (required.includes("for profit") || required.includes("small business")) {
+      return !/nonprofit|non profit|government|tribal/.test(normalizedEntity);
+    }
+    if (required.includes("nonprofit"))
+      return /nonprofit|non profit|501 c 3/.test(normalizedEntity);
+    return false;
+  };
+  if (entityTypes.length > 0 && (!normalizedEntity || !entityTypes.some(entityMatches))) {
     reasons.push(`Requires entity type: ${entityTypes.join(", ")}.`);
   }
 
-  const monthsInBusiness = profile.months_in_business ?? 0;
+  const stage = (profile.lifecycle_stage ?? "").toLowerCase();
+  const derivedMonths = /pre.?launch|idea|not operating/.test(stage)
+    ? 0
+    : /early|startup|under 1 year|0.to.12/.test(stage)
+      ? 6
+      : /established|operating|growth/.test(stage)
+        ? 36
+        : null;
+  const monthsInBusiness = profile.months_in_business ?? derivedMonths ?? 0;
   const minimumMonths = grant.min_months_in_business ?? 0;
   if (minimumMonths > monthsInBusiness) {
     reasons.push(
@@ -393,40 +477,58 @@ export function evaluateHonestEligibility(
     };
   }
 
-  const stageTags = (grant.stage_tags ?? []).map((tag) => tag.toLowerCase());
+  const stageTags = (grant.stage_tags ?? []).map((tag) =>
+    tag.toLowerCase().replace(/[^a-z0-9+]+/g, "_"),
+  );
   let operatingStage = 10;
-  if (stageTags.some((tag) => /0\+|all stages|pre.launch|0.to.12|early.stage|established/.test(tag))) {
+  const exactStage =
+    (stageTags.some((tag) => /0\+|all_stages|pre_launch|0_to_12_months/.test(tag)) &&
+      monthsInBusiness < 12) ||
+    (stageTags.some((tag) => /early_stage/.test(tag)) &&
+      monthsInBusiness >= 12 &&
+      monthsInBusiness < 36) ||
+    (stageTags.some((tag) => /established/.test(tag)) && monthsInBusiness >= 36);
+  if (exactStage || grant.min_months_in_business === 0) {
     operatingStage = 15;
-  } else if (stageTags.some((tag) => /startup|business|stage/.test(tag))) {
+  } else if (
+    stageTags.some((tag) => /pre_launch|startup|early_stage|established|operating|growth/.test(tag))
+  ) {
     operatingStage = 5;
   }
 
-  let awardAndMatchBurden = grant.cost_sharing_required ? 15 : 15;
+  let awardAndMatchBurden = 15;
   if (grant.cost_sharing_required) {
-    awardAndMatchBurden = 15;
     if (monthsInBusiness < 12 || (profile.annual_revenue ?? 0) < 50000) {
       awardAndMatchBurden -= 7;
     }
   }
-  const amountMin = grant.amount_min ?? null;
+  const amountMin = grant.amount_min ?? grant.award_floor ?? null;
   if (
     amountMin !== null &&
     amountMin > 100000 &&
-    (profile.entity_type === "sole_proprietorship" || profile.entity_type === "pre_formation")
+    /sole proprietorship|pre formation/.test(normalizedEntity)
   ) {
     awardAndMatchBurden -= 3;
   }
+  awardAndMatchBurden = Math.max(0, awardAndMatchBurden);
 
-  const demographicAndGeographicPriority =
-    grantTags.length > 0 && grantTags.some((tag) => profileTags.has(tag)) ? 10 : 5;
+  const matchesPriority = grantTags.some((tag) => profileTags.has(tag));
+  const hasStateRestriction =
+    states.length > 0 &&
+    !states.some((state) => ["ALL", "US", "NATIONAL"].includes(state.toUpperCase()));
+  const demographicAndGeographicPriority = matchesPriority
+    ? 10
+    : grantTags.length > 0
+      ? 0
+      : hasStateRestriction
+        ? 10
+        : 5;
 
   const requiredDocuments = grant.required_documents ?? [];
   const ready = new Set(uploadedDocumentKeys);
   const matched = requiredDocuments.filter((document) => ready.has(document)).length;
   const vaultReadiness =
-    requiredDocuments.length === 0
-      ? 10
-      : Math.round((matched / requiredDocuments.length) * 10);
+    requiredDocuments.length === 0 ? 10 : Math.round((matched / requiredDocuments.length) * 10);
 
   const requiresSamWarning =
     requiredDocuments.includes("sam_gov_registration") ||
@@ -436,10 +538,7 @@ export function evaluateHonestEligibility(
   return {
     eligible: true,
     fitScore:
-      operatingStage +
-      awardAndMatchBurden +
-      demographicAndGeographicPriority +
-      vaultReadiness,
+      operatingStage + awardAndMatchBurden + demographicAndGeographicPriority + vaultReadiness,
     disqualifierReasons: [],
     fitBreakdown: {
       operatingStage,
