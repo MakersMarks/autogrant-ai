@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { calibrateVoice } from "@/lib/ai/ai.functions";
 import { CUSTOM_DOC_SLOTS, coreDocSlots, validateVaultFile, type DocSlot } from "@/lib/grants";
 import { getIndustryDocumentRequirements } from "@/lib/compliance/industry-documents";
+import { trackLovableEvent } from "@/lib/lovable-error-reporting";
 
 export type VaultDoc = {
   id: string;
@@ -51,6 +52,7 @@ export function Vault({ userId, entityType, lifecycleStage = "", industry = "", 
         setErrors((p) => ({ ...p, [slot.key]: `Could not save document metadata: ${error.message}` }));
       } else {
         if (old?.storage_path && old.storage_path !== path) await supabase.storage.from("vault").remove([old.storage_path]);
+        trackLovableEvent("vault_document_uploaded");
       }
       await reload();
     }

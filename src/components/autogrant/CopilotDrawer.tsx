@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { copilotChat, executeCopilotAction, type CopilotAction } from "@/lib/ai/ai.functions";
 import type { Grant } from "@/lib/grants";
+import { trackLovableEvent } from "@/lib/lovable-error-reporting";
 
 type Message = {
   role: "user" | "assistant";
@@ -129,6 +130,7 @@ export function CopilotDrawer({
         ...nextMessages,
         { role: "assistant", content: result.reply, action: result.action },
       ]);
+      trackLovableEvent("copilot_reply_generated");
       onReplyComplete?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Grant could not respond.");

@@ -1034,11 +1034,19 @@ function IndexComponent() {
                   setStatusMessage(message);
                   throw new Error(message);
                 }
-                setStatusMessage(status === "submitted"
-                  ? "External submission confirmation saved."
-                  : status === "submission_ready"
-                    ? "Human review sign-off saved. You still submit through the official portal."
-                    : "Application moved back to draft.");
+                setStatusMessage(
+                  status === "submitted"
+                    ? "External submission confirmation saved."
+                    : status === "submission_ready"
+                      ? "Human review sign-off saved. You still submit through the official portal."
+                      : status === "under_review"
+                        ? "Application marked as under review."
+                        : status === "awarded"
+                          ? "Award outcome recorded."
+                          : status === "not_selected"
+                            ? "Not-selected outcome recorded."
+                            : "Application moved back to draft.",
+                );
                 await reloadWorkspace();
               }}
               onDeleteProposal={async (id) => {

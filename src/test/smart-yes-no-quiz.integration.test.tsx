@@ -6,13 +6,26 @@ const mockState = vi.hoisted(() => ({
   documents: [] as { slot_key: string }[],
   grants: [] as {
     id: string;
+    states?: string[] | null;
+    eligible_states?: string[] | null;
+    eligible_entity_types?: string[] | null;
+    min_months_in_business?: number | null;
+    stage_tags?: string[] | null;
     demographic_tags: string[] | null;
+    demographic_set_asides?: string[] | null;
     requires_strict_demographic: boolean;
+    directory_only?: boolean;
+    status?: string;
   }[],
   pools: [] as {
     id: string;
     demographicSetAsides: string[];
     requiresStrictDemographic: boolean;
+    directoryOnly?: boolean;
+    status?: string;
+    eligibleStates?: string[];
+    eligibleEntityTypes?: string[];
+    minMonthsInBusiness?: number;
   }[],
   registryRequests: [] as unknown[],
 }));
@@ -42,6 +55,7 @@ vi.mock("@/integrations/supabase/client", () => ({
                   demographics: mockState.profileTags,
                   location: "Des Moines, Iowa",
                   lifecycle_stage: "Established Business",
+                  entity_type: "LLC / Corporation",
                 },
                 error: null,
               }),
@@ -87,6 +101,31 @@ describe("Smart Match quiz profile integration", () => {
     mockState.grants = [
       { id: "site-general", demographic_tags: [], requires_strict_demographic: false },
       { id: "site-black", demographic_tags: [firstTag], requires_strict_demographic: true },
+      {
+        id: "site-directory",
+        demographic_tags: [],
+        requires_strict_demographic: false,
+        directory_only: true,
+        status: "unknown",
+      },
+      {
+        id: "site-closed",
+        demographic_tags: [],
+        requires_strict_demographic: false,
+        status: "closed",
+      },
+      {
+        id: "site-out-of-state",
+        demographic_tags: [],
+        requires_strict_demographic: false,
+        eligible_states: ["CA"],
+      },
+      {
+        id: "site-nonprofit-only",
+        demographic_tags: [],
+        requires_strict_demographic: false,
+        eligible_entity_types: ["nonprofit_501c3"],
+      },
     ];
     mockState.pools = [
       {
@@ -95,6 +134,30 @@ describe("Smart Match quiz profile integration", () => {
         requiresStrictDemographic: true,
       },
       { id: "pool-general", demographicSetAsides: [], requiresStrictDemographic: false },
+      {
+        id: "pool-directory",
+        demographicSetAsides: [],
+        requiresStrictDemographic: false,
+        directoryOnly: true,
+      },
+      {
+        id: "pool-closed",
+        demographicSetAsides: [],
+        requiresStrictDemographic: false,
+        status: "closed",
+      },
+      {
+        id: "pool-out-of-state",
+        demographicSetAsides: [],
+        requiresStrictDemographic: false,
+        eligibleStates: ["CA"],
+      },
+      {
+        id: "pool-nonprofit-only",
+        demographicSetAsides: [],
+        requiresStrictDemographic: false,
+        eligibleEntityTypes: ["nonprofit_501c3"],
+      },
     ];
   });
 

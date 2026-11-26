@@ -24,6 +24,10 @@ import {
   type LiveGrant,
 } from "@/lib/grants-gov/rules";
 import { OFFICIAL_SECTORS, type UnifiedGrant } from "@/lib/grants";
+import {
+  mapSiteGrantToUnified,
+  type SiteGrantRow,
+} from "@/lib/grants/site-grant-mapping";
 import { stateFundingPortals } from "@/lib/grants/sources/state-portals";
 import { sbirToUnifiedGrant, shouldSearchSbirSolicitations } from "@/lib/grants-gov/sbir";
 import {
@@ -34,122 +38,13 @@ import {
   type GrantScoringProfile,
   type GrantScore,
 } from "@/lib/grants-gov/scoring";
+import { createGrantIssueUrl } from "@/lib/grant-feedback";
+import { trackLovableEvent } from "@/lib/lovable-error-reporting";
 import { SamRegistrationCheck } from "@/components/autogrant/SamRegistrationCheck";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 type Detail = Awaited<ReturnType<typeof getGrantDetail>>;
-
-interface SiteGrantRow {
-  id: string;
-  funder?: string | null;
-  pool_tier: UnifiedGrant["poolTier"] | null;
-  grant_tier: UnifiedGrant["grantTier"] | null;
-  title: string;
-  funder_name: string | null;
-  funder_type: UnifiedGrant["funderType"] | null;
-  amount_min?: number | null;
-  amount_max?: number | null;
-  award_floor: number | null;
-  award_ceiling: number | null;
-  min_months_in_business: number | null;
-  eligible_states: string[] | null;
-  states?: string[] | null;
-  stage_tags?: string[] | null;
-  demographic_tags?: string[] | null;
-  required_documents?: string[] | null;
-  requires_strict_demographic?: boolean | null;
-  status?: "open" | "closed" | "unknown" | null;
-  application_time_minutes: number | null;
-  deadline: string | null;
-  open_date: string | null;
-  close_date: string | null;
-  is_rolling: boolean | null;
-  cost_sharing_required: boolean | null;
-  cost_sharing_percentage: number | null;
-  eligible_entity_types: string[] | null;
-  demographic_set_asides: string[] | null;
-  geographic_restriction: string | null;
-  geographic_scope: UnifiedGrant["geographicScope"] | null;
-  application_method: string | null;
-  direct_apply_url: string | null;
-  official_application_url: string | null;
-  portal_url: string | null;
-  source_solicitation_url: string | null;
-  is_free_to_apply: boolean | null;
-  directory_only: boolean | null;
-  summary_text: string | null;
-  prerequisites: string[] | null;
-}
-
-function mapSiteGrantToUnified(row: SiteGrantRow): UnifiedGrant {
-  const states = row.states?.length
-    ? row.states
-    : row.eligible_states?.length
-      ? row.eligible_states
-      : ["ALL"];
-  const portalUrl = row.portal_url || row.direct_apply_url || row.official_application_url || "";
-  const parsedCloseDate = row.close_date ? new Date(row.close_date) : null;
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  parsedCloseDate?.setUTCHours(0, 0, 0, 0);
-  const expired = !!parsedCloseDate && !Number.isNaN(parsedCloseDate.getTime()) && parsedCloseDate < today;
-  const statusValue = row.status?.trim().toLowerCase() ?? "";
-  const statusClosed = /\b(closed|inactive|expired|archived|ended)\b/.test(statusValue);
-  const deadlineClosed = /\b(closed|inactive|expired|archived|ended)\b/i.test(row.deadline ?? "");
-  const status =
-    statusClosed || row.directory_only || expired || deadlineClosed
-      ? "closed"
-      : statusValue || (row.is_rolling ? "open" : "unknown");
-  return {
-    id: row.id,
-    poolTier: row.pool_tier ?? "state_territory",
-    grantTier: row.grant_tier ?? "State",
-    title: row.title,
-    funderName: row.funder || row.funder_name || "",
-    funderType: row.funder_type ?? "government",
-    awardFloor: Number(row.amount_min ?? row.award_floor ?? 0),
-    awardCeiling: Number(row.amount_max ?? row.award_ceiling ?? 0),
-    ...(row.min_months_in_business !== null
-      ? { minMonthsInBusiness: row.min_months_in_business }
-      : {}),
-    eligibleStates: states,
-    stageTags: row.stage_tags ?? [],
-    demographicTags: row.demographic_tags ?? [],
-    requiredDocuments: row.required_documents ?? [],
-    requiresStrictDemographic: row.requires_strict_demographic ?? false,
-    status,
-    ...(row.application_time_minutes !== null
-      ? { applicationTimeMinutes: row.application_time_minutes }
-      : {}),
-    deadline: row.deadline ?? "Rolling",
-    ...(row.open_date ? { openDate: row.open_date } : {}),
-    ...(row.close_date ? { closeDate: row.close_date } : {}),
-    isRolling: row.is_rolling ?? true,
-    costSharingRequired: row.cost_sharing_required ?? false,
-    ...(row.cost_sharing_percentage !== null
-      ? { costSharingPercentage: row.cost_sharing_percentage }
-      : {}),
-    eligibleEntityTypes: (row.eligible_entity_types ?? ["for_profit"]) as UnifiedGrant["eligibleEntityTypes"],
-    demographicSetAsides: (row.demographic_set_asides ?? []) as UnifiedGrant["demographicSetAsides"],
-    geographicRestriction: (row.geographic_restriction ?? "state") as NonNullable<
-      UnifiedGrant["geographicRestriction"]
-    >,
-    geographicScope: row.geographic_scope ?? {
-      level: "state_specific",
-      allowedStates: states,
-    },
-    applicationMethod: (row.application_method ?? "online_portal") as UnifiedGrant["applicationMethod"],
-    directApplyUrl: portalUrl,
-    officialApplicationUrl: row.official_application_url ?? portalUrl,
-    ...(portalUrl ? { portalUrl } : {}),
-    ...(row.source_solicitation_url ? { sourceSolicitationUrl: row.source_solicitation_url } : {}),
-    isFreeToApply: row.is_free_to_apply ?? true,
-    directoryOnly: row.directory_only ?? false,
-    summaryText: row.summary_text ?? "",
-    prerequisites: row.prerequisites ?? [],
-  };
-}
 
 const DEADLINES = [
   { value: "any", label: "Any deadline" },
@@ -239,6 +134,7 @@ export function LiveGrantsFeed({
   >("All");
   const includeFederal = tierFilter === "All" || tierFilter === "Federal";
   const [lowCompOnly, setLowCompOnly] = useState(false);
+  const [showEligibilityReasons, setShowEligibilityReasons] = useState(false);
   const [grants, setGrants] = useState<LiveGrant[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -447,7 +343,7 @@ export function LiveGrantsFeed({
 
   const eligiblePoolGrants = matchingPoolGrants.filter((grant) => {
     const score = scoreById.get(grant.id);
-    if (!score?.eligible) return false;
+    if (!score?.eligible || grant.directoryOnly || grant.status === "closed") return false;
     if (lowCompOnly && (score.lowCompetitionScore ?? 0) < 70) return false;
     if (tierFilter === "All") return true;
     const tier =
@@ -470,6 +366,7 @@ export function LiveGrantsFeed({
     .filter((grant) => {
       const score = scoreById.get(grant.id);
       return (
+        !("directoryOnly" in grant && grant.directoryOnly) &&
         !score?.eligible &&
         !score?.hardDisqualifiers.some((reason) =>
           reason.startsWith("Restricted to founders matching:"),
@@ -478,9 +375,11 @@ export function LiveGrantsFeed({
     })
     .sort((a, b) => (scoreById.get(b.id)?.fitScore ?? 0) - (scoreById.get(a.id)?.fitScore ?? 0))
     .slice(0, 8);
+  const programDirectories = matchingPoolGrants.filter((grant) => grant.directoryOnly);
   const lastChanceCount = grants.filter((g) => isLastChance(g.daysLeft)).length;
 
   const openReader = async (g: LiveGrant) => {
+    trackLovableEvent("grant_details_opened", { source: "grants_gov" });
     setOpen(g);
     setDetail(null);
     setDetailErr("");
@@ -672,7 +571,8 @@ export function LiveGrantsFeed({
               {k}
             </span>
           ))}{" "}
-          · only grants open to {mode === "nonprofit" ? "nonprofits" : "for-profit / small businesses"}
+          · only grants open to{" "}
+          {mode === "nonprofit" ? "nonprofits" : "for-profit / small businesses"}
         </p>
       )}
       {poolError && (
@@ -687,9 +587,14 @@ export function LiveGrantsFeed({
       )}
       {statePortal && (
         <p className="text-xs text-slate-300">
-          Official {statePortal.stateName} business/economic development agency link (not a live grant
-          listing):{" "}
-          <a className="text-blue-300 underline" href={statePortal.url} target="_blank" rel="noreferrer">
+          Official {statePortal.stateName} business/economic development agency link (not a live
+          grant listing):{" "}
+          <a
+            className="text-blue-300 underline"
+            href={statePortal.url}
+            target="_blank"
+            rel="noreferrer"
+          >
             {statePortal.agency}
           </a>
         </p>
@@ -702,101 +607,190 @@ export function LiveGrantsFeed({
             grant.poolTier === "state_territory",
         ) && (
           <p className="text-[11px] text-slate-400">
-            No current state or local listings in AutoGrant match this profile for {userState}. The
-            official source above may list additional programs not included here.
+            No currently actionable state or local grant listings match this profile for {userState}
+            . Program directories below link to additional sources but are not confirmed open
+            awards.
           </p>
         )}
       {error && <p className="text-xs text-red-400">{error}</p>}
+      {signedIn && closestMatches.length > 0 && shown.length > 0 && (
+        <button
+          type="button"
+          aria-expanded={showEligibilityReasons}
+          onClick={() => setShowEligibilityReasons((value) => !value)}
+          className="text-xs font-semibold text-amber-300 underline underline-offset-2"
+        >
+          {showEligibilityReasons
+            ? "Hide eligibility explanations"
+            : `Show why ${closestMatches.length} other listings do not match`}
+        </button>
+      )}
       {loading ? (
-        <p className="text-xs text-slate-400">Loading live grants from Grants.gov…</p>
+        <p className="text-xs text-slate-400">Loading live grant sources…</p>
       ) : (
         <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
-          {signedIn && shown.length === 0 && !error && closestMatches.length > 0 && (
-            <section className="space-y-2">
+          {signedIn && programDirectories.length > 0 && (
+            <section className="space-y-2 rounded-lg border border-slate-700 bg-slate-950 p-3">
               <div>
-                <h3 className="text-sm font-bold text-amber-300">
-                  Eligibility checks — needs review
+                <h3 className="text-sm font-bold text-slate-200">
+                  Program directories ({programDirectories.length})
                 </h3>
                 <p className="text-xs text-slate-400">
-                  The reasons below explain why these programs are not currently shown as eligible.
+                  These are funder portals, not confirmed open grant opportunities. Check each
+                  official site for current programs, eligibility, and deadlines.
                 </p>
               </div>
-              {closestMatches.map((grant) => {
-                const score = scoreById.get(grant.id);
-                const missing = score?.hardDisqualifiers.slice(0, 3) ?? [
-                  "Complete the intake profile.",
-                ];
-                const tier =
-                  "agency" in grant
-                    ? "Federal"
-                    : grant.grantTier ??
-                      (grant.poolTier === "foundation"
-                        ? "Foundation"
-                        : grant.poolTier === "corporate_diversity"
-                          ? "Corporate"
-                          : "State");
-                const directUrl =
-                  "agency" in grant
-                    ? grant.url
-                    : grant.portalUrl || grant.directApplyUrl || grant.officialApplicationUrl;
-                const closed =
-                  "agency" in grant ? false : grant.status === "closed" || grant.directoryOnly;
-                return (
-                  <div
-                    key={grant.id}
-                    className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-2"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-bold text-blue-300">{grant.title}</p>
-                      <span className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-300">
-                        {tier}
-                      </span>
-                      {closed && (
-                        <span className="rounded border border-red-800 bg-red-950 px-2 py-1 text-[10px] text-red-300">
-                          Closed / inactive
-                        </span>
-                      )}
-                    </div>
-                    <ul className="list-disc pl-4 text-xs text-amber-200 space-y-1">
-                      {missing.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                    <div className="flex gap-2">
-                      {"agency" in grant ? (
-                        <Button
-                          variant="outline"
-                          onClick={() => openReader(grant)}
-                          className="text-xs h-8"
-                        >
-                          Read Grant
-                        </Button>
-                      ) : (
-                        <Button variant="outline" asChild className="text-xs h-8">
-                          <a href={directUrl} target="_blank" rel="noreferrer">
-                            Apply on Official Portal
+              <div className="max-h-48 space-y-2 overflow-y-auto">
+                {programDirectories.map((grant) => {
+                  const portalUrl =
+                    grant.portalUrl || grant.directApplyUrl || grant.officialApplicationUrl;
+                  return (
+                    <article
+                      key={grant.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-800 p-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-200">{grant.title}</p>
+                        <p className="text-[11px] text-slate-400">
+                          {grant.funderName}
+                          {grant.summaryText ? ` · ${grant.summaryText}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-3 text-xs">
+                        {portalUrl && (
+                          <a
+                            href={portalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => trackLovableEvent("grant_directory_opened")}
+                            className="text-emerald-300 underline underline-offset-2"
+                          >
+                            Open directory
                           </a>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                        )}
+                        <a
+                          href={createGrantIssueUrl({
+                            id: grant.id,
+                            title: grant.title,
+                            sourceUrl: portalUrl,
+                          })}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => trackLovableEvent("grant_listing_report_opened")}
+                          className="text-slate-400 underline underline-offset-2"
+                        >
+                          Report issue
+                        </a>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
             </section>
           )}
+          {signedIn &&
+            !error &&
+            closestMatches.length > 0 &&
+            (shown.length === 0 || showEligibilityReasons) && (
+              <section className="space-y-2">
+                <div>
+                  <h3 className="text-sm font-bold text-amber-300">
+                    Eligibility checks — needs review
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    The reasons below explain why these programs are not currently shown as
+                    eligible.
+                  </p>
+                </div>
+                {closestMatches.map((grant) => {
+                  const score = scoreById.get(grant.id);
+                  const missing = score?.hardDisqualifiers.slice(0, 3) ?? [
+                    "Complete the intake profile.",
+                  ];
+                  const tier =
+                    "agency" in grant
+                      ? "Federal"
+                      : (grant.grantTier ??
+                        (grant.poolTier === "foundation"
+                          ? "Foundation"
+                          : grant.poolTier === "corporate_diversity"
+                            ? "Corporate"
+                            : "State"));
+                  const directUrl =
+                    "agency" in grant
+                      ? grant.url
+                      : grant.portalUrl || grant.directApplyUrl || grant.officialApplicationUrl;
+                  const closed =
+                    "agency" in grant ? false : grant.status === "closed" || grant.directoryOnly;
+                  return (
+                    <div
+                      key={grant.id}
+                      className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-2"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-bold text-blue-300">{grant.title}</p>
+                        <span className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-300">
+                          {tier}
+                        </span>
+                        {closed && (
+                          <span className="rounded border border-red-800 bg-red-950 px-2 py-1 text-[10px] text-red-300">
+                            Closed / inactive
+                          </span>
+                        )}
+                      </div>
+                      <ul className="list-disc pl-4 text-xs text-amber-200 space-y-1">
+                        {missing.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                      <div className="flex gap-2">
+                        {"agency" in grant ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => openReader(grant)}
+                            className="text-xs h-8"
+                          >
+                            Read Grant
+                          </Button>
+                        ) : (
+                          <Button variant="outline" asChild className="text-xs h-8">
+                            <a href={directUrl} target="_blank" rel="noreferrer">
+                              Apply on Official Portal
+                            </a>
+                          </Button>
+                        )}
+                        <a
+                          href={createGrantIssueUrl({
+                            id: grant.id,
+                            title: grant.title,
+                            sourceUrl: directUrl,
+                          })}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => trackLovableEvent("grant_listing_report_opened")}
+                          className="inline-flex h-8 items-center text-xs text-slate-400 underline underline-offset-2"
+                        >
+                          Report issue
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+            )}
           {allEligibleGrants.map((grant) => {
             const isLiveGrant = "agency" in grant;
             const score = scoreById.get(grant.id);
             const tier = isLiveGrant
               ? "Federal"
-              : grant.grantTier ??
+              : (grant.grantTier ??
                 (grant.poolTier === "state_territory"
                   ? "State"
                   : grant.poolTier === "corporate_diversity"
                     ? "Corporate"
                     : grant.poolTier === "foundation"
                       ? "Foundation"
-                      : "Local");
+                      : "Local"));
             const source = isLiveGrant
               ? /sbir|sttr/i.test(`${grant.title} ${grant.agency}`)
                 ? "Federal — SBIR/STTR"
@@ -815,10 +809,9 @@ export function LiveGrantsFeed({
                   : grant.deadline;
             const eligibilityText = isLiveGrant
               ? grant.eligibility.join("; ") || "See official listing"
-              : grant.eligibleEntityTypes
-                  .map((entity) => entity.replaceAll("_", " "))
-                  .join(", ");
-            const isClosed = !isLiveGrant && (grant.status === "closed" || grant.directoryOnly);
+              : grant.eligibleEntityTypes.map((entity) => entity.replaceAll("_", " ")).join(", ");
+            const isClosed = !isLiveGrant && grant.status === "closed";
+            const isDirectory = !isLiveGrant && grant.directoryOnly;
             const directApplyHref = isLiveGrant
               ? grant.url
               : grant.portalUrl || grant.directApplyUrl || grant.officialApplicationUrl;
@@ -833,7 +826,12 @@ export function LiveGrantsFeed({
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
                       {source}
                     </span>
-                    {isClosed && (
+                    {isDirectory && (
+                      <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
+                        Program directory
+                      </span>
+                    )}
+                    {isClosed && !isDirectory && (
                       <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800">
                         Closed / inactive
                       </span>
@@ -879,20 +877,21 @@ export function LiveGrantsFeed({
                 </div>
                 {score && (
                   <p className="rounded-md border border-emerald-900 bg-emerald-950/30 p-2 text-[11px] text-emerald-200">
-                    <strong>Competition signals, not odds:</strong> {score.whyLowCompetition.join(" ")}
+                    <strong>Competition signals, not odds:</strong>{" "}
+                    {score.whyLowCompetition.join(" ")}
                   </p>
                 )}
                 {score?.vaultReadiness.missing.length ? (
                   <p className="text-[11px] text-amber-200">
                     Vault readiness {score.vaultReadiness.readyDocuments}/
-                    {score.vaultReadiness.totalDocuments}: add {score.vaultReadiness.missing.join(", ")}
-                    .
+                    {score.vaultReadiness.totalDocuments}: add{" "}
+                    {score.vaultReadiness.missing.join(", ")}.
                   </p>
                 ) : null}
                 {score?.requiresSamWarning && (
                   <p className="text-[11px] text-amber-200">
-                    Requires active SAM.gov + UEI registration; start at least 10 business days ahead.
-                    IRS or entity-validation delays may extend processing.
+                    Requires active SAM.gov + UEI registration; start at least 10 business days
+                    ahead. IRS or entity-validation delays may extend processing.
                   </p>
                 )}
                 {score && <ScoreBreakdown score={score} />}
@@ -913,16 +912,37 @@ export function LiveGrantsFeed({
                     </Button>
                   ) : null}
                   <Button variant="outline" asChild className="text-xs h-8">
-                    <a href={directApplyHref} target="_blank" rel="noreferrer">
-                      Apply on Official Portal
+                    <a
+                      href={directApplyHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => trackLovableEvent("grant_portal_opened")}
+                    >
+                      {isDirectory ? "Open Program Directory" : "Apply on Official Portal"}
                     </a>
                   </Button>
+                  <a
+                    href={createGrantIssueUrl({
+                      id: grant.id,
+                      title: grant.title,
+                      sourceUrl: directApplyHref,
+                    })}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => trackLovableEvent("grant_listing_report_opened")}
+                    className="inline-flex h-8 items-center px-2 text-xs text-slate-400 underline underline-offset-2"
+                  >
+                    Report issue
+                  </a>
                   <Button
-                    disabled={drafting || !enabled}
-                    onClick={() => onDraft(grant)}
+                    disabled={drafting || !enabled || isDirectory}
+                    onClick={() => {
+                      trackLovableEvent("grant_proposal_started");
+                      onDraft(grant);
+                    }}
                     className="text-xs h-8"
                   >
-                    {drafting ? "Drafting…" : "Draft Proposal"}
+                    {isDirectory ? "Directory Only" : drafting ? "Drafting…" : "Draft Proposal"}
                   </Button>
                 </div>
               </article>

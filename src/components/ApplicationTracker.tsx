@@ -1,5 +1,22 @@
 import { useState } from "react";
-import type { ProposalDraft } from "../lib/autopilot";
+import { createPostAwardChecklist, type ProposalDraft } from "../lib/autopilot";
+import { trackLovableEvent } from "../lib/lovable-error-reporting";
+
+const STATUS_LABELS: Record<ProposalDraft["status"], string> = {
+  draft: "Draft",
+  submission_ready: "Submission-ready",
+  submitted: "Submitted",
+  under_review: "Under review",
+  awarded: "Awarded",
+  not_selected: "Not selected",
+};
+
+function statusBadgeClass(status: ProposalDraft["status"]) {
+  if (status === "awarded") return "bg-emerald-700";
+  if (status === "submitted" || status === "under_review") return "bg-blue-600";
+  if (status === "not_selected") return "bg-slate-600";
+  return "bg-indigo-700";
+}
 
 type StatusDetails = {
   confirmation?: string;
@@ -17,7 +34,7 @@ interface ApplicationTrackerProps {
   proposals: ProposalDraft[];
   onStatusChange?: (
     id: string,
-    newStatus: "draft" | "submission_ready" | "submitted",
+    newStatus: ProposalDraft["status"],
     details?: StatusDetails,
   ) => Promise<void>;
   onDeleteProposal?: (id: string) => Promise<void>;
@@ -54,7 +71,7 @@ export const ApplicationTracker = ({
 
   const changeStatus = async (
     proposal: ProposalDraft,
-    status: "draft" | "submission_ready" | "submitted",
+    status: ProposalDraft["status"],
     details?: StatusDetails,
   ) => {
     if (!onStatusChange) {
@@ -70,6 +87,7 @@ export const ApplicationTracker = ({
         status,
         ...(details?.confirmation ? { confirmation: details.confirmation } : {}),
       });
+      trackLovableEvent("application_status_updated", { status });
       setConfirmReady(false);
       setConfirmSubmission(false);
     } catch (error) {
@@ -97,12 +115,22 @@ export const ApplicationTracker = ({
         setSelectedProposal(null);
       }
     } catch (error) {
-      setStatusError(
-        error instanceof Error ? error.message : "Application could not be deleted.",
-      );
+      setStatusError(error instanceof Error ? error.message : "Application could not be deleted.");
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const downloadPostAwardChecklist = (proposal: ProposalDraft) => {
+    const blob = new Blob([createPostAwardChecklist(proposal)], {
+      type: "text/markdown;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${proposal.grantTitle.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_post_award_checklist.md`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -136,9 +164,9 @@ export const ApplicationTracker = ({
               </button>
               <div className="flex items-center gap-2 shrink-0">
                 <span
-                  className={`px-2 py-1 text-xs rounded uppercase font-medium ${proposal.status === "submitted" ? "bg-emerald-600" : "bg-blue-600"}`}
+                  className={`px-2 py-1 text-xs rounded uppercase font-medium ${statusBadgeClass(proposal.status)}`}
                 >
-                  {proposal.status === "submission_ready" ? "Submission-ready" : proposal.status}
+                  {STATUS_LABELS[proposal.status]}
                 </span>
                 {onDeleteProposal && (
                   <button
@@ -218,7 +246,7 @@ export const ApplicationTracker = ({
               >
                 Confirm External Submission
               </button>
-            ) : (
+            ) : selectedProposal.status === "submitted" ? (
               <button
                 disabled={savingStatus}
                 onClick={() => void changeStatus(selectedProposal, "draft")}
@@ -226,8 +254,62 @@ export const ApplicationTracker = ({
               >
                 Move to Draft
               </button>
-            )}
+            ) : null}
           </div>
+          {(selectedProposal.status === "submitted" ||
+            selectedProposal.status === "under_review") && (
+            <section className="space-y-2 border-t border-slate-800 pt-3">
+              <p className="text-xs text-slate-300">
+                Update this record when you receive a decision or review notice. AutoGrant does not
+                verify funder decisions.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {selectedProposal.status === "submitted" && (
+                  <button
+                    disabled={savingStatus}
+                    onClick={() => void changeStatus(selectedProposal, "under_review")}
+                    className="rounded border border-blue-700 px-3 py-1.5 text-xs text-blue-200 disabled:opacity-50"
+                  >
+                    Mark Under Review
+                  </button>
+                )}
+                <button
+                  disabled={savingStatus}
+                  onClick={() => void changeStatus(selectedProposal, "awarded")}
+                  className="rounded border border-emerald-700 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50"
+                >
+                  Record Award
+                </button>
+                <button
+                  disabled={savingStatus}
+                  onClick={() => void changeStatus(selectedProposal, "not_selected")}
+                  className="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 disabled:opacity-50"
+                >
+                  Record Not Selected
+                </button>
+              </div>
+            </section>
+          )}
+          {selectedProposal.status === "awarded" && (
+            <section className="space-y-3 border-t border-slate-800 pt-3">
+              <div>
+                <h4 className="text-sm font-semibold text-emerald-300">
+                  Post-award follow-through
+                </h4>
+                <p className="mt-1 text-xs text-slate-300">
+                  Review award conditions, schedule reporting dates, track outcomes, and keep the
+                  funder informed about approved project changes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => downloadPostAwardChecklist(selectedProposal)}
+                className="rounded border border-emerald-800 px-3 py-1.5 text-xs text-emerald-200 hover:bg-emerald-950"
+              >
+                Download Post-award Checklist
+              </button>
+            </section>
+          )}
           {confirmReady && (
             <div className="p-3 border border-amber-700 bg-amber-950/30 rounded-lg space-y-3">
               <p className="text-xs text-amber-200">

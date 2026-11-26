@@ -50,6 +50,15 @@ export function reportLovableError(error: unknown, context: Record<string, unkno
   });
 }
 
+export function trackLovableEvent(event: string, properties?: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.__lovableEvents?.track?.(event, properties);
+  } catch (error) {
+    console.warn("Lovable telemetry could not record an event.", error);
+  }
+}
+
 const MAX_SERIALIZED_LENGTH = 2000;
 
 // Loaders and server fns throw raw Responses and plain objects (a Supabase

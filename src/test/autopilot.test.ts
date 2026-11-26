@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { applicationToProposal } from "@/lib/autopilot";
+import {
+  applicationToProposal,
+  canTransitionProposalStatus,
+  createPostAwardChecklist,
+} from "@/lib/autopilot";
 
 const row = (status: string) => ({
   id: "application-id",
@@ -21,6 +25,39 @@ describe("application tracker status adapter", () => {
       status: "submitted",
       confirmation: "receipt-123",
     });
+  });
+
+  it("tracks review and award outcomes without losing a submission receipt", () => {
+    expect(applicationToProposal(row("under_review::receipt-123"))).toMatchObject({
+      status: "under_review",
+      confirmation: "receipt-123",
+    });
+    expect(applicationToProposal(row("awarded::receipt-123"))).toMatchObject({
+      status: "awarded",
+      confirmation: "receipt-123",
+    });
+    expect(applicationToProposal(row("not_selected")).status).toBe("not_selected");
+  });
+
+  it("allows only forward tracker status transitions", () => {
+    expect(canTransitionProposalStatus("submission_ready", "submitted")).toBe(true);
+    expect(canTransitionProposalStatus("submitted", "draft")).toBe(true);
+    expect(canTransitionProposalStatus("submitted", "under_review")).toBe(true);
+    expect(canTransitionProposalStatus("under_review", "awarded")).toBe(true);
+    expect(canTransitionProposalStatus("draft", "awarded")).toBe(false);
+    expect(canTransitionProposalStatus("awarded", "draft")).toBe(false);
+    expect(canTransitionProposalStatus("not_selected", "submitted")).toBe(false);
+  });
+
+  it("creates a post-award follow-through checklist", () => {
+    const checklist = createPostAwardChecklist({
+      grantTitle: "Community Grant",
+      funder: "Example Foundation",
+    });
+
+    expect(checklist).toContain("# Post-award follow-through: Community Grant");
+    expect(checklist).toContain("Funder: Example Foundation");
+    expect(checklist).toContain("Record report and deliverable due dates");
   });
 
   it("preserves persisted award amount and funder", () => {

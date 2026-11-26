@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,7 @@ import type { GrantRequirementBOM } from "@/lib/ai/rfp-parser";
 import { buildBudgetJustification, type BudgetInput, BudgetCalculation } from "@/lib/budget";
 import { programGuidanceForProgram, winnerResearchForProgram } from "@/lib/grants/sources/winner-research";
 import { BudgetBuilder } from "./BudgetBuilder";
+import { trackLovableEvent } from "@/lib/lovable-error-reporting";
 
 type Section = { title: string; body: string };
 const REQUIREMENT_DOCUMENT_LABELS: Record<GrantRequirementBOM["aiDraftableDocuments"][number]["documentType"], string> = {
@@ -86,6 +87,7 @@ export function ProposalStudio({
   const parseRequirements = useServerFn(analyzeGrantRequirements);
   const saveDraft = useServerFn(saveProposalDraft);
   const [dirty, setDirty] = useState(false);
+  const editedSections = useRef(new Set<string>());
   const current = docs[type];
   const winnerResearch = winnerResearchForProgram(grant.id);
   const publicProgramGuidance = programGuidanceForProgram(grant.id);
@@ -162,6 +164,7 @@ export function ProposalStudio({
       setDocs((d) => ({ ...d, [type]: { sections: r.sections, fileName: r.fileName } }));
       setAppId(r.applicationId);
       setDirty(false);
+      trackLovableEvent("proposal_document_generated");
       toast.success(`Saved to Vault: ${r.fileName}`);
       onSaved();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Generation failed"); }
@@ -245,6 +248,7 @@ export function ProposalStudio({
       link.download = `${grant.title.replace(/[^a-z0-9-]+/gi, "-").replace(/^-|-$/gu, "").slice(0, 60) || "grant"}-application-package.zip`;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      trackLovableEvent("application_package_exported");
       toast.success("Application package downloaded. Review all drafts before submission.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not export the application package.");
@@ -255,6 +259,7 @@ export function ProposalStudio({
   const updateBody = (i: number, body: string) => {
     if (!current) return;
     setDirty(true);
+    editedSections.current.add(`${type}:${i}`);
     setDocs((d) => ({ ...d, [type]: { ...current, sections: current.sections.map((s, j) => (j === i ? { ...s, body } : s)) } }));
   };
   const saveEdits = async () => {
@@ -280,6 +285,12 @@ export function ProposalStudio({
       } });
       setAppId(r.applicationId);
       setDirty(false);
+      if (editedSections.current.size > 0) {
+        trackLovableEvent("proposal_sections_saved", {
+          editedSectionCount: editedSections.current.size,
+        });
+        editedSections.current.clear();
+      }
       toast.success("Proposal edits saved");
       onSaved();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Could not save edits"); }
@@ -352,6 +363,7 @@ export function ProposalStudio({
           </div>
           <button aria-label="Close" onClick={() => {
             if (dirty && !window.confirm("Discard unsaved proposal edits?")) return;
+            if (dirty) trackLovableEvent("proposal_edits_discarded");
             onClose();
           }} className="text-muted-foreground">✕</button>
         </div>

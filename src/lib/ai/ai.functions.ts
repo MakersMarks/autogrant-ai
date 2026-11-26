@@ -25,6 +25,7 @@ import {
 } from "./proposal-policy";
 import { extractDocumentText } from "./documents.server";
 import { evaluateProposalRedTeam, type RedTeamBudget } from "./red-team";
+import { canTransitionProposalStatus } from "@/lib/autopilot";
 import {
   grantRequirementBOMSchema,
   verifyExtractedRequirements,
@@ -1647,7 +1648,14 @@ export const saveProposalDraft = createServerFn({ method: "POST" })
 
 const updateApplicationStatusSchema = z.object({
   applicationId: z.string().uuid(),
-  status: z.enum(["draft", "submission_ready", "submitted"]),
+  status: z.enum([
+    "draft",
+    "submission_ready",
+    "submitted",
+    "under_review",
+    "awarded",
+    "not_selected",
+  ]),
   confirmation: z.string().trim().max(160).optional(),
   attestations: z
     .object({
@@ -1674,6 +1682,7 @@ export const updateApplicationStatus = createServerFn({ method: "POST" })
     if (readError || !application)
       throw new Error("That application could not be found in your tracker.");
 
+    const currentStatus = application.status.split("::", 1)[0]!.trim().toLowerCase();
     if (
       data.status === "submission_ready" &&
       (!application.narrative.trim() ||
@@ -1689,17 +1698,34 @@ export const updateApplicationStatus = createServerFn({ method: "POST" })
     }
     if (
       data.status === "submitted" &&
-      (application.status !== "submission_ready" || data.externalSubmissionConfirmed !== true)
+      (currentStatus !== "submission_ready" || data.externalSubmissionConfirmed !== true)
     ) {
       throw new Error(
         "Mark the draft submission-ready and confirm that you personally submitted it through the official portal first.",
       );
     }
+    if (
+      ["under_review", "awarded", "not_selected"].includes(data.status) &&
+      !["submitted", "under_review"].includes(currentStatus)
+    ) {
+      throw new Error(
+        "Only an externally submitted application can be moved into review or a decision status.",
+      );
+    }
+    if (!canTransitionProposalStatus(currentStatus, data.status)) {
+      throw new Error(`Application status cannot change from ${currentStatus} to ${data.status}.`);
+    }
 
+    const existingConfirmation = application.status.includes("::")
+      ? application.status.slice(application.status.indexOf("::") + 2)
+      : "";
     const status =
       data.status === "submitted" && data.confirmation
         ? `submitted::${data.confirmation}`
-        : data.status;
+        : ["under_review", "awarded", "not_selected"].includes(data.status) &&
+            existingConfirmation
+          ? `${data.status}::${existingConfirmation}`
+          : data.status;
     const { data: updated, error: updateError } = await context.supabase
       .from("applications")
       .update({ status })

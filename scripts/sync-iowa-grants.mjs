@@ -10,6 +10,11 @@ import { deadlineHasPassed, normalizeGrantRecord, parseIowaGrantRow } from "./io
 const SNAPSHOT_PATH = path.resolve(process.cwd(), ".github/iowa-grants-snapshot.json");
 const nowIso = new Date().toISOString();
 
+function recordDatabaseSyncSkipped(skipped) {
+  const outputPath = process.env.GITHUB_OUTPUT;
+  if (outputPath) fs.appendFileSync(outputPath, `db_sync_skipped=${skipped}\n`);
+}
+
 const CURATED_IOWA_GRANTS = [
   {
     id: "ia-ieda-pocr",
@@ -466,6 +471,7 @@ async function run() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   if (!supabaseUrl || !serviceRoleKey) {
+    recordDatabaseSyncSkipped(true);
     console.log(
       JSON.stringify({
         ok: true,
@@ -499,6 +505,7 @@ async function run() {
     }
   }
 
+  recordDatabaseSyncSkipped(false);
   console.log(
     JSON.stringify({
       ok: true,

@@ -43,6 +43,8 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run nightly Iowa grant crawlers and sync to site_grants
+        id: iowa-sync
+        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -50,6 +52,8 @@ jobs:
         run: node scripts/sync-iowa-grants.mjs
 
       - name: Sync minority and national grant directory
+        id: national-sync
+        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -67,3 +71,28 @@ jobs:
             git commit -m "chore: update TN and IA grant page snapshot"
             git push
           fi
+
+      - name: Verify grant database sync
+        if: always()
+        env:
+          IOWA_OUTCOME: ${{ steps.iowa-sync.outcome }}
+          IOWA_SKIPPED: ${{ steps.iowa-sync.outputs.db_sync_skipped }}
+          NATIONAL_OUTCOME: ${{ steps.national-sync.outcome }}
+          NATIONAL_SKIPPED: ${{ steps.national-sync.outputs.db_sync_skipped }}
+        run: |
+          failed=0
+          if [ "$IOWA_OUTCOME" != "success" ]; then
+            echo "::error::Iowa grant database sync failed (outcome: $IOWA_OUTCOME)."
+            failed=1
+          elif [ "$IOWA_SKIPPED" = "true" ]; then
+            echo "::error::Iowa snapshot was crawled, but database sync was skipped. Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY as GitHub Actions secrets."
+            failed=1
+          fi
+          if [ "$NATIONAL_OUTCOME" != "success" ]; then
+            echo "::error::National grant directory sync failed (outcome: $NATIONAL_OUTCOME)."
+            failed=1
+          elif [ "$NATIONAL_SKIPPED" = "true" ]; then
+            echo "::error::National grant database sync was skipped. Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY as GitHub Actions secrets."
+            failed=1
+          fi
+          exit "$failed"

@@ -7,9 +7,36 @@ export interface ProposalDraft {
   amount?: string;
   funder?: string;
   generatedContent: string;
-  status: "draft" | "submission_ready" | "submitted";
+  status: "draft" | "submission_ready" | "submitted" | "under_review" | "awarded" | "not_selected";
   createdAt: string;
   confirmation?: string;
+}
+
+function isProposalStatus(value: string): value is ProposalDraft["status"] {
+  return [
+    "draft",
+    "submission_ready",
+    "submitted",
+    "under_review",
+    "awarded",
+    "not_selected",
+  ].includes(value);
+}
+
+const ALLOWED_STATUS_TRANSITIONS: Record<
+  ProposalDraft["status"],
+  readonly ProposalDraft["status"][]
+> = {
+  draft: ["submission_ready"],
+  submission_ready: ["draft", "submitted"],
+  submitted: ["draft", "under_review", "awarded", "not_selected"],
+  under_review: ["awarded", "not_selected"],
+  awarded: [],
+  not_selected: [],
+};
+
+export function canTransitionProposalStatus(current: string, next: ProposalDraft["status"]) {
+  return isProposalStatus(current) && ALLOWED_STATUS_TRANSITIONS[current].includes(next);
 }
 
 /** Adapter for persisted application rows; AI generation is server-only in ai.functions.ts. */
@@ -23,12 +50,10 @@ export function applicationToProposal(row: {
   amount?: string;
   funder?: string;
 }): ProposalDraft {
-  const persistedStatus = row.status.trim().toLowerCase();
-  const submitted = persistedStatus.startsWith("submitted");
-  const confirmation =
-    submitted && row.status.includes("::")
-      ? row.status.slice(row.status.indexOf("::") + 2)
-      : undefined;
+  const statusValue = row.status.split("::", 1)[0]!.trim().toLowerCase();
+  const confirmation = row.status.includes("::")
+    ? row.status.slice(row.status.indexOf("::") + 2)
+    : undefined;
   return {
     id: row.id,
     grantId: row.grant_id,
@@ -36,12 +61,23 @@ export function applicationToProposal(row: {
     ...(row.amount === undefined ? {} : { amount: row.amount }),
     ...(row.funder === undefined ? {} : { funder: row.funder }),
     generatedContent: row.narrative,
-    status: submitted
-      ? "submitted"
-      : persistedStatus === "submission_ready"
-        ? "submission_ready"
-        : "draft",
+    status: isProposalStatus(statusValue) ? statusValue : "draft",
     createdAt: row.created_at,
     ...(confirmation === undefined ? {} : { confirmation }),
   };
+}
+
+export function createPostAwardChecklist(proposal: Pick<ProposalDraft, "grantTitle" | "funder">) {
+  const lines = [
+    `# Post-award follow-through: ${proposal.grantTitle}`,
+    ...(proposal.funder ? [`Funder: ${proposal.funder}`] : []),
+    "",
+    "- [ ] Review the award letter, approved scope, deliverables, and reporting conditions.",
+    "- [ ] Record report and deliverable due dates and assign an owner for each.",
+    "- [ ] Track project outcomes and retain evidence needed for required reports.",
+    "- [ ] Ask the funder to approve scope or timeline changes before making them.",
+    "- [ ] Keep copies of funder communications and submitted reports.",
+    "",
+  ];
+  return lines.join("\n");
 }

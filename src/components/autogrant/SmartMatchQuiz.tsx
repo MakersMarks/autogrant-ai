@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSmartYesNoQuiz } from "@/hooks/useSmartYesNoQuiz";
+import { trackLovableEvent } from "@/lib/lovable-error-reporting";
 
 export function SmartMatchQuiz() {
   const {
@@ -15,6 +16,13 @@ export function SmartMatchQuiz() {
   } = useSmartYesNoQuiz();
   const [dragX, setDragX] = useState(0);
   const pointerStart = useRef<number | null>(null);
+  const trackedStart = useRef(false);
+
+  useEffect(() => {
+    if (loading || trackedStart.current) return;
+    trackedStart.current = true;
+    trackLovableEvent("smart_match_quiz_started");
+  }, [loading]);
 
   const stamp = useMemo(() => {
     if (dragX > 20) return "YES";
@@ -46,9 +54,13 @@ export function SmartMatchQuiz() {
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Smart Match Quiz</p>
             <h1 className="mt-1 text-2xl font-bold">Discover grants that fit you</h1>
+            <p className="mt-1 text-xs text-slate-400">
+              This count covers current non-federal listings. Live Grants.gov opportunities are
+              searched separately in your main feed.
+            </p>
           </div>
           <span className="rounded-full border border-emerald-700 bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-200">
-            {matchCount} matching grants
+            {matchCount} non-federal matches
           </span>
         </header>
 
@@ -137,7 +149,8 @@ export function SmartMatchQuiz() {
           <section className="rounded-3xl border border-emerald-800 bg-slate-900 p-8 text-center">
             <h2 className="text-2xl font-bold">Your matches are ready</h2>
             <p className="mt-2 text-sm text-slate-300">
-              {matchCount} grants match your saved profile and quiz answers.
+              {matchCount} current non-federal listings match your saved profile and quiz answers.
+              Federal results appear separately in your main feed.
             </p>
             <a
               href="/"

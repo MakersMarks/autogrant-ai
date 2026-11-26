@@ -7,14 +7,23 @@ import {
   type YesNoQuestion,
 } from "@/data/yesNoQuestionBank";
 import { getMultiPoolRegistry } from "@/lib/grants-gov/grants.functions";
-import { stateCodeFromLocation } from "@/lib/grants-gov/rules";
+import { evaluateHonestEligibility, stateCodeFromLocation } from "@/lib/grants-gov/rules";
 import { standardizedDemographicTags } from "@/lib/grants-gov/scoring";
+import { trackLovableEvent } from "@/lib/lovable-error-reporting";
 
 type Answer = "yes" | "no" | "skip";
 type SiteGrantRow = {
   id: string;
+  states?: string[] | null;
+  eligible_states?: string[] | null;
+  eligible_entity_types?: string[] | null;
+  min_months_in_business?: number | null;
+  stage_tags?: string[] | null;
   demographic_tags?: string[] | null;
+  demographic_set_asides?: string[] | null;
   requires_strict_demographic?: boolean | null;
+  directory_only?: boolean | null;
+  status?: string | null;
 };
 type CustomTableClient = {
   from(table: "site_grants"): {
@@ -25,6 +34,51 @@ type CustomTableClient = {
   };
 };
 const customTables = supabase as unknown as CustomTableClient;
+
+type MatchCountGrant = {
+  status?: string | null;
+  directoryOnly?: boolean | null;
+  states?: readonly string[] | null;
+  eligibleStates?: readonly string[] | null;
+  eligibleEntityTypes?: readonly string[] | null;
+  minMonthsInBusiness?: number | null;
+  stageTags?: readonly string[] | null;
+  demographicTags?: readonly string[] | null;
+  demographicSetAsides?: readonly string[] | null;
+  requiresStrictDemographic?: boolean | null;
+};
+
+function matchesSmartMatchProfile(
+  grant: MatchCountGrant,
+  profile: {
+    state: string;
+    lifecycleStage: string;
+    entityType: string;
+    demographics: readonly string[];
+  },
+): boolean {
+  const demographicTags = standardizedDemographicTags(
+    grant.demographicTags?.length ? grant.demographicTags : (grant.demographicSetAsides ?? []),
+  );
+  return evaluateHonestEligibility(
+    {
+      status: grant.status,
+      directory_only: grant.directoryOnly,
+      states: grant.states ?? grant.eligibleStates,
+      eligible_entity_types: grant.eligibleEntityTypes,
+      min_months_in_business: grant.minMonthsInBusiness,
+      stage_tags: grant.stageTags,
+      demographic_tags: demographicTags,
+      requires_strict_demographic: grant.requiresStrictDemographic,
+    },
+    {
+      state: profile.state,
+      lifecycle_stage: profile.lifecycleStage,
+      entity_type: profile.entityType,
+      demographic_tags: standardizedDemographicTags(profile.demographics),
+    },
+  ).eligible;
+}
 
 export function applyDemographicAnswer(
   tags: readonly string[],
@@ -38,42 +92,62 @@ export function applyDemographicAnswer(
   return answer === "yes" ? [...new Set([...retained, questionTag])] : retained;
 }
 
-function demographicRequirementMatches(
-  grantTags: readonly string[] | null | undefined,
-  isStrict: boolean | null | undefined,
-  profileTags: ReadonlySet<string>,
-): boolean {
-  if (!isStrict || !grantTags?.length) return true;
-  return standardizedDemographicTags(grantTags).some((tag) => profileTags.has(tag));
-}
-
 async function loadMatchCount(
   demographics: readonly string[],
   state: string,
   lifecycleStage: string,
+  entityType: string,
 ): Promise<number> {
   const [siteGrantResult, registryResult] = await Promise.all([
-    customTables.from("site_grants").select("id, demographic_tags, requires_strict_demographic"),
+    customTables
+      .from("site_grants")
+      .select(
+        "id, states, eligible_states, eligible_entity_types, min_months_in_business, stage_tags, demographic_tags, demographic_set_asides, requires_strict_demographic, directory_only, status",
+      ),
     getMultiPoolRegistry({ data: { state, lifecycleStage } }),
   ]);
   if (siteGrantResult.error) throw new Error(siteGrantResult.error.message);
 
-  const profileTags = new Set(standardizedDemographicTags(demographics));
+  const profile = { state, lifecycleStage, entityType, demographics };
   const matchingIds = new Set<string>();
   for (const grant of siteGrantResult.data ?? []) {
     if (
-      demographicRequirementMatches(
-        grant.demographic_tags,
-        grant.requires_strict_demographic,
-        profileTags,
+      matchesSmartMatchProfile(
+        {
+          status: grant.status,
+          directoryOnly: grant.directory_only,
+          states: grant.states,
+          eligibleStates: grant.eligible_states,
+          eligibleEntityTypes: grant.eligible_entity_types,
+          minMonthsInBusiness: grant.min_months_in_business,
+          stageTags: grant.stage_tags,
+          demographicTags: grant.demographic_tags,
+          demographicSetAsides: grant.demographic_set_asides,
+          requiresStrictDemographic: grant.requires_strict_demographic,
+        },
+        profile,
       )
     ) {
       matchingIds.add(grant.id);
     }
   }
   for (const grant of Object.values(registryResult.pools).flat()) {
-    const tags = grant.demographicTags?.length ? grant.demographicTags : grant.demographicSetAsides;
-    if (demographicRequirementMatches(tags, grant.requiresStrictDemographic, profileTags)) {
+    if (
+      matchesSmartMatchProfile(
+        {
+          status: grant.status,
+          directoryOnly: grant.directoryOnly,
+          states: grant.eligibleStates,
+          eligibleEntityTypes: grant.eligibleEntityTypes,
+          minMonthsInBusiness: grant.minMonthsInBusiness,
+          stageTags: grant.stageTags,
+          demographicTags: grant.demographicTags,
+          demographicSetAsides: grant.demographicSetAsides,
+          requiresStrictDemographic: grant.requiresStrictDemographic,
+        },
+        profile,
+      )
+    ) {
       matchingIds.add(grant.id);
     }
   }
@@ -117,7 +191,11 @@ export function useSmartYesNoQuiz() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [matchCountError, setMatchCountError] = useState("");
-  const [profileContext, setProfileContext] = useState({ state: "", lifecycleStage: "" });
+  const [profileContext, setProfileContext] = useState({
+    state: "",
+    lifecycleStage: "",
+    entityType: "",
+  });
 
   useEffect(() => {
     let active = true;
@@ -134,7 +212,7 @@ export function useSmartYesNoQuiz() {
           await Promise.all([
             supabase
               .from("profiles")
-              .select("demographics, location, lifecycle_stage")
+              .select("demographics, location, lifecycle_stage, entity_type")
               .eq("id", user.id)
               .maybeSingle(),
             supabase.from("vault_documents").select("slot_key").eq("user_id", user.id),
@@ -151,6 +229,7 @@ export function useSmartYesNoQuiz() {
         const context = {
           state: stateCodeFromLocation(profile?.location ?? "") ?? "",
           lifecycleStage: profile?.lifecycle_stage ?? "",
+          entityType: profile?.entity_type ?? "",
         };
         setTags([...new Set([...profileTags, ...docSatisfiedTags])]);
         setDocumentKeys(nextDocumentKeys);
@@ -161,6 +240,7 @@ export function useSmartYesNoQuiz() {
               [...profileTags, ...docSatisfiedTags],
               context.state,
               context.lifecycleStage,
+              context.entityType,
             ),
           );
           setMatchCountError("");
@@ -237,11 +317,17 @@ export function useSmartYesNoQuiz() {
       );
       const nextPosition = nextQuestions.findIndex((question) => question.id === current.id);
       setIndex(Math.max(0, nextPosition + 1));
+      if (nextQuestions.length === 0) trackLovableEvent("smart_match_quiz_completed");
 
       if (tagsChanged) {
         try {
           setMatchCount(
-            await loadMatchCount(nextTags, profileContext.state, profileContext.lifecycleStage),
+            await loadMatchCount(
+              nextTags,
+              profileContext.state,
+              profileContext.lifecycleStage,
+              profileContext.entityType,
+            ),
           );
           setMatchCountError("");
         } catch (error) {

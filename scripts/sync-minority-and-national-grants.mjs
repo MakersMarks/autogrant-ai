@@ -2,8 +2,14 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { createClient } = require("@supabase/supabase-js");
+const fs = require("node:fs");
 
 const nowIso = new Date().toISOString();
+function recordDatabaseSyncSkipped(skipped) {
+  const outputPath = process.env.GITHUB_OUTPUT;
+  if (outputPath) fs.appendFileSync(outputPath, `db_sync_skipped=${skipped}\n`);
+}
+
 const PROGRAMS = [
   ["naacp-grants", "NAACP Grants", "NAACP", "https://naacp.org/find-resources/grants", ["black_owned"]],
   ["black-girl-ventures", "Black Girl Ventures", "Black Girl Ventures", "https://blackgirlventures.org", ["black_owned", "women_owned"]],
@@ -45,10 +51,10 @@ const grants = PROGRAMS.map(([id, title, funder, portalUrl, demographicTags]) =>
   min_months_in_business: 0,
   requires_strict_demographic: false,
   deadline: "Check Current Cycle",
-  status: "open",
+  status: "unknown",
   portal_url: portalUrl,
   direct_apply_url: portalUrl,
-  directory_only: false,
+  directory_only: true,
   summary_text: `${title} opportunity or resource directory maintained by ${funder}.`,
   prerequisites: ["Review current eligibility and open funding cycle on the official portal."],
   source_system: "minority_national_curated_registry",
@@ -60,6 +66,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceRoleKey) {
+  recordDatabaseSyncSkipped(true);
   console.log(JSON.stringify({ ok: true, upsertedCount: 0, dbSyncSkipped: "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set", count: grants.length }));
   process.exit(0);
 }
@@ -70,4 +77,5 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 
 const { error } = await supabase.from("site_grants").upsert(grants, { onConflict: "id" });
 if (error) throw new Error(`Supabase upsert failed: ${error.message}`);
+recordDatabaseSyncSkipped(false);
 console.log(JSON.stringify({ ok: true, upsertedCount: grants.length }));
