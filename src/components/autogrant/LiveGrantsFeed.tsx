@@ -45,6 +45,15 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 type Detail = Awaited<ReturnType<typeof getGrantDetail>>;
+type SiteGrantsClient = {
+  from(table: "site_grants"): {
+    select(columns: "*"): PromiseLike<{
+      data: SiteGrantRow[] | null;
+      error: { message: string } | null;
+    }>;
+  };
+};
+const siteGrantsClient = supabase as unknown as SiteGrantsClient;
 
 const DEADLINES = [
   { value: "any", label: "Any deadline" },
@@ -162,7 +171,7 @@ export function LiveGrantsFeed({
 
   useEffect(() => {
     let active = true;
-    void (supabase as any)
+    void siteGrantsClient
       .from("site_grants")
       .select("*")
       .then(
