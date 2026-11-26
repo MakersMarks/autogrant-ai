@@ -94,7 +94,7 @@ function normalizeGrantRecord(item, { isClosed = false } = {}) {
     status: resolvedStatus,
     portal_url: resolvedPortalUrl,
     direct_apply_url: item.direct_apply_url || resolvedPortalUrl,
-    directory_only: isInactive || Boolean(item.directory_only),
+    directory_only: Boolean(item.directory_only),
   };
 }
 
@@ -467,7 +467,7 @@ async function run() {
             portal_url: applyUrl,
             source_solicitation_url: applyUrl,
             is_free_to_apply: true,
-            directory_only: isClosed,
+            directory_only: false,
             summary_text: `State of Iowa opportunity listed on IowaGrants.gov under ${agency}.`,
             prerequisites: [
               "Iowa-eligible applicant or project",
@@ -577,7 +577,7 @@ async function run() {
   if (inactiveIds.length > 0) {
     const { error: inactiveError } = await supabase
       .from("site_grants")
-      .update({ directory_only: true, status: "closed", updated_at: nowIso })
+      .update({ status: "closed", updated_at: nowIso })
       .in("id", inactiveIds);
     if (inactiveError) {
       throw new Error(`Supabase inactive update failed: ${inactiveError.message}`);

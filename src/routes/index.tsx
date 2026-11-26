@@ -756,6 +756,12 @@ function IndexComponent() {
               {label}
             </button>
           ))}
+          <a
+            href="/discover-profile"
+            className="rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
+          >
+            Smart Match Quiz
+          </a>
         </nav>
 
         <div className="min-w-0 space-y-4">

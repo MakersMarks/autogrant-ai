@@ -10,33 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DiscoverProfileRouteImport } from './routes/discover-profile'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DiscoverProfileRoute = DiscoverProfileRouteImport.update({
+  id: '/discover-profile',
+  path: '/discover-profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/discover-profile': typeof DiscoverProfileRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/discover-profile': typeof DiscoverProfileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/discover-profile': typeof DiscoverProfileRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/discover-profile'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/discover-profile'
+  id: '__root__' | '/' | '/discover-profile'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DiscoverProfileRoute: typeof DiscoverProfileRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/discover-profile': {
+      id: '/discover-profile'
+      path: '/discover-profile'
+      fullPath: '/discover-profile'
+      preLoaderRoute: typeof DiscoverProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DiscoverProfileRoute: DiscoverProfileRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -40,6 +40,13 @@ jobs:
           NODE_PATH: /tmp/grant-runner/node_modules
         run: node scripts/sync-iowa-grants.mjs
 
+      - name: Sync minority and national grant directory
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NODE_PATH: /tmp/grant-runner/node_modules
+        run: node scripts/sync-minority-and-national-grants.mjs
+
       - name: Commit updated snapshot if anything changed
         run: |
           git config user.name "github-actions[bot]"

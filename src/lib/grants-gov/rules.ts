@@ -295,3 +295,158 @@ export function isInstitutionOnlyTitle(title: string | null | undefined, mode: E
   if (typeof title !== "string") return false;
   return mode === "forprofit" && INSTITUTION_ONLY.test(title);
 }
+
+export type HonestEligibilityProfile = {
+  state?: string | null;
+  entity_type?: string | null;
+  months_in_business?: number | null;
+  annual_revenue?: number | null;
+  demographic_tags?: readonly string[] | null;
+  sam_status?: string | null;
+};
+
+export type HonestEligibilityGrant = {
+  status?: string | null;
+  directory_only?: boolean | null;
+  states?: readonly string[] | null;
+  eligible_states?: readonly string[] | null;
+  eligible_entity_types?: readonly string[] | null;
+  min_months_in_business?: number | null;
+  requires_strict_demographic?: boolean | null;
+  demographic_tags?: readonly string[] | null;
+  cost_sharing_required?: boolean | null;
+  amount_min?: number | null;
+  award_floor?: number | null;
+  stage_tags?: readonly string[] | null;
+  required_documents?: readonly string[] | null;
+};
+
+export type HonestEligibilityResult = {
+  eligible: boolean;
+  fitScore: number;
+  disqualifierReasons: string[];
+  fitBreakdown: {
+    operatingStage: number;
+    awardAndMatchBurden: number;
+    demographicAndGeographicPriority: number;
+    vaultReadiness: number;
+  };
+  requiresSamWarning: boolean;
+};
+
+export function evaluateHonestEligibility(
+  grant: HonestEligibilityGrant,
+  profile: HonestEligibilityProfile,
+  uploadedDocumentKeys: readonly string[] = [],
+): HonestEligibilityResult {
+  const reasons: string[] = [];
+  if (grant.status?.toLowerCase() === "closed") {
+    reasons.push("This grant is currently closed.");
+  }
+  if (grant.directory_only === true) {
+    reasons.push("Directory listing only — no direct grant application available.");
+  }
+
+  const states = grant.states?.length ? grant.states : grant.eligible_states ?? [];
+  const profileState = (profile.state ?? "").toUpperCase();
+  if (
+    states.length > 0 &&
+    !states.some((state) => ["ALL", "US", "NATIONAL"].includes(state.toUpperCase())) &&
+    !states.some((state) => state.toUpperCase() === profileState)
+  ) {
+    reasons.push(`Restricted to businesses in: ${states.join(", ")}. Your profile is set to ${profile.state ?? "unspecified"}.`);
+  }
+
+  const entityTypes = grant.eligible_entity_types ?? [];
+  if (entityTypes.length > 0 && !entityTypes.includes(profile.entity_type ?? "")) {
+    reasons.push(`Requires entity type: ${entityTypes.join(", ")}.`);
+  }
+
+  const monthsInBusiness = profile.months_in_business ?? 0;
+  const minimumMonths = grant.min_months_in_business ?? 0;
+  if (minimumMonths > monthsInBusiness) {
+    reasons.push(
+      `Requires at least ${minimumMonths} months in business (you entered ${monthsInBusiness}).`,
+    );
+  }
+
+  const profileTags = new Set(profile.demographic_tags ?? []);
+  const grantTags = grant.demographic_tags ?? [];
+  if (grant.requires_strict_demographic === true && grantTags.length > 0) {
+    if (!grantTags.some((tag) => profileTags.has(tag))) {
+      reasons.push(`Restricted to founders matching: ${grantTags.join(", ")}.`);
+    }
+  }
+
+  if (reasons.length) {
+    return {
+      eligible: false,
+      fitScore: 0,
+      disqualifierReasons: reasons,
+      fitBreakdown: {
+        operatingStage: 0,
+        awardAndMatchBurden: 0,
+        demographicAndGeographicPriority: 0,
+        vaultReadiness: 0,
+      },
+      requiresSamWarning: false,
+    };
+  }
+
+  const stageTags = (grant.stage_tags ?? []).map((tag) => tag.toLowerCase());
+  let operatingStage = 10;
+  if (stageTags.some((tag) => /0\+|all stages|pre.launch|0.to.12|early.stage|established/.test(tag))) {
+    operatingStage = 15;
+  } else if (stageTags.some((tag) => /startup|business|stage/.test(tag))) {
+    operatingStage = 5;
+  }
+
+  let awardAndMatchBurden = grant.cost_sharing_required ? 15 : 15;
+  if (grant.cost_sharing_required) {
+    awardAndMatchBurden = 15;
+    if (monthsInBusiness < 12 || (profile.annual_revenue ?? 0) < 50000) {
+      awardAndMatchBurden -= 7;
+    }
+  }
+  const amountMin = grant.amount_min ?? null;
+  if (
+    amountMin !== null &&
+    amountMin > 100000 &&
+    (profile.entity_type === "sole_proprietorship" || profile.entity_type === "pre_formation")
+  ) {
+    awardAndMatchBurden -= 3;
+  }
+
+  const demographicAndGeographicPriority =
+    grantTags.length > 0 && grantTags.some((tag) => profileTags.has(tag)) ? 10 : 5;
+
+  const requiredDocuments = grant.required_documents ?? [];
+  const ready = new Set(uploadedDocumentKeys);
+  const matched = requiredDocuments.filter((document) => ready.has(document)).length;
+  const vaultReadiness =
+    requiredDocuments.length === 0
+      ? 10
+      : Math.round((matched / requiredDocuments.length) * 10);
+
+  const requiresSamWarning =
+    requiredDocuments.includes("sam_gov_registration") ||
+    requiredDocuments.includes("uei_number") ||
+    requiredDocuments.includes("uei");
+
+  return {
+    eligible: true,
+    fitScore:
+      operatingStage +
+      awardAndMatchBurden +
+      demographicAndGeographicPriority +
+      vaultReadiness,
+    disqualifierReasons: [],
+    fitBreakdown: {
+      operatingStage,
+      awardAndMatchBurden,
+      demographicAndGeographicPriority,
+      vaultReadiness,
+    },
+    requiresSamWarning: requiresSamWarning && profile.sam_status !== "active",
+  };
+}
