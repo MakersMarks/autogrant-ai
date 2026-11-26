@@ -25,11 +25,11 @@ describe("Copilot drawer access", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "AI Copilot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chat with Stark" }));
     fireEvent.click(screen.getByRole("button", { name: "Sign in to chat or upload" }));
 
     expect(onSignIn).toHaveBeenCalledOnce();
-    expect(screen.getByText(/Sign in to chat with Grant/)).toBeInTheDocument();
+    expect(screen.getByText(/Sign in to chat with Stark/)).toBeInTheDocument();
   });
 
   it("sends the selected grant context with Copilot messages", async () => {
@@ -58,8 +58,8 @@ describe("Copilot drawer access", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "AI Copilot" }));
-    fireEvent.change(screen.getByLabelText("Message Grant"), {
+    fireEvent.click(screen.getByRole("button", { name: "Chat with Stark" }));
+    fireEvent.change(screen.getByLabelText("Message Stark"), {
       target: { value: "What do I need to apply?" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));

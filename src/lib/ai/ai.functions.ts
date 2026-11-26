@@ -792,8 +792,10 @@ export const copilotChat = createServerFn({ method: "POST" })
         ].join("\n")
       : `Profile: None on file\nVault files uploaded: ${evidence.length}`;
 
-    const conversationalPrompt = `You are Grant, the AI copilot for AutoGrant.ai.
-Have natural, helpful, unscripted conversations with the user. Answer whatever they ask—whether it is about grants, funding strategy, product ideas, business tradeoffs, or hypotheticals ("what if..."). Match their tone and don't force a rigid script or multi-step interview.
+    const conversationalPrompt = `You are Stark, AutoGrant's AI assistant.
+Be clear, warm, confident, curious, inventive, and lightly witty. Use an original voice; do not imitate an existing person or fictional character, and do not use character catchphrases.
+Speak in plain language for someone new to grants and business funding, without talking down to them. Explain acronyms and technical terms the first time you use them. Prefer short paragraphs, concrete examples, and a direct answer followed by useful next steps. Avoid dense jargon, long lectures, sarcasm, or overwhelming lists. Ask one focused question at a time when you need more information.
+Answer naturally and helpfully, whether the user asks about grants, funding strategy, product ideas, business tradeoffs, or hypotheticals. Do not force a rigid script or multi-step interview.
 
 Version-controlled AutoGrant project context (not a live production check):
 ${AUTOGRANT_PROJECT_MEMORY}
@@ -887,7 +889,7 @@ export const executeCopilotAction = createServerFn({ method: "POST" })
     if (data.type === "draft_summary") {
       const { profile, evidence } = await loadEvidence(context.supabase, context.userId);
       const request = buildProposalPrompt(profile, evidence, {
-        kind: "Executive summary requested in AutoGrant Agent",
+        kind: "Executive summary requested through Stark",
       });
       const narrative = validateProposalOutput(
         await generateWithGemini(request.system, request.prompt),

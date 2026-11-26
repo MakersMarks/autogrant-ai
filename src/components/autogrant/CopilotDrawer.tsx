@@ -255,16 +255,16 @@ export function CopilotDrawer({
       {open && (
         <section
           className="fixed bottom-20 right-4 z-40 flex h-[min(72vh,720px)] w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl"
-          aria-label="Grant"
+          aria-label="Stark AI assistant"
         >
           <header className="flex items-center justify-between border-b border-slate-200 bg-slate-900 px-4 py-3 text-white">
             <div>
-              <h2 className="text-sm font-bold">Grant</h2>
+              <h2 className="text-sm font-bold">Stark</h2>
               <p className="text-[11px] text-slate-300">Private profile, tracker & Vault context</p>
             </div>
             <button
               type="button"
-              aria-label="Close AI Copilot"
+              aria-label="Close Stark"
               onClick={() => setOpen(false)}
               className="rounded border border-slate-600 px-2 py-1 text-xs"
             >
@@ -289,7 +289,7 @@ export function CopilotDrawer({
                   acceptAction(message.action, index)}
               </article>
             ))}
-            {busy && <p className="text-xs text-slate-500">Grant is working…</p>}
+            {busy && <p className="text-xs text-slate-500">Stark is working…</p>}
             {error && (
               <p
                 role="alert"
@@ -315,7 +315,7 @@ export function CopilotDrawer({
             <p className="text-[10px] text-slate-500">
               {isAuthenticated
                 ? "Drop a document here or attach one to save it to your private Vault."
-                : "Sign in to chat with Grant or upload documents to your private Vault."}
+                : "Sign in to chat with Stark or upload documents to your private Vault."}
             </p>
             {isAuthenticated ? (
               <form
@@ -346,7 +346,7 @@ export function CopilotDrawer({
                 />
                 <textarea
                   ref={messageInput}
-                  aria-label="Message Grant"
+                  aria-label="Message Stark"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
@@ -358,7 +358,7 @@ export function CopilotDrawer({
                   rows={2}
                   maxLength={4000}
                   className="min-w-0 flex-1 resize-none rounded border border-slate-300 bg-white p-2 text-xs text-slate-900"
-                  placeholder="Ask Grant…"
+                  placeholder="Ask Stark…"
                 />
                 <button
                   type="submit"
@@ -386,7 +386,7 @@ export function CopilotDrawer({
         onClick={() => setOpen((current) => !current)}
         className="fixed bottom-4 right-4 z-40 rounded bg-emerald-700 px-4 py-3 text-sm font-bold text-white shadow-lg"
       >
-        {open ? "Hide AI Copilot" : "AI Copilot"}
+        {open ? "Close Stark" : "Chat with Stark"}
       </button>
     </>
   );

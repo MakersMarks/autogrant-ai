@@ -1768,7 +1768,7 @@ function IndexComponent() {
           if (action.type === "search_grants") setCockpitView("Grants");
           if (action.type === "delete_vault_file" && viewing?.id === action.documentId)
             setViewing(null);
-          setStatusMessage("AutoGrant Agent action completed and saved.");
+          setStatusMessage("Stark's action completed and saved.");
           void reloadWorkspace();
         }}
       />
