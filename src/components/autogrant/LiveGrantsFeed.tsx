@@ -57,6 +57,9 @@ interface SiteGrantRow {
   eligible_states: string[] | null;
   states?: string[] | null;
   stage_tags?: string[] | null;
+  demographic_tags?: string[] | null;
+  required_documents?: string[] | null;
+  requires_strict_demographic?: boolean | null;
   status?: "open" | "closed" | "unknown" | null;
   application_time_minutes: number | null;
   deadline: string | null;
@@ -113,6 +116,9 @@ function mapSiteGrantToUnified(row: SiteGrantRow): UnifiedGrant {
       : {}),
     eligibleStates: states,
     stageTags: row.stage_tags ?? [],
+    demographicTags: row.demographic_tags ?? [],
+    requiredDocuments: row.required_documents ?? [],
+    requiresStrictDemographic: row.requires_strict_demographic ?? false,
     status,
     ...(row.application_time_minutes !== null
       ? { applicationTimeMinutes: row.application_time_minutes }
@@ -830,7 +836,7 @@ export function LiveGrantsFeed({
                   </span>
                   {score && (
                     <span className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                      Small-business fit {score.fitScore}/50
+                      Fit score {score.fitScore}/50
                     </span>
                   )}
                   {score && (
@@ -863,6 +869,11 @@ export function LiveGrantsFeed({
                     .
                   </p>
                 ) : null}
+                {score?.requiresSamWarning && (
+                  <p className="text-[11px] text-amber-200">
+                    Requires active SAM.gov + UEI registration; allow 2–4 weeks before the deadline.
+                  </p>
+                )}
                 {score && <ScoreBreakdown score={score} />}
                 <div className="flex flex-wrap gap-2 pt-1">
                   {isLiveGrant ? (
@@ -1060,11 +1071,10 @@ export function LiveGrantsFeed({
 function ScoreBreakdown({ score }: { score: GrantScore | undefined }) {
   if (!score) return null;
   const dimensions = [
-    ["Operating stage", score.fitBreakdown.operatingStage],
-    ["Award suitability", score.fitBreakdown.awardSuitability],
-    ["Matching-funds burden", score.fitBreakdown.matchingFunds],
-    ["Sector alignment", score.fitBreakdown.sectorAlignment],
-    ["Demographic alignment", score.fitBreakdown.demographicAlignment],
+    ["Operating stage & tenure", score.fitBreakdown.operatingStage, 15],
+    ["Award size & match burden", score.fitBreakdown.awardAndMatchBurden, 15],
+    ["Demographic & geographic priority", score.fitBreakdown.demographicAndGeographicPriority, 10],
+    ["Vault document readiness", score.fitBreakdown.vaultReadiness, 10],
   ] as const;
 
   return (
@@ -1090,9 +1100,9 @@ function ScoreBreakdown({ score }: { score: GrantScore | undefined }) {
       </summary>
       <div className="mt-2 space-y-2 border-t border-slate-800 pt-2">
         <div className="grid gap-1 sm:grid-cols-2">
-          {dimensions.map(([label, value]) => (
+          {dimensions.map(([label, value, maximum]) => (
             <span key={label}>
-              {label}: {value}/10
+              {label}: {value}/{maximum}
             </span>
           ))}
         </div>

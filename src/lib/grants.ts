@@ -38,6 +38,9 @@ export interface UnifiedGrant {
   historicalApplicantCount?: number;
   prerequisites?: string[];
   stageTags?: string[];
+  demographicTags?: string[];
+  requiredDocuments?: string[];
+  requiresStrictDemographic?: boolean;
   status?: "open" | "closed" | "unknown" | string;
   officialApplicationUrl?: string;
   directoryOnly?: boolean;

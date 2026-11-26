@@ -1,10 +1,12 @@
 import { coreDocSlots, sectorName, type UnifiedGrant } from "@/lib/grants";
 import {
+  evaluateHonestEligibility,
   entityMode,
   isEntityEligible,
   isOtherStateOnly,
   stateCodeFromLocation,
   stateFromLocation,
+  type HonestEligibilityGrant,
   type LiveGrant,
 } from "@/lib/grants-gov/rules";
 
@@ -19,6 +21,9 @@ export type GrantScoringProfile = {
   location: string;
   demographics: readonly string[];
   monthsInBusiness?: number | null;
+  demographicTags?: readonly string[] | null;
+  annualRevenue?: number | null;
+  samStatus?: string | null;
 };
 
 export type GrantScoringEvidence = {
@@ -62,6 +67,9 @@ export type ScoringOpportunity = {
   unspentFundsReported?: boolean;
   eligibleEntityTypes?: readonly UnifiedGrant["eligibleEntityTypes"][number][];
   demographicSetAsides?: readonly UnifiedGrant["demographicSetAsides"][number][];
+  demographicTags?: readonly string[];
+  requiresStrictDemographic?: boolean;
+  requiredDocuments?: readonly string[];
   geographicScope?: UnifiedGrant["geographicScope"];
   geographicRestriction?: LiveGrant["geographicRestriction"];
   summaryText?: string;
@@ -106,14 +114,45 @@ export type GrantScore = {
   eligibilityReasons: string[];
   hardDisqualifiers: string[];
   fitScore: number;
+  requiresSamWarning: boolean;
   fitBreakdown: {
     operatingStage: number;
-    awardSuitability: number;
-    matchingFunds: number;
-    sectorAlignment: number;
-    demographicAlignment: number;
+    awardAndMatchBurden: number;
+    demographicAndGeographicPriority: number;
+    vaultReadiness: number;
   };
 };
+
+function standardizedDemographicTags(tags: readonly string[]): string[] {
+  const aliases: Array<[string, RegExp]> = [
+    ["black_owned", /black|african diaspora/],
+    ["hispanic_owned", /hispanic|latino/],
+    ["asian_owned", /asian/],
+    ["pacific_islander_owned", /pacific islander|native hawaiian/],
+    ["indigenous_owned", /indigenous|native american|alaska native|tribal/],
+    ["mena_owned", /middle eastern|north african|mena/],
+    ["immigrant_owned", /immigrant|refugee|first generation/],
+    ["women_owned", /women owned|woman owned|female/],
+    ["lgbtq_owned", /lgbtq|lgbt owned/],
+    ["veteran_owned", /veteran/],
+    ["military_spouse_owned", /military spouse/],
+    ["disability_owned", /disability|disabled founder/],
+    ["rural_business", /rural/],
+    ["hubzone_or_low_income", /hubzone|opportunity zone|low income/],
+    ["student_founder", /student|college|university/],
+  ];
+  return [
+    ...new Set(
+      tags.flatMap((tag) => {
+        const normalizedTag = normalize(tag);
+        const mapped = aliases
+          .filter(([, pattern]) => pattern.test(normalizedTag))
+          .map(([standardized]) => standardized);
+        return mapped.length ? mapped : [tag];
+      }),
+    ),
+  ];
+}
 
 const COMPETITION_WEIGHTS = {
   award_rate: 25,
@@ -201,28 +240,6 @@ function tenureRange(profile: GrantScoringProfile): { minimum: number; maximum: 
     return { minimum: 12, maximum: null };
   }
   return null;
-}
-
-function stageFit(
-  profile: GrantScoringProfile,
-  opportunity: ScoringOpportunity,
-): number {
-  const taggedStages = (opportunity.stageTags ?? []).filter((tag) =>
-    /pre.?launch|startup|early.stage|established|operating|growth|mature/i.test(tag),
-  );
-  if (!taggedStages.length) return opportunity.minMonthsInBusiness != null ? 10 : 5;
-
-  const stage = normalize(profile.lifecycleStage);
-  const matches = taggedStages.some((tag) => {
-    const normalizedTag = normalize(tag);
-    if (/idea|pre launch/.test(stage)) return /pre launch|idea|startup|early stage/.test(normalizedTag);
-    if (/new startup|under 1 year/.test(stage)) return /startup|early stage|pre launch/.test(normalizedTag);
-    if (/established|1\+ years|operating business|growth|expansion/.test(stage)) {
-      return /established|operating|growth|mature/.test(normalizedTag);
-    }
-    return false;
-  });
-  return matches ? 10 : 0;
 }
 
 function computeVaultReadiness(
@@ -537,6 +554,20 @@ export function scoreGrantOpportunity(input: {
 
   const setAsides = opportunity.demographicSetAsides ?? [];
   const matchingSetAside = setAsides.find((item) => matchesSetAside(item, profile.demographics));
+  const profileTags = standardizedDemographicTags([
+    ...profile.demographics,
+    ...(profile.demographicTags ?? []),
+  ]);
+  const grantTags = opportunity.demographicTags?.length
+    ? standardizedDemographicTags(opportunity.demographicTags)
+    : standardizedDemographicTags(setAsides);
+  if (
+    opportunity.requiresStrictDemographic === true &&
+    grantTags.length > 0 &&
+    !grantTags.some((tag) => profileTags.includes(tag))
+  ) {
+    hardDisqualifiers.push(`Restricted to founders matching: ${grantTags.join(", ")}.`);
+  }
   if (matchingSetAside) {
     eligibilityReasons.push(
       `Self-reported profile qualification matches the listed ${matchingSetAside.replaceAll("_", " ")} set-aside; certification is not verified.`,
@@ -588,37 +619,63 @@ export function scoreGrantOpportunity(input: {
     ...vault.reasons.filter((reason) => !reason.startsWith("Required Vault evidence is missing")),
   );
 
-  const awardGoal = Number(profile.fundingGoal.replace(/[^\d.]/g, ""));
-  const awardFloor = opportunity.awardFloor ?? null;
-  const awardCeiling = opportunity.awardCeiling ?? null;
-  const awardSuitability =
-    !Number.isFinite(awardGoal) || awardGoal <= 0 || (awardFloor === null && awardCeiling === null)
-      ? 5
-      : (awardFloor === null || awardGoal >= awardFloor) &&
-          (awardCeiling === null || awardGoal <= awardCeiling)
-        ? 10
-        : (awardFloor === null || awardGoal >= awardFloor * 0.75) &&
-            (awardCeiling === null || awardGoal <= awardCeiling * 1.25)
-          ? 5
-          : 0;
-  const matchingFunds = opportunity.costSharingRequired
-    ? opportunity.costSharePercentage == null
-      ? 3
-      : Math.max(0, 10 - Math.round(opportunity.costSharePercentage / 10) * 2)
-    : 10;
-  const fitBreakdown = {
-    operatingStage: stageFit(profile, opportunity),
-    awardSuitability,
-    matchingFunds,
-    sectorAlignment: Math.round(sectorFit / 10),
-    demographicAlignment: setAsides.length
-      ? matchingSetAside
-        ? 10
-        : 0
-      : 10,
-  };
-  const fitScore = Object.values(fitBreakdown).reduce((total, points) => total + points, 0);
-  const eligible = hardDisqualifiers.length === 0;
+  const honestFit = evaluateHonestEligibility(
+    {
+      ...(opportunity.status !== undefined ? { status: opportunity.status } : {}),
+      ...(opportunity.directoryOnly !== undefined
+        ? { directory_only: opportunity.directoryOnly }
+        : {}),
+      ...(opportunity.eligibleStates !== undefined ? { states: opportunity.eligibleStates } : {}),
+      ...(opportunity.eligibleEntityTypes !== undefined
+        ? { eligible_entity_types: opportunity.eligibleEntityTypes }
+        : {}),
+      ...(opportunity.minMonthsInBusiness !== undefined
+        ? { min_months_in_business: opportunity.minMonthsInBusiness }
+        : {}),
+      ...(opportunity.requiresStrictDemographic !== undefined
+        ? { requires_strict_demographic: opportunity.requiresStrictDemographic }
+        : {}),
+      demographic_tags: grantTags,
+      ...(opportunity.costSharingRequired !== undefined
+        ? { cost_sharing_required: opportunity.costSharingRequired }
+        : {}),
+      ...(opportunity.costSharePercentage !== undefined
+        ? { cost_share_percentage: opportunity.costSharePercentage }
+        : {}),
+      ...(opportunity.awardFloor !== undefined ? { amount_min: opportunity.awardFloor } : {}),
+      ...(opportunity.awardCeiling !== undefined ? { amount_max: opportunity.awardCeiling } : {}),
+      ...(opportunity.stageTags !== undefined ? { stage_tags: opportunity.stageTags } : {}),
+      ...(opportunity.requiredDocuments !== undefined
+        ? { required_documents: opportunity.requiredDocuments }
+        : {}),
+    } satisfies HonestEligibilityGrant,
+    {
+      state: stateFromLocation(profile.location) ?? profile.location,
+      entity_type: profile.entityType,
+      lifecycle_stage: profile.lifecycleStage,
+      demographic_tags: profileTags,
+      ...(profile.monthsInBusiness === undefined
+        ? {}
+        : { months_in_business: profile.monthsInBusiness }),
+      ...(profile.annualRevenue === undefined ? {} : { annual_revenue: profile.annualRevenue }),
+      funding_goal: profile.fundingGoal,
+      ...(profile.samStatus === undefined ? {} : { sam_status: profile.samStatus }),
+    },
+    evidence.map((document) => document.slotKey),
+  );
+  for (const reason of honestFit.disqualifierReasons) {
+    if (!hardDisqualifiers.includes(reason)) hardDisqualifiers.push(reason);
+  }
+  const eligible = hardDisqualifiers.length === 0 && honestFit.eligible;
+  const fitBreakdown = eligible
+    ? honestFit.fitBreakdown
+    : {
+        operatingStage: 0,
+        awardAndMatchBurden: 0,
+        demographicAndGeographicPriority: 0,
+        vaultReadiness: 0,
+      };
+  const fitScore = eligible ? honestFit.fitScore : 0;
 
   const competitionComponents = buildCompetitionComponents(opportunity, profile, evidence);
   const legacyComponents = competitionComponents.filter((component) =>
@@ -701,6 +758,7 @@ export function scoreGrantOpportunity(input: {
     eligibilityReasons,
     hardDisqualifiers,
     fitScore,
+    requiresSamWarning: honestFit.requiresSamWarning,
     fitBreakdown,
   };
 }
@@ -760,6 +818,13 @@ export function scoringInputFromUnifiedGrant(grant: UnifiedGrant): ScoringOpport
       (grant.poolTier === "state_territory" ? "State" : grant.poolTier === "foundation" ? "Foundation" : "Federal"),
     eligibleEntityTypes: grant.eligibleEntityTypes,
     demographicSetAsides: grant.demographicSetAsides,
+    ...(grant.demographicTags !== undefined ? { demographicTags: grant.demographicTags } : {}),
+    ...(grant.requiresStrictDemographic !== undefined
+      ? { requiresStrictDemographic: grant.requiresStrictDemographic }
+      : {}),
+    ...(grant.requiredDocuments !== undefined
+      ? { requiredDocuments: grant.requiredDocuments }
+      : {}),
     geographicScope: grant.geographicScope,
     ...(grant.eligibleStates !== undefined ? { eligibleStates: grant.eligibleStates } : {}),
     ...(grant.minMonthsInBusiness !== undefined

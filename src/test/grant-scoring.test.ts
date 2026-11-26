@@ -77,6 +77,94 @@ describe("grant eligibility and competition scoring", () => {
     expect(result.vaultReadiness.missing.length).toBe(result.vaultReadiness.totalDocuments);
   });
 
+  it("uses the four specified fit pillars and returns no points after a strict demographic failure", () => {
+    const result = scoreGrantOpportunity({
+      opportunity: {
+        ...opportunity,
+        demographicTags: ["veteran_owned"],
+        requiresStrictDemographic: true,
+        requiredDocuments: ["ein", "sam_gov_registration"],
+      },
+      profile,
+      evidence: [],
+    });
+
+    expect(result.eligible).toBe(false);
+    expect(result.fitScore).toBe(0);
+    expect(result.hardDisqualifiers).toContain("Restricted to founders matching: veteran_owned.");
+    expect(Object.keys(result.fitBreakdown)).toEqual([
+      "operatingStage",
+      "awardAndMatchBurden",
+      "demographicAndGeographicPriority",
+      "vaultReadiness",
+    ]);
+  });
+
+  it("scores required Vault documents and warns when SAM.gov registration is not active", () => {
+    const result = scoreGrantOpportunity({
+      opportunity: {
+        ...opportunity,
+        stageTags: ["established"],
+        costSharingRequired: false,
+        requiredDocuments: ["ein", "sam_gov_registration"],
+      },
+      profile,
+      evidence: [{ slotKey: "ein" }],
+    });
+
+    expect(result.eligible).toBe(true);
+    expect(result.fitBreakdown.vaultReadiness).toBe(5);
+    expect(result.requiresSamWarning).toBe(true);
+  });
+
+  it("rewards awards within the requested budget more than a substantially oversized award", () => {
+    const inRange = scoreGrantOpportunity({
+      opportunity: {
+        ...opportunity,
+        awardFloor: 10000,
+        awardCeiling: 75000,
+        costSharingRequired: false,
+      },
+      profile,
+      evidence,
+    });
+    const oversized = scoreGrantOpportunity({
+      opportunity: {
+        ...opportunity,
+        awardFloor: 200000,
+        awardCeiling: 500000,
+        costSharingRequired: false,
+      },
+      profile,
+      evidence,
+    });
+
+    expect(inRange.fitBreakdown.awardAndMatchBurden).toBeGreaterThan(
+      oversized.fitBreakdown.awardAndMatchBurden,
+    );
+  });
+
+  it("reduces fit for high co-funding requirements", () => {
+    const noMatch = scoreGrantOpportunity({
+      opportunity: { ...opportunity, costSharingRequired: false },
+      profile,
+      evidence,
+    });
+    const highMatch = scoreGrantOpportunity({
+      opportunity: {
+        ...opportunity,
+        costSharingRequired: true,
+        costSharePercentage: 60,
+      },
+      profile,
+      evidence,
+    });
+
+    expect(highMatch.fitBreakdown.awardAndMatchBurden).toBeLessThan(
+      noMatch.fitBreakdown.awardAndMatchBurden,
+    );
+  });
+
   it("does not hide a national opportunity because its title mentions another state", () => {
     const result = scoreGrantOpportunity({
       opportunity: {
@@ -195,7 +283,7 @@ describe("grant eligibility and competition scoring", () => {
     });
 
     expect(result.lowCompetitionScore).toBe(40);
-    expect(result.personalLowCompetitionScore).toBe(32);
+    expect(result.personalLowCompetitionScore).toBe(34);
     expect(result.competitionDataStatus).toBe("mixed");
     expect(result.historicalAwardRatePct).toBe(10);
     expect(result.lowCompetitionTier).toBe("Moderate");

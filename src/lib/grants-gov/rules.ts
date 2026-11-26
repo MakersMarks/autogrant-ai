@@ -352,6 +352,7 @@ export type HonestEligibilityProfile = {
   lifecycle_stage?: string | null;
   months_in_business?: number | null;
   annual_revenue?: number | null;
+  funding_goal?: number | string | null;
   demographic_tags?: readonly string[] | null;
   sam_status?: string | null;
 };
@@ -366,8 +367,11 @@ export type HonestEligibilityGrant = {
   requires_strict_demographic?: boolean | null;
   demographic_tags?: readonly string[] | null;
   cost_sharing_required?: boolean | null;
+  cost_share_percentage?: number | null;
   amount_min?: number | null;
+  amount_max?: number | null;
   award_floor?: number | null;
+  award_ceiling?: number | null;
   stage_tags?: readonly string[] | null;
   required_documents?: readonly string[] | null;
 };
@@ -496,21 +500,39 @@ export function evaluateHonestEligibility(
     operatingStage = 5;
   }
 
-  let awardAndMatchBurden = 15;
-  if (grant.cost_sharing_required) {
-    if (monthsInBusiness < 12 || (profile.annual_revenue ?? 0) < 50000) {
-      awardAndMatchBurden -= 7;
+  const amountMin = grant.amount_min ?? grant.award_floor ?? null;
+  const amountMax = grant.amount_max ?? grant.award_ceiling ?? null;
+  const fundingGoal = Number(String(profile.funding_goal ?? "").replace(/[^0-9.]/g, ""));
+  let awardSizeFit = 7;
+  if (
+    Number.isFinite(fundingGoal) &&
+    fundingGoal > 0 &&
+    (amountMin !== null || amountMax !== null)
+  ) {
+    const withinRange =
+      (amountMin === null || amountMin <= fundingGoal) &&
+      (amountMax === null || amountMax >= fundingGoal);
+    if (withinRange) {
+      awardSizeFit = 10;
+    } else {
+      const nearestBound = amountMin !== null && fundingGoal < amountMin ? amountMin : amountMax;
+      const relativeGap =
+        nearestBound === null || nearestBound === 0
+          ? 1
+          : Math.abs(fundingGoal - nearestBound) / fundingGoal;
+      awardSizeFit = relativeGap <= 0.25 ? 8 : relativeGap <= 0.75 ? 6 : 3;
     }
   }
-  const amountMin = grant.amount_min ?? grant.award_floor ?? null;
-  if (
-    amountMin !== null &&
-    amountMin > 100000 &&
-    /sole proprietorship|pre formation/.test(normalizedEntity)
-  ) {
-    awardAndMatchBurden -= 3;
+  let matchBurdenFit = 5;
+  if (grant.cost_sharing_required) {
+    const contributionPenalty =
+      grant.cost_share_percentage == null
+        ? 1
+        : Math.min(3, Math.ceil(grant.cost_share_percentage / 20));
+    const capacityPenalty = monthsInBusiness < 12 && (profile.annual_revenue ?? 0) < 50000 ? 2 : 0;
+    matchBurdenFit = Math.max(0, 5 - contributionPenalty - capacityPenalty);
   }
-  awardAndMatchBurden = Math.max(0, awardAndMatchBurden);
+  const awardAndMatchBurden = awardSizeFit + matchBurdenFit;
 
   const matchesPriority = grantTags.some((tag) => profileTags.has(tag));
   const hasStateRestriction =

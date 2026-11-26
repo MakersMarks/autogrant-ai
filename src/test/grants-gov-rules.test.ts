@@ -123,11 +123,11 @@ describe("scout + entity gate", () => {
       );
       expect(result).toMatchObject({
         eligible: true,
-        fitScore: 45,
+        fitScore: 42,
         requiresSamWarning: true,
         fitBreakdown: {
           operatingStage: 15,
-          awardAndMatchBurden: 15,
+          awardAndMatchBurden: 12,
           demographicAndGeographicPriority: 10,
           vaultReadiness: 5,
         },
@@ -139,7 +139,7 @@ describe("scout + entity gate", () => {
       expect(result.eligible).toBe(true);
       expect(result.fitBreakdown.demographicAndGeographicPriority).toBe(5);
       expect(result.fitBreakdown.vaultReadiness).toBe(10);
-      expect(result.fitScore).toBe(40);
+      expect(result.fitScore).toBe(37);
     });
   });
   it("hides university-only grants from a for-profit", () => {
