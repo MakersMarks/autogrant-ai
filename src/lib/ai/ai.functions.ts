@@ -105,7 +105,7 @@ async function loadEvidence(
       name: doc.file_name,
       slotKey: doc.slot_key,
       mimeType: doc.mime_type,
-      categoryTag: doc.category_tag,
+      categoryTag: doc.category_tag ?? null,
       text,
     });
   }
@@ -392,7 +392,7 @@ export const copilotChat = createServerFn({ method: "POST" })
 
     const documents = await context.supabase
       .from("vault_documents")
-      .select("id, file_name, slot_key, mime_type, category_tag")
+      .select("id, file_name, slot_key, mime_type")
       .eq("user_id", context.userId);
     if (documents.error)
       throw new Error("Could not load your Vault inventory for Copilot context.");
