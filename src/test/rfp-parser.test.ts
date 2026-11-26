@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   grantRequirementBOMSchema,
+  parseGrantRequirementResponse,
   verifyExtractedRequirements,
 } from "@/lib/ai/rfp-parser";
 
@@ -10,21 +11,25 @@ describe("grant requirement checklist validation", () => {
       grantId: "grant-1",
       grantTitle: "Innovation Grant",
       formatting: { submissionMedium: "not_stated" },
-      aiDraftableDocuments: [{
-        documentType: "institutional",
-        requiredHeadings: ["Project Need", "Work Plan"],
-        wordLimitsPerSection: { "Project Need": 250 },
-        fileFormats: ["PDF"],
-      }],
-      userRequiredEvidence: [{
-        evidenceId: "sam-registration",
-        name: "SAM.gov registration",
-        category: "legal_tax",
-        isMandatory: true,
-        reason: "The solicitation requires current registration.",
-        autoMatchVaultTag: "sam_registration_record",
-        fileFormats: ["PDF"],
-      }],
+      aiDraftableDocuments: [
+        {
+          documentType: "institutional",
+          requiredHeadings: ["Project Need", "Work Plan"],
+          wordLimitsPerSection: { "Project Need": 250 },
+          fileFormats: ["PDF"],
+        },
+      ],
+      userRequiredEvidence: [
+        {
+          evidenceId: "sam-registration",
+          name: "SAM.gov registration",
+          category: "legal_tax",
+          isMandatory: true,
+          reason: "The solicitation requires current registration.",
+          autoMatchVaultTag: "sam_registration_record",
+          fileFormats: ["PDF"],
+        },
+      ],
     });
 
     expect(result.success).toBe(true);
@@ -40,14 +45,16 @@ describe("grant requirement checklist validation", () => {
       grantTitle: "Innovation Grant",
       formatting: { submissionMedium: "email" },
       aiDraftableDocuments: [],
-      userRequiredEvidence: [{
-        evidenceId: "",
-        name: "Required form",
-        category: "unknown",
-        isMandatory: true,
-        reason: "Required",
-        autoMatchVaultTag: "form",
-      }],
+      userRequiredEvidence: [
+        {
+          evidenceId: "",
+          name: "Required form",
+          category: "unknown",
+          isMandatory: true,
+          reason: "Required",
+          autoMatchVaultTag: "form",
+        },
+      ],
     });
 
     expect(result.success).toBe(false);
@@ -58,10 +65,12 @@ describe("grant requirement checklist validation", () => {
       grantId: "grant-1",
       grantTitle: "Rural Innovation Grant",
       formatting: { submissionMedium: "portal_text_fields" },
-      aiDraftableDocuments: [{
-        documentType: "institutional",
-        requiredHeadings: ["Unverified heading"],
-      }],
+      aiDraftableDocuments: [
+        {
+          documentType: "institutional",
+          requiredHeadings: ["Unverified heading"],
+        },
+      ],
       userRequiredEvidence: [
         {
           evidenceId: "quote",
@@ -95,17 +104,21 @@ describe("grant requirement checklist validation", () => {
           sourceUrl: "https://funder.gov/nofo",
         },
       ],
-      rubricCriteria: [{
-        criterion: "Measurable project outcomes",
-        evidenceQuote: "Projects are scored on measurable project outcomes.",
-        sourceUrl: "https://funder.gov/nofo",
-        weightPercent: 30,
-      }],
+      rubricCriteria: [
+        {
+          criterion: "Measurable project outcomes",
+          evidenceQuote: "Projects are scored on measurable project outcomes.",
+          sourceUrl: "https://funder.gov/nofo",
+          weightPercent: 30,
+        },
+      ],
     });
-    const result = verifyExtractedRequirements(bom, [{
-      url: "https://funder.gov/nofo",
-      text: "Applicants must describe measurable improvements to rural access. Applicants must upload a signed vendor quote. Projects are scored on measurable project outcomes.",
-    }]);
+    const result = verifyExtractedRequirements(bom, [
+      {
+        url: "https://funder.gov/nofo",
+        text: "Applicants must describe measurable improvements to rural access. Applicants must upload a signed vendor quote. Projects are scored on measurable project outcomes.",
+      },
+    ]);
 
     expect(result.extractionStatus).toBe("partial");
     expect(result.extractedPrompts).toHaveLength(1);
@@ -126,20 +139,25 @@ describe("grant requirement checklist validation", () => {
         evidenceQuote: "Submit your 500-word narrative through the application portal.",
         sourceUrl: "https://funder.gov/nofo",
       },
-      aiDraftableDocuments: [{
-        documentType: "institutional",
-        requiredHeadings: ["Project Need"],
-        wordLimitsPerSection: { "Project Need": 250 },
-        fileFormats: ["PDF"],
-        evidenceQuote: "Include a Project Need section of 250 words and upload the statement as PDF.",
-        sourceUrl: "https://funder.gov/nofo",
-      }],
+      aiDraftableDocuments: [
+        {
+          documentType: "institutional",
+          requiredHeadings: ["Project Need"],
+          wordLimitsPerSection: { "Project Need": 250 },
+          fileFormats: ["PDF"],
+          evidenceQuote:
+            "Include a Project Need section of 250 words and upload the statement as PDF.",
+          sourceUrl: "https://funder.gov/nofo",
+        },
+      ],
       userRequiredEvidence: [],
     });
-    const result = verifyExtractedRequirements(bom, [{
-      url: "https://funder.gov/nofo",
-      text: "Submit your 500-word narrative through the application portal. Include a Project Need section of 250 words and upload the statement as PDF.",
-    }]);
+    const result = verifyExtractedRequirements(bom, [
+      {
+        url: "https://funder.gov/nofo",
+        text: "Submit your 500-word narrative through the application portal. Include a Project Need section of 250 words and upload the statement as PDF.",
+      },
+    ]);
 
     expect(result.aiDraftableDocuments).toHaveLength(1);
     expect(result.formatting.wordCountLimit).toBe(500);
@@ -156,14 +174,95 @@ describe("grant requirement checklist validation", () => {
       extractedPrompts: [],
       rubricCriteria: [],
     });
-    const result = verifyExtractedRequirements(bom, [{
-      url: "https://funder.gov/apply",
-      text: "Sign in required. Portal access only.",
-    }]);
+    const result = verifyExtractedRequirements(bom, [
+      {
+        url: "https://funder.gov/apply",
+        text: "Sign in required. Portal access only.",
+      },
+    ]);
 
     expect(result.extractionStatus).toBe("portal_only");
     expect(result.extractedPrompts).toEqual([]);
     expect(result.rubricCriteria).toEqual([]);
     expect(result.extractionNotes?.join(" ")).toContain("require portal access");
+  });
+
+  it("falls back to portal-only requirements when parser output is invalid or source text is unreadable", () => {
+    const invalidJson = parseGrantRequirementResponse({
+      grantId: "grant-1",
+      grantTitle: "Portal-Gated Grant",
+      raw: "not valid JSON",
+      sources: [
+        {
+          url: "https://funder.gov/apply",
+          text: "Sign in required. Full instructions are available after creating an applicant account. Contact support for assistance accessing the program application.",
+        },
+      ],
+    });
+    const unreadableSource = parseGrantRequirementResponse({
+      grantId: "grant-2",
+      grantTitle: "Unreadable Grant",
+      raw: "",
+      sources: [],
+    });
+
+    expect(invalidJson.extractionStatus).toBe("portal_only");
+    expect(invalidJson.extractedPrompts).toEqual([]);
+    expect(invalidJson.extractionNotes?.[0]).toContain("invalid JSON");
+    expect(unreadableSource.extractionStatus).toBe("portal_only");
+    expect(unreadableSource.extractionNotes?.[0]).toContain("No readable public");
+  });
+
+  it("falls back explicitly when the parser returns an unsupported checklist shape", () => {
+    const result = parseGrantRequirementResponse({
+      grantId: "grant-3",
+      grantTitle: "Malformed Grant",
+      raw: JSON.stringify({ grantId: "grant-3", invalid: true }),
+      sources: [
+        {
+          url: "https://funder.gov/nofo",
+          text: "The public notice describes application requirements, deadlines, eligibility rules, an evaluation process, required supporting documents, and submission procedures through the official portal.",
+        },
+      ],
+    });
+
+    expect(result.extractionStatus).toBe("portal_only");
+    expect(result.extractionNotes?.[0]).toContain("unsupported checklist shape");
+  });
+
+  it("keeps successfully parsed requirements only when their source quote verifies", () => {
+    const url = "https://funder.gov/nofo";
+    const result = parseGrantRequirementResponse({
+      grantId: "grant-4",
+      grantTitle: "Verified Grant",
+      raw: JSON.stringify({
+        grantId: "untrusted-id",
+        grantTitle: "Untrusted title",
+        formatting: { submissionMedium: "not_stated" },
+        aiDraftableDocuments: [],
+        userRequiredEvidence: [],
+        extractedPrompts: [
+          {
+            question: "Describe the project impact.",
+            evidenceQuote: "Applicants must describe the project impact.",
+            sourceUrl: url,
+            maxWords: 120,
+          },
+        ],
+        rubricCriteria: [],
+      }),
+      sources: [
+        {
+          url,
+          text: "Applicants must describe the project impact. Reviewers will consider the expected results, the population served, and the proposed measurement approach.",
+        },
+      ],
+    });
+
+    expect(result.grantId).toBe("grant-4");
+    expect(result.grantTitle).toBe("Verified Grant");
+    expect(result.extractionStatus).toBe("partial");
+    expect(result.extractedPrompts).toHaveLength(1);
+    expect(result.guidelinesUrl).toBe(url);
   });
 });

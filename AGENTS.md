@@ -38,3 +38,5 @@ use the editor.
 - Persist AI access pauses in the server-only gateway-state table; ordinary application data continues to use the authenticated RLS client.
 - Live grants come from the public Grants.gov search2/fetchOpportunity API via auth-protected server fns in src/lib/grants-gov/; filter rules live in rules.ts (tested).
 - Feed seeds category/eligibility from the intake profile and hides other-state-only grants via stateFromLocation/isOtherStateOnly in rules.ts.
+- Keep src/lib/ai/project-memory.ts synchronized with durable product architecture, capabilities, and limitations; Grant receives this context on every copilot request.
+- Any future Grant repository-editing integration must use a server-side least-privilege GitHub App and isolated branch/PR workflow; do not expose arbitrary shell access or direct writes to the connected main branch.
