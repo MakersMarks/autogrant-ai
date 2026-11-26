@@ -5,9 +5,9 @@
     "label": "Amber Grant for Women ($10k-$25k Monthly)",
     "url": "https://ambergrantsforwomen.com/get-an-amber-grant/apply-now/",
     "directApplyUrl": "https://ambergrantsforwomen.com/get-an-amber-grant/apply-now/",
-    "hash": "39b8ed3be6caf205bf7996ec5399395a8095bbdd40261213a34eea59990fd022",
-    "lastChecked": "2026-11-24T04:59:36.647Z",
-    "lastChangedAt": null,
+    "hash": "a2888d99299cb2f4b7e2f7c7d815b320efb7a81610e657069ccfb0987c0a1f15",
+    "lastChecked": "2026-11-26T07:39:19.638Z",
+    "lastChangedAt": "2026-11-26T07:39:19.638Z",
     "status": "open"
   },
   "fedex-small-business": {
@@ -16,9 +16,9 @@
     "label": "FedEx Small Business Grant ($30k-$50k)",
     "url": "https://www.fedex.com/en-us/small-business/grants.html",
     "directApplyUrl": "https://www.fedex.com/en-us/small-business/grants.html",
-    "hash": "9129c92c72aa47b5066ef4412ab9f562ff4128dfa31f70689847c3ae34444bf3",
-    "lastChecked": "2026-11-24T04:59:36.837Z",
-    "lastChangedAt": null,
+    "hash": "a2663300c5bffcf4cc0df0880a5d2e8a95bcf8859f80fca114513f761dbcd05e",
+    "lastChecked": "2026-11-26T07:39:19.957Z",
+    "lastChangedAt": "2026-11-26T07:39:19.957Z",
     "status": "active"
   },
   "verizon-digital-ready": {
@@ -28,7 +28,7 @@
     "url": "https://www.verizon.com/about/responsibility/digital-inclusion/small-business-training",
     "directApplyUrl": "https://www.verizon.com/about/responsibility/digital-inclusion/small-business-training",
     "hash": "df5181c7e65c40da283fdc0acacc824bcea466cac1f1c0de4999e073c92f30cb",
-    "lastChecked": "2026-11-24T04:59:37.607Z",
+    "lastChecked": "2026-11-26T07:39:20.689Z",
     "lastChangedAt": null,
     "status": "active"
   },
@@ -37,7 +37,7 @@
     "url": "https://helloalice.com/grants/",
     "hash": null,
     "lastChangedAt": null,
-    "lastChecked": "2026-11-24T04:59:37.779Z",
+    "lastChecked": "2026-11-26T07:39:20.840Z",
     "status": "error"
   },
   "tn-tda-taep": {
@@ -46,7 +46,7 @@
     "url": "https://www.tn.gov/agriculture/farms/taep.html",
     "hash": null,
     "lastChangedAt": null,
-    "lastChecked": "2026-11-24T04:59:37.893Z",
+    "lastChecked": "2026-11-26T07:39:21.044Z",
     "status": "error"
   },
   "tn-launchtn-matching": {
@@ -55,7 +55,7 @@
     "url": "https://launchtn.org/commercialization/sbir-matching/",
     "hash": null,
     "lastChangedAt": null,
-    "lastChecked": "2026-11-24T04:59:38.007Z",
+    "lastChecked": "2026-11-26T07:39:21.217Z",
     "status": "error"
   },
   "ia-choose-iowa": {
@@ -65,7 +65,7 @@
     "url": "https://www.chooseiowa.com/grants/valueadded",
     "directApplyUrl": "https://www.chooseiowa.com/grants/valueadded",
     "hash": "dc8920026d419dd8600932bdb093dccb289503277b12470d8ab6809cded89e9d",
-    "lastChecked": "2026-11-24T04:59:38.296Z",
+    "lastChecked": "2026-11-26T07:39:21.415Z",
     "lastChangedAt": null,
     "status": "active"
   },
@@ -76,7 +76,7 @@
     "url": "https://www.iowaeda.com/small-business/targeted-small-business/",
     "directApplyUrl": "https://www.iowaeda.com/small-business/targeted-small-business/",
     "hash": "1f07bec497a123b3daa8e6a086b8ba824488d661f75be8f2abfc961a914d51ca",
-    "lastChecked": "2026-11-24T04:59:38.620Z",
+    "lastChecked": "2026-11-26T07:39:21.761Z",
     "lastChangedAt": null,
     "status": "active"
   },
@@ -87,7 +87,7 @@
     "url": "https://gov.texas.gov/business/page/small-business",
     "directApplyUrl": "https://gov.texas.gov/business/page/small-business",
     "hash": "5c764fc6458412876e995d1392af67ea4bdf6f1297c4362e392ffeb632e1c405",
-    "lastChecked": "2026-11-24T04:59:38.804Z",
+    "lastChecked": "2026-11-26T07:39:27.765Z",
     "lastChangedAt": null,
     "status": "active"
   }
