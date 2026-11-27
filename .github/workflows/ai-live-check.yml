@@ -1,0 +1,48 @@
+name: AI live check
+
+# Calls the real AI provider with the repository secret AI_PROVIDER_API_KEY.
+# The key is never committed: add it under Settings -> Secrets and variables -> Actions.
+# Optional repository variables: AI_PROVIDER_BASE_URL, AI_PROVIDER_MODEL.
+# Without the secret the live tests are skipped and this job only prints a warning.
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/ai/**"
+      - "src/test/ai-live.test.ts"
+      - ".github/workflows/ai-live-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-live-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AI_PROVIDER_API_KEY: ${{ secrets.AI_PROVIDER_API_KEY }}
+      AI_PROVIDER_BASE_URL: ${{ vars.AI_PROVIDER_BASE_URL }}
+      AI_PROVIDER_MODEL: ${{ vars.AI_PROVIDER_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: "Live AI tests (key present: ${{ secrets.AI_PROVIDER_API_KEY != '' }})"
+        run: |
+          if [ -z "$AI_PROVIDER_API_KEY" ]; then
+            echo "::warning::AI_PROVIDER_API_KEY is not set - live AI tests are skipped."
+          fi
+          bunx vitest run src/test/ai-live.test.ts --reporter=verbose
