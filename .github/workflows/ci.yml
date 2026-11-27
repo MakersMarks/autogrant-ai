@@ -1,0 +1,51 @@
+name: App checks
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - ".github/*.json"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      # Required: the unit and component tests must pass.
+      - name: Tests
+        run: bun run test
+
+      # Advisory for now (first runs may surface existing issues). Flip continue-on-error
+      # to false once these are green so they block merges.
+      - name: Typecheck
+        continue-on-error: true
+        run: bunx tsc --noEmit
+
+      - name: Lint
+        continue-on-error: true
+        run: bun run lint
+
+      - name: Build
+        continue-on-error: true
+        run: bun run build
