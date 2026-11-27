@@ -1,0 +1,62 @@
+name: App checks
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - ".github/*.json"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      # Required: the unit and component tests must pass.
+      - name: Tests
+        run: bun run test
+
+      # Advisory for now (first runs may surface existing issues). Remove continue-on-error
+      # once these are green so they block merges.
+      - name: Typecheck
+        id: typecheck
+        continue-on-error: true
+        run: bunx tsc --noEmit
+
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: bun run lint
+
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: bun run build
+
+      # continue-on-error hides failures in the run's overall status, so spell the real
+      # outcomes out in this step's name.
+      - name: "Advisory outcomes: typecheck=${{ steps.typecheck.outcome }} lint=${{ steps.lint.outcome }} build=${{ steps.build.outcome }}"
+        run: |
+          echo "typecheck=${{ steps.typecheck.outcome }}"
+          echo "lint=${{ steps.lint.outcome }}"
+          echo "build=${{ steps.build.outcome }}"
