@@ -36,16 +36,27 @@ jobs:
       - name: Tests
         run: bun run test
 
-      # Advisory for now (first runs may surface existing issues). Flip continue-on-error
-      # to false once these are green so they block merges.
+      # Advisory for now (first runs may surface existing issues). Remove continue-on-error
+      # once these are green so they block merges.
       - name: Typecheck
+        id: typecheck
         continue-on-error: true
         run: bunx tsc --noEmit
 
       - name: Lint
+        id: lint
         continue-on-error: true
         run: bun run lint
 
       - name: Build
+        id: build
         continue-on-error: true
         run: bun run build
+
+      # continue-on-error hides failures in the run's overall status, so spell the real
+      # outcomes out in this step's name.
+      - name: "Advisory outcomes: typecheck=${{ steps.typecheck.outcome }} lint=${{ steps.lint.outcome }} build=${{ steps.build.outcome }}"
+        run: |
+          echo "typecheck=${{ steps.typecheck.outcome }}"
+          echo "lint=${{ steps.lint.outcome }}"
+          echo "build=${{ steps.build.outcome }}"
