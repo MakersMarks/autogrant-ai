@@ -13,21 +13,55 @@ export type PackageAttachment = {
 };
 
 const WIN_ANSI_SPECIALS: Record<string, number> = {
-  "€": 0x80, "‚": 0x82, "ƒ": 0x83, "„": 0x84, "…": 0x85, "†": 0x86, "‡": 0x87,
-  "ˆ": 0x88, "‰": 0x89, "Š": 0x8a, "‹": 0x8b, "Œ": 0x8c, "Ž": 0x8e, "‘": 0x91,
-  "’": 0x92, "“": 0x93, "”": 0x94, "•": 0x95, "–": 0x96, "—": 0x97, "˜": 0x98,
-  "™": 0x99, "š": 0x9a, "›": 0x9b, "œ": 0x9c, "ž": 0x9e, "Ÿ": 0x9f,
+  "€": 0x80,
+  "‚": 0x82,
+  ƒ: 0x83,
+  "„": 0x84,
+  "…": 0x85,
+  "†": 0x86,
+  "‡": 0x87,
+  ˆ: 0x88,
+  "‰": 0x89,
+  Š: 0x8a,
+  "‹": 0x8b,
+  Œ: 0x8c,
+  Ž: 0x8e,
+  "‘": 0x91,
+  "’": 0x92,
+  "“": 0x93,
+  "”": 0x94,
+  "•": 0x95,
+  "–": 0x96,
+  "—": 0x97,
+  "˜": 0x98,
+  "™": 0x99,
+  š: 0x9a,
+  "›": 0x9b,
+  œ: 0x9c,
+  ž: 0x9e,
+  Ÿ: 0x9f,
 };
-const PDF_TEXT_SUBSTITUTIONS: Record<string, string> = { "≤": "<=", "≥": ">=", "−": "-", "→": "->", "×": "x" };
+const PDF_TEXT_SUBSTITUTIONS: Record<string, string> = {
+  "≤": "<=",
+  "≥": ">=",
+  "−": "-",
+  "→": "->",
+  "×": "x",
+};
 
 function pdfLiteral(text: string) {
   let encoded = "";
   const normalized = [...text].map((char) => PDF_TEXT_SUBSTITUTIONS[char] ?? char).join("");
   for (const char of normalized) {
     const code = char.codePointAt(0)!;
-    const byte = WIN_ANSI_SPECIALS[char] ?? (code <= 0xff && !(code >= 0x80 && code <= 0x9f) ? code : null);
-    if (byte === null) throw new Error(`PDF export does not support the character "${char}". Remove it or use the DOCX export.`);
-    if (byte === 0x28 || byte === 0x29 || byte === 0x5c) encoded += `\\${String.fromCharCode(byte)}`;
+    const byte =
+      WIN_ANSI_SPECIALS[char] ?? (code <= 0xff && !(code >= 0x80 && code <= 0x9f) ? code : null);
+    if (byte === null)
+      throw new Error(
+        `PDF export does not support the character "${char}". Remove it or use the DOCX export.`,
+      );
+    if (byte === 0x28 || byte === 0x29 || byte === 0x5c)
+      encoded += `\\${String.fromCharCode(byte)}`;
     else if (byte < 0x20 || byte >= 0x7f) encoded += `\\${byte.toString(8).padStart(3, "0")}`;
     else encoded += String.fromCharCode(byte);
   }
@@ -86,8 +120,12 @@ export function createPdf(document: PackageDocument) {
   };
   const catalogId = addObject("");
   const pagesId = addObject("");
-  const regularFontId = addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
-  const boldFontId = addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  const regularFontId = addObject(
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+  );
+  const boldFontId = addObject(
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+  );
   const pageIds: number[] = [];
 
   for (const lines of pageLines) {
@@ -96,18 +134,23 @@ export function createPdf(document: PackageDocument) {
     for (const line of lines) {
       const fontSize = line.heading ? 12 : 9;
       const fontId = line.heading ? boldFontId : regularFontId;
-      commands.push(`/${fontId === boldFontId ? "F2" : "F1"} ${fontSize} Tf 1 0 0 1 50 ${y} Tm ${pdfLiteral(line.text)} Tj`);
+      commands.push(
+        `/${fontId === boldFontId ? "F2" : "F1"} ${fontSize} Tf 1 0 0 1 50 ${y} Tm ${pdfLiteral(line.text)} Tj`,
+      );
       y -= fontSize + 5;
     }
     commands.push("ET");
     const stream = commands.join("\n");
     const contentId = addObject(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
-    const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+    const pageId = addObject(
+      `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`,
+    );
     pageIds.push(pageId);
   }
 
   objects[catalogId - 1] = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
-  objects[pagesId - 1] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`;
+  objects[pagesId - 1] =
+    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`;
 
   let pdf = "%PDF-1.4\n";
   const offsets = [0];
@@ -124,7 +167,7 @@ export function createPdf(document: PackageDocument) {
 
 function safeFileName(value: string) {
   const cleaned = value
-    .replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_")
+    .replace(/[\\/:*?"<>|\p{Cc}]/gu, "_")
     .replace(/^\.+/u, "")
     .trim();
   return cleaned || "document";
@@ -144,7 +187,12 @@ function uniquePath(path: string, used: Set<string>) {
 }
 
 function escapeXml(text: string) {
-  return text.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;").replace(/'/gu, "&apos;");
+  return text
+    .replace(/&/gu, "&amp;")
+    .replace(/</gu, "&lt;")
+    .replace(/>/gu, "&gt;")
+    .replace(/"/gu, "&quot;")
+    .replace(/'/gu, "&apos;");
 }
 
 function paragraph(text: string) {
@@ -152,14 +200,22 @@ function paragraph(text: string) {
 }
 
 export function createDocx(document: PackageDocument) {
-  const content = document.sections.flatMap((section) => [
-    paragraph(section.title),
-    ...section.body.split(/\r?\n/u).map((line) => paragraph(line)),
-  ]).join("");
+  const content = document.sections
+    .flatMap((section) => [
+      paragraph(section.title),
+      ...section.body.split(/\r?\n/u).map((line) => paragraph(line)),
+    ])
+    .join("");
   const entries = {
-    "[Content_Types].xml": strToU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'),
-    "_rels/.rels": strToU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'),
-    "word/document.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${content}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`),
+    "[Content_Types].xml": strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+    ),
+    "_rels/.rels": strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+    ),
+    "word/document.xml": strToU8(
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${content}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`,
+    ),
   };
   return zipSync(entries, { level: 6 });
 }
@@ -172,7 +228,16 @@ function csvCell(value: string | number) {
 
 export function createBudgetCsv(input: BudgetInput, calculation: BudgetCalculation) {
   const rows: Array<Array<string | number>> = [
-    ["Type", "Category / vendor", "Basis / description", "Quantity", "Unit cost", "Freight", "Tax", "Amount"],
+    [
+      "Type",
+      "Category / vendor",
+      "Basis / description",
+      "Quantity",
+      "Unit cost",
+      "Freight",
+      "Tax",
+      "Amount",
+    ],
   ];
   if (input.track === "federal" && input.federalCosts) {
     for (const [category, amount] of Object.entries(input.federalCosts)) {
@@ -181,10 +246,21 @@ export function createBudgetCsv(input: BudgetInput, calculation: BudgetCalculati
   } else {
     for (const item of input.equipment) {
       const amount = item.quantity * item.unitCost + item.freight + item.tax;
-      if (amount > 0) rows.push(["Equipment", item.vendor, "", item.quantity, item.unitCost, item.freight, item.tax, amount]);
+      if (amount > 0)
+        rows.push([
+          "Equipment",
+          item.vendor,
+          "",
+          item.quantity,
+          item.unitCost,
+          item.freight,
+          item.tax,
+          amount,
+        ]);
     }
     for (const item of input.institutional) {
-      if (item.amount > 0) rows.push(["Institutional", item.category, item.basis, "", "", "", "", item.amount]);
+      if (item.amount > 0)
+        rows.push(["Institutional", item.category, item.basis, "", "", "", "", item.amount]);
     }
   }
   rows.push(["Total project cost", "", "", "", "", "", "", calculation.totalProjectCost]);
@@ -214,7 +290,9 @@ export function buildApplicationPackage(input: {
     const pdfPath = uniquePath(`narratives/${baseName}.pdf`, used);
     files[pdfPath] = createPdf(document);
     const textPath = uniquePath(`narratives/${baseName}.txt`, used);
-    files[textPath] = strToU8(document.sections.map((section) => `${section.title}\n\n${section.body}`).join("\n\n"));
+    files[textPath] = strToU8(
+      document.sections.map((section) => `${section.title}\n\n${section.body}`).join("\n\n"),
+    );
   }
   if (input.budget?.calculation.valid) {
     const budgetCsv = createBudgetCsv(input.budget.input, input.budget.calculation);
@@ -223,7 +301,9 @@ export function buildApplicationPackage(input: {
       fileName: "Grant budget",
       sections: [{ title: "Budget worksheet (CSV rows)", body: budgetCsv }],
     });
-    files["budget/budget-justification.txt"] = strToU8(buildBudgetJustification(input.budget.input, input.budget.calculation));
+    files["budget/budget-justification.txt"] = strToU8(
+      buildBudgetJustification(input.budget.input, input.budget.calculation),
+    );
   }
   for (const [index, attachment] of (input.attachments ?? []).entries()) {
     const safeName = safeFileName(attachment.fileName);
@@ -238,39 +318,51 @@ export function buildApplicationPackage(input: {
       `Word limit: ${input.requirements.formatting.wordCountLimit ?? "Not stated"}`,
       `Required font: ${input.requirements.formatting.fontFamilyRequired ?? "Not stated"}`,
       ...(input.requirements.formatting.evidenceQuote
-        ? [`Formatting source quote: "${input.requirements.formatting.evidenceQuote}"${input.requirements.formatting.sourceUrl ? ` — ${input.requirements.formatting.sourceUrl}` : ""}`]
+        ? [
+            `Formatting source quote: "${input.requirements.formatting.evidenceQuote}"${input.requirements.formatting.sourceUrl ? ` — ${input.requirements.formatting.sourceUrl}` : ""}`,
+          ]
         : []),
       "",
       "AI-draftable documents:",
       ...input.requirements.aiDraftableDocuments.flatMap((document) => [
         `- ${document.documentType.replaceAll("_", " ")}${document.fileFormats?.length ? ` (formats: ${document.fileFormats.join(", ")})` : " (file format not stated)"}`,
-        ...document.requiredHeadings.map((heading) => `  - ${heading}${document.wordLimitsPerSection?.[heading] ? ` (up to ${document.wordLimitsPerSection[heading]} words)` : ""}`),
+        ...document.requiredHeadings.map(
+          (heading) =>
+            `  - ${heading}${document.wordLimitsPerSection?.[heading] ? ` (up to ${document.wordLimitsPerSection[heading]} words)` : ""}`,
+        ),
         ...(document.evidenceQuote
-          ? [`  Source quote: "${document.evidenceQuote}"${document.sourceUrl ? ` — ${document.sourceUrl}` : ""}`]
+          ? [
+              `  Source quote: "${document.evidenceQuote}"${document.sourceUrl ? ` — ${document.sourceUrl}` : ""}`,
+            ]
           : []),
       ]),
       "",
       "Applicant-provided evidence:",
       ...(input.requirements.userRequiredEvidence.length
         ? input.requirements.userRequiredEvidence.flatMap((item) => [
-          `- ${item.isMandatory ? "Mandatory" : "Requested"}: ${item.name}${item.fileFormats?.length ? ` (formats: ${item.fileFormats.join(", ")})` : ""} — ${item.reason}`,
-          ...(item.evidenceQuote ? [`  Source quote: "${item.evidenceQuote}"${item.sourceUrl ? ` — ${item.sourceUrl}` : ""}`] : []),
-        ])
+            `- ${item.isMandatory ? "Mandatory" : "Requested"}: ${item.name}${item.fileFormats?.length ? ` (formats: ${item.fileFormats.join(", ")})` : ""} — ${item.reason}`,
+            ...(item.evidenceQuote
+              ? [
+                  `  Source quote: "${item.evidenceQuote}"${item.sourceUrl ? ` — ${item.sourceUrl}` : ""}`,
+                ]
+              : []),
+          ])
         : ["- No evidence attachments were identified by the parser."]),
       "",
       "Verified application prompts:",
       ...(input.requirements.extractedPrompts?.length
         ? input.requirements.extractedPrompts.flatMap((item) => [
-          `- ${item.question}${item.maxWords ? ` (max ${item.maxWords} words)` : ""}${item.maxCharacters ? ` (max ${item.maxCharacters} characters)` : ""}`,
-          `  Source quote: "${item.evidenceQuote}"${item.sourceUrl ? ` — ${item.sourceUrl}` : ""}`,
-        ])
+            `- ${item.question}${item.maxWords ? ` (max ${item.maxWords} words)` : ""}${item.maxCharacters ? ` (max ${item.maxCharacters} characters)` : ""}`,
+            `  Source quote: "${item.evidenceQuote}"${item.sourceUrl ? ` — ${item.sourceUrl}` : ""}`,
+          ])
         : ["- No exact application prompts were verified."]),
       "",
       "Verified evaluation criteria:",
       ...(input.requirements.rubricCriteria?.length
-        ? input.requirements.rubricCriteria.map((item) =>
-          `- ${item.criterion}${item.weightPercent === undefined ? "" : ` (${item.weightPercent}%)`} — "${item.evidenceQuote}"${item.sourceUrl ? ` — ${item.sourceUrl}` : ""}`,
-        )
+        ? input.requirements.rubricCriteria.map(
+            (item) =>
+              `- ${item.criterion}${item.weightPercent === undefined ? "" : ` (${item.weightPercent}%)`} — "${item.evidenceQuote}"${item.sourceUrl ? ` — ${item.sourceUrl}` : ""}`,
+          )
         : ["- No exact scoring criteria or weights were verified."]),
       "",
       `Extraction status: ${input.requirements.extractionStatus ?? "partial"}.`,
@@ -280,37 +372,41 @@ export function buildApplicationPackage(input: {
     files["requirements/compliance-checklist.txt"] = strToU8(checklist);
   }
 
-  files["submission-checklist.txt"] = strToU8([
-    `Program: ${input.grantTitle}`,
-    `Official application portal: ${input.portalUrl?.trim() || "Not listed; verify the official funder site."}`,
-    `Official guidelines: ${input.guidelinesUrl?.trim() || "Not listed; locate the current official notice before drafting or submitting."}`,
-    "",
-    "Before submitting:",
-    "- Confirm the program is open and that this notice is the current funding cycle.",
-    "- Verify applicant eligibility, deadline, award limits, and all submission instructions on the official notice.",
-    "- Review every generated draft and replace each [Needs evidence: ...] note with verified applicant information.",
-    "- Attach every mandatory form and evidence item required by the current solicitation.",
-    "- Confirm budget totals, matching funds, file formats, and page or word limits.",
-    "- Verify exact prompt wording and rubric weights directly in the funder's official guidelines before submitting.",
-    "- Submit through the official portal and save the submission confirmation.",
-  ].join("\n"));
+  files["submission-checklist.txt"] = strToU8(
+    [
+      `Program: ${input.grantTitle}`,
+      `Official application portal: ${input.portalUrl?.trim() || "Not listed; verify the official funder site."}`,
+      `Official guidelines: ${input.guidelinesUrl?.trim() || "Not listed; locate the current official notice before drafting or submitting."}`,
+      "",
+      "Before submitting:",
+      "- Confirm the program is open and that this notice is the current funding cycle.",
+      "- Verify applicant eligibility, deadline, award limits, and all submission instructions on the official notice.",
+      "- Review every generated draft and replace each [Needs evidence: ...] note with verified applicant information.",
+      "- Attach every mandatory form and evidence item required by the current solicitation.",
+      "- Confirm budget totals, matching funds, file formats, and page or word limits.",
+      "- Verify exact prompt wording and rubric weights directly in the funder's official guidelines before submitting.",
+      "- Submit through the official portal and save the submission confirmation.",
+    ].join("\n"),
+  );
 
-  files["README.txt"] = strToU8([
-    `Grant application working package`,
-    `Funder: ${input.funder}`,
-    `Program: ${input.grantTitle}`,
-    `Listed award: ${input.amount}`,
-    `Official application portal: ${input.portalUrl?.trim() || "Not listed; verify the official funder site."}`,
-    `Official guidelines: ${input.guidelinesUrl?.trim() || "Not listed; locate the current official notice before drafting or submitting."}`,
-    "",
-    "Use submission-checklist.txt before filing.",
-    "Generated narratives are editable working drafts. Review all facts, headings, limits, and evidence against the current official solicitation.",
-    "Verify exact prompt wording and rubric weights directly in the funder's official guidelines before submitting; unavailable or gated instructions are never inferred.",
-    "Narrative drafts are exported as PDF, DOCX, and TXT. Budget exports are PDF, CSV, and plain-text justification. Other required formats must be prepared in the funder's official system or with an approved tool.",
-    "These are working drafts, not official SF-424/SF-424A forms. Verify SAM.gov registration and submit through the funder's official portal.",
-    "Any included compliance checklist is AI-extracted from publicly fetched guidelines or user-provided text and must be checked against the current official notice.",
-    "Vault attachments are included only when the user selected the include-evidence option.",
-  ].join("\n"));
+  files["README.txt"] = strToU8(
+    [
+      `Grant application working package`,
+      `Funder: ${input.funder}`,
+      `Program: ${input.grantTitle}`,
+      `Listed award: ${input.amount}`,
+      `Official application portal: ${input.portalUrl?.trim() || "Not listed; verify the official funder site."}`,
+      `Official guidelines: ${input.guidelinesUrl?.trim() || "Not listed; locate the current official notice before drafting or submitting."}`,
+      "",
+      "Use submission-checklist.txt before filing.",
+      "Generated narratives are editable working drafts. Review all facts, headings, limits, and evidence against the current official solicitation.",
+      "Verify exact prompt wording and rubric weights directly in the funder's official guidelines before submitting; unavailable or gated instructions are never inferred.",
+      "Narrative drafts are exported as PDF, DOCX, and TXT. Budget exports are PDF, CSV, and plain-text justification. Other required formats must be prepared in the funder's official system or with an approved tool.",
+      "These are working drafts, not official SF-424/SF-424A forms. Verify SAM.gov registration and submit through the funder's official portal.",
+      "Any included compliance checklist is AI-extracted from publicly fetched guidelines or user-provided text and must be checked against the current official notice.",
+      "Vault attachments are included only when the user selected the include-evidence option.",
+    ].join("\n"),
+  );
 
   return zipSync(files, { level: 6 });
 }

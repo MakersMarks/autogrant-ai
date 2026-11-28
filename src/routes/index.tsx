@@ -34,7 +34,7 @@ import type { CopilotAction } from "@/lib/ai/ai.functions";
 
 export interface LinkedBusinessBankAccount {
   connected: boolean;
-  provider: "manual" | "plaid_ready";
+  provider: "manual";
   institutionName: string;
   accountType: "checking" | "savings";
   mask: string;
@@ -52,7 +52,7 @@ export interface BankDepositRecord {
 
 const DEFAULT_BANK_ACCOUNT: LinkedBusinessBankAccount = {
   connected: false,
-  provider: "plaid_ready",
+  provider: "manual",
   institutionName: "",
   accountType: "checking",
   mask: "",
@@ -227,8 +227,8 @@ function IndexComponent() {
       await persistBankState(updated, bankDeposits);
       setStatusMessage(
         updated.connected
-          ? `Linked ${updated.institutionName} (${updated.accountType} ••••${updated.mask}).`
-          : "Saved bank profile details.",
+          ? `Saved bank details for ${updated.institutionName} (${updated.accountType} ••••${updated.mask}). This is a manual reference; no bank connection was created.`
+          : "Saved bank profile details. No bank connection was created.",
       );
     },
     [bankDeposits, persistBankState],
@@ -253,7 +253,7 @@ function IndexComponent() {
       setBankAccount(updatedAccount);
       await persistBankState(updatedAccount, updatedDeposits);
       setStatusMessage(
-        `Recorded $${input.amount.toLocaleString()} deposit (${newRecord.sourceLabel}) and updated awarded funds.`,
+        `Recorded $${input.amount.toLocaleString()} deposit (${newRecord.sourceLabel}) and updated recorded awarded funds.`,
       );
     },
     [bankAccount, bankDeposits, persistBankState],
@@ -263,7 +263,7 @@ function IndexComponent() {
     const parts: string[] = [];
     if (bankAccount.institutionName || bankAccount.mask) {
       parts.push(
-        `Bank: ${bankAccount.institutionName || "Unspecified"} (${bankAccount.accountType}, ending in ${bankAccount.mask || "N/A"}, routing last 4: ${bankAccount.routingLast4 || "N/A"}, status: ${bankAccount.connected ? "Linked" : "Unlinked"})`,
+        `Bank: ${bankAccount.institutionName || "Unspecified"} (${bankAccount.accountType}, ending in ${bankAccount.mask || "N/A"}, routing last 4: ${bankAccount.routingLast4 || "N/A"}, details: ${bankAccount.connected ? "saved manually, no live bank connection" : "not saved"})`,
       );
     }
     if (bankDeposits.length > 0) {
@@ -432,8 +432,8 @@ function IndexComponent() {
       await persistBankState(updatedAccount, bankDeposits);
       setStatusMessage(
         bankAccount.connected
-          ? `Synced ${bankAccount.institutionName} (••••${bankAccount.mask}) at ${new Date(nowIso).toLocaleTimeString()}.`
-          : "Workspace synced. Link a business bank account or record a deposit to track incoming grant funds.",
+          ? `Workspace refreshed at ${new Date(nowIso).toLocaleTimeString()}. Bank details are the ones you entered; no bank connection is active.`
+          : "Workspace refreshed. Save your business bank details or record a deposit to track grant funds.",
       );
     } finally {
       setSyncingBank(false);
@@ -1020,7 +1020,7 @@ function IndexComponent() {
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
                 <p className="text-[11px] font-mono text-slate-400 uppercase">
-                  Verified awarded funds
+                  Recorded awarded funds
                 </p>
                 <p className="text-lg font-mono font-bold text-emerald-400">
                   ${totalAwarded.toLocaleString()}
@@ -1079,19 +1079,20 @@ function IndexComponent() {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 col-span-full">
-                Awarded funds reflect recorded deposits or confirmed submissions; connect a live
-                bank feed webhook/aggregator for automated deposit pulls.
+                Awarded funds are the deposits and submitted applications you recorded yourself.
+                AutoGrant has no bank connection, so nothing is pulled from your account
+                automatically — confirm every deposit against your bank statement.
               </p>
             </div>
 
             <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 className="font-bold text-sm">Linked business bank & deposit sync</h3>
+                  <h3 className="font-bold text-sm">Business bank details (manual)</h3>
                   <p className="text-xs text-slate-400">
                     {bankAccount.connected
-                      ? `${bankAccount.institutionName} (${bankAccount.accountType} ••••${bankAccount.mask})${bankAccount.lastSyncedAt ? ` · Last synced ${new Date(bankAccount.lastSyncedAt).toLocaleString()}` : ""}`
-                      : "No business bank link active yet. Configure your bank profile in Settings or record a grant deposit below."}
+                      ? `${bankAccount.institutionName} (${bankAccount.accountType} ••••${bankAccount.mask}) — details you entered for reference${bankAccount.lastSyncedAt ? `, saved ${new Date(bankAccount.lastSyncedAt).toLocaleString()}` : ""}. No bank connection is active.`
+                      : "No bank details saved. Enter them in Settings or record a grant deposit below. AutoGrant does not connect to your bank."}
                   </p>
                 </div>
                 <button
@@ -1100,7 +1101,7 @@ function IndexComponent() {
                   onClick={() => void syncBankDeposits()}
                   className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-bold disabled:opacity-50"
                 >
-                  {syncingBank ? "Syncing…" : "Sync deposits"}
+                  {syncingBank ? "Refreshing…" : "Refresh workspace"}
                 </button>
               </div>
               {bankDeposits.length > 0 && (
@@ -1593,7 +1594,7 @@ function IndexComponent() {
               </label>
               <div className="border-t border-slate-800 pt-4 space-y-3">
                 <p className="text-xs font-bold text-slate-200">
-                  Business Bank Account (for grant payout tracking & form reference)
+                  Business bank details (manual reference for payout tracking — no live connection)
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block space-y-1 text-xs">
@@ -1668,7 +1669,7 @@ function IndexComponent() {
                     onClick={() => void linkBusinessBankAccount(bankAccount)}
                     className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-semibold"
                   >
-                    Save & link bank profile
+                    Save bank details
                   </button>
                   <button
                     type="button"
