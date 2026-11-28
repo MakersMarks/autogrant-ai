@@ -133,5 +133,5 @@ export const stateRegistry: UnifiedGrant[] = [
     isFreeToApply: true,
     summaryText:
       "$5,000–$25,000 state grants for for-profit businesses in designated Main Street Iowa districts (at least 1 year in operation; requires a 25% owner investment).",
-  }
+  },
 ];

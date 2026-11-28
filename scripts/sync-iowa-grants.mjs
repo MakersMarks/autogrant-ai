@@ -5,7 +5,11 @@ import path from "node:path";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 const { createClient } = require("@supabase/supabase-js");
-import { deadlineHasPassed, normalizeGrantRecord, parseIowaGrantRow } from "./iowa-grant-normalizer.mjs";
+import {
+  deadlineHasPassed,
+  normalizeGrantRecord,
+  parseIowaGrantRow,
+} from "./iowa-grant-normalizer.mjs";
 
 const SNAPSHOT_PATH = path.resolve(process.cwd(), ".github/iowa-grants-snapshot.json");
 const nowIso = new Date().toISOString();
@@ -125,21 +129,17 @@ const CURATED_IOWA_GRANTS = [
     geographic_restriction: "state",
     geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
     application_method: "online_portal",
-    direct_apply_url:
-      "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+    direct_apply_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     official_application_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-    portal_url:
-      "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+    portal_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     source_solicitation_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     is_free_to_apply: true,
     directory_only: true,
     summary_text:
       "The previous official program page is unavailable. Verify current program availability, eligibility, and funding terms with IEDA before applying.",
-    prerequisites: [
-      "Contact IEDA to confirm current program eligibility and terms.",
-    ],
+    prerequisites: ["Contact IEDA to confirm current program eligibility and terms."],
     source_system: "playwright_script",
     source_external_id: "ia-ieda-tsb",
   },
@@ -245,22 +245,17 @@ const CURATED_IOWA_GRANTS = [
     geographic_restriction: "state",
     geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
     application_method: "online_portal",
-    direct_apply_url:
-      "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+    direct_apply_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     official_application_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-    portal_url:
-      "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+    portal_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     source_solicitation_url:
       "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
     is_free_to_apply: true,
     directory_only: true,
     summary_text:
       "The official page is a general IEDA grants directory, not a verified application page for this specific program. Confirm current program availability and terms before applying.",
-    prerequisites: [
-      "Iowa-based small business",
-      "Federal SBIR/STTR Phase I or Phase II track",
-    ],
+    prerequisites: ["Iowa-based small business", "Federal SBIR/STTR Phase I or Phase II track"],
     source_system: "playwright_script",
     source_external_id: "ia-ieda-sbir-sttr-match",
   },
@@ -299,7 +294,10 @@ const CURATED_IOWA_GRANTS = [
     directory_only: true,
     summary_text:
       "The 2026 program page lists Leadership, Capacity Building, and Strategic Alignment grants. Leadership has cycle deadlines; Capacity Building and Strategic Alignment applications are accepted throughout the year. Confirm the specific program's current deadline and award terms on the official page.",
-    prerequisites: ["501(c)(3) nonprofit or eligible fiscal sponsor", "Greater Des Moines service area"],
+    prerequisites: [
+      "501(c)(3) nonprofit or eligible fiscal sponsor",
+      "Greater Des Moines service area",
+    ],
     source_system: "playwright_script",
     source_external_id: "ia-cfgdm-community-grants",
   },
@@ -349,8 +347,16 @@ async function run() {
       for (const row of rows) {
         const parsedRow = parseIowaGrantRow(row);
         if (!parsedRow) continue;
-        const { rawId, title, agency, deadline: closeDate, applyUrl, isClosed, isRolling, slug } =
-          parsedRow;
+        const {
+          rawId,
+          title,
+          agency,
+          deadline: closeDate,
+          applyUrl,
+          isClosed,
+          isRolling,
+          slug,
+        } = parsedRow;
 
         const record = normalizeGrantRecord(
           {
@@ -383,10 +389,7 @@ async function run() {
             is_free_to_apply: true,
             directory_only: false,
             summary_text: `State of Iowa opportunity listed on IowaGrants.gov under ${agency}.`,
-            prerequisites: [
-              "Iowa-eligible applicant or project",
-              "IowaGrants.gov portal account",
-            ],
+            prerequisites: ["Iowa-eligible applicant or project", "IowaGrants.gov portal account"],
             source_system: "playwright_script",
             source_external_id: rawId || slug,
             last_synced_at: nowIso,
@@ -413,12 +416,12 @@ async function run() {
         });
         const status = resp ? resp.status() : 0;
         if (status >= 500 || status === 0 || (status >= 400 && status !== 404 && status !== 410)) {
-          console.warn(`Skipping ${item.id}: official page returned HTTP ${status || "no response"}.`);
+          console.warn(
+            `Skipping ${item.id}: official page returned HTTP ${status || "no response"}.`,
+          );
           continue;
         }
-        const bodyText = await page.evaluate(() =>
-          (document.body?.innerText ?? "").slice(0, 4000),
-        );
+        const bodyText = await page.evaluate(() => (document.body?.innerText ?? "").slice(0, 4000));
         const unavailable = status === 404 || status === 410;
         const explicitlyClosed =
           deadlineHasPassed(item.deadline) ||

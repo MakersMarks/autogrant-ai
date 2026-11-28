@@ -58,40 +58,55 @@ export function calculateBudget(input: BudgetInput): BudgetCalculation {
   let equipmentTotal = 0;
   let institutionalTotal = 0;
 
-  if ((input.track ?? "small_business") === "small_business") input.equipment.forEach((item, index) => {
-    const row = index + 1;
-    if (!isNonnegativeFinite(item.quantity)) errors.push(`Equipment item ${row}: quantity must be a nonnegative finite number.`);
-    if (!isNonnegativeFinite(item.unitCost)) errors.push(`Equipment item ${row}: unit cost must be a nonnegative finite number.`);
-    if (!isNonnegativeFinite(item.freight)) errors.push(`Equipment item ${row}: freight must be a nonnegative finite number.`);
-    if (!isNonnegativeFinite(item.tax)) errors.push(`Equipment item ${row}: tax must be a nonnegative finite number.`);
+  if ((input.track ?? "small_business") === "small_business")
+    input.equipment.forEach((item, index) => {
+      const row = index + 1;
+      if (!isNonnegativeFinite(item.quantity))
+        errors.push(`Equipment item ${row}: quantity must be a nonnegative finite number.`);
+      if (!isNonnegativeFinite(item.unitCost))
+        errors.push(`Equipment item ${row}: unit cost must be a nonnegative finite number.`);
+      if (!isNonnegativeFinite(item.freight))
+        errors.push(`Equipment item ${row}: freight must be a nonnegative finite number.`);
+      if (!isNonnegativeFinite(item.tax))
+        errors.push(`Equipment item ${row}: tax must be a nonnegative finite number.`);
 
-    if (![item.quantity, item.unitCost, item.freight, item.tax].every(isNonnegativeFinite)) return;
-    const lineTotal = item.quantity * item.unitCost + item.freight + item.tax;
-    if (!Number.isFinite(lineTotal)) {
-      errors.push(`Equipment item ${row}: line total is too large.`);
-      return;
-    }
-    if (lineTotal > 0 && !item.vendor.trim()) errors.push(`Equipment item ${row}: vendor is required for a nonzero cost.`);
-    if (lineTotal > 0 && !item.purpose?.trim()) errors.push(`Equipment item ${row}: project purpose is required for a nonzero cost.`);
-    if (lineTotal > 0 && !item.milestone?.trim()) errors.push(`Equipment item ${row}: project milestone is required for a nonzero cost.`);
-    equipmentTotal += money(lineTotal);
-  });
+      if (![item.quantity, item.unitCost, item.freight, item.tax].every(isNonnegativeFinite))
+        return;
+      const lineTotal = item.quantity * item.unitCost + item.freight + item.tax;
+      if (!Number.isFinite(lineTotal)) {
+        errors.push(`Equipment item ${row}: line total is too large.`);
+        return;
+      }
+      if (lineTotal > 0 && !item.vendor.trim())
+        errors.push(`Equipment item ${row}: vendor is required for a nonzero cost.`);
+      if (lineTotal > 0 && !item.purpose?.trim())
+        errors.push(`Equipment item ${row}: project purpose is required for a nonzero cost.`);
+      if (lineTotal > 0 && !item.milestone?.trim())
+        errors.push(`Equipment item ${row}: project milestone is required for a nonzero cost.`);
+      equipmentTotal += money(lineTotal);
+    });
 
-  if ((input.track ?? "small_business") === "small_business") input.institutional.forEach((item, index) => {
-    const row = index + 1;
-    if (!isNonnegativeFinite(item.amount)) {
-      errors.push(`Institutional item ${row}: amount must be a nonnegative finite number.`);
-      return;
-    }
-    if (item.amount > 0 && !item.category.trim()) errors.push(`Institutional item ${row}: category is required for a nonzero cost.`);
-    if (item.amount > 0 && !item.basis.trim()) errors.push(`Institutional item ${row}: basis is required for a nonzero cost.`);
-    if (item.amount > 0 && !item.purpose?.trim()) errors.push(`Institutional item ${row}: project purpose is required for a nonzero cost.`);
-    if (item.amount > 0 && !item.milestone?.trim()) errors.push(`Institutional item ${row}: project milestone is required for a nonzero cost.`);
-    institutionalTotal += money(item.amount);
-  });
+  if ((input.track ?? "small_business") === "small_business")
+    input.institutional.forEach((item, index) => {
+      const row = index + 1;
+      if (!isNonnegativeFinite(item.amount)) {
+        errors.push(`Institutional item ${row}: amount must be a nonnegative finite number.`);
+        return;
+      }
+      if (item.amount > 0 && !item.category.trim())
+        errors.push(`Institutional item ${row}: category is required for a nonzero cost.`);
+      if (item.amount > 0 && !item.basis.trim())
+        errors.push(`Institutional item ${row}: basis is required for a nonzero cost.`);
+      if (item.amount > 0 && !item.purpose?.trim())
+        errors.push(`Institutional item ${row}: project purpose is required for a nonzero cost.`);
+      if (item.amount > 0 && !item.milestone?.trim())
+        errors.push(`Institutional item ${row}: project milestone is required for a nonzero cost.`);
+      institutionalTotal += money(item.amount);
+    });
   if (input.track === "federal" && input.federalCosts) {
     for (const [category, amount] of Object.entries(input.federalCosts)) {
-      if (!isNonnegativeFinite(amount)) errors.push(`${category} must be a nonnegative finite number.`);
+      if (!isNonnegativeFinite(amount))
+        errors.push(`${category} must be a nonnegative finite number.`);
       else institutionalTotal += money(amount);
     }
   }
@@ -102,20 +117,32 @@ export function calculateBudget(input: BudgetInput): BudgetCalculation {
   if (input.awardCeiling !== null && !isNonnegativeFinite(input.awardCeiling)) {
     errors.push("Award ceiling must be a nonnegative finite number.");
   }
-  if (input.costSharingPercentage !== null &&
-      (!Number.isFinite(input.costSharingPercentage) || input.costSharingPercentage < 0 || input.costSharingPercentage > 100)) {
+  if (
+    input.costSharingPercentage !== null &&
+    (!Number.isFinite(input.costSharingPercentage) ||
+      input.costSharingPercentage < 0 ||
+      input.costSharingPercentage > 100)
+  ) {
     errors.push("Cost-sharing percentage must be between 0 and 100.");
   }
 
   const totalProjectCost = money(equipmentTotal + institutionalTotal);
   const percentage = input.costSharingPercentage ?? 0;
-  const requiredMatch = money(totalProjectCost * percentage / 100);
+  const requiredMatch = money((totalProjectCost * percentage) / 100);
   const grantRequest = money(totalProjectCost - requiredMatch);
 
-  if (!Number.isFinite(totalProjectCost) || !Number.isFinite(requiredMatch) || !Number.isFinite(grantRequest)) {
+  if (
+    !Number.isFinite(totalProjectCost) ||
+    !Number.isFinite(requiredMatch) ||
+    !Number.isFinite(grantRequest)
+  ) {
     errors.push("Calculated budget amounts must be finite numbers.");
   }
-  if (input.awardCeiling !== null && isNonnegativeFinite(input.awardCeiling) && grantRequest > input.awardCeiling) {
+  if (
+    input.awardCeiling !== null &&
+    isNonnegativeFinite(input.awardCeiling) &&
+    grantRequest > input.awardCeiling
+  ) {
     errors.push("Grant request exceeds the entered award ceiling.");
   }
 
@@ -130,24 +157,46 @@ export function calculateBudget(input: BudgetInput): BudgetCalculation {
   };
 }
 
-export function buildBudgetJustification(input: BudgetInput, calculation: BudgetCalculation): string {
-  const formatMoney = (value: number) => `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export function buildBudgetJustification(
+  input: BudgetInput,
+  calculation: BudgetCalculation,
+): string {
+  const formatMoney = (value: number) =>
+    `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const equipment = input.equipment
-    .map((item) => ({ ...item, total: money(item.quantity * item.unitCost + item.freight + item.tax) }))
+    .map((item) => ({
+      ...item,
+      total: money(item.quantity * item.unitCost + item.freight + item.tax),
+    }))
     .filter((item) => item.total > 0)
-    .map((item) => `${item.vendor}: ${item.quantity} unit(s) at ${formatMoney(item.unitCost)} each, plus ${formatMoney(item.freight)} freight and ${formatMoney(item.tax)} tax; line total ${formatMoney(item.total)}. Purpose: ${item.purpose}. Milestone: ${item.milestone}.`)
+    .map(
+      (item) =>
+        `${item.vendor}: ${item.quantity} unit(s) at ${formatMoney(item.unitCost)} each, plus ${formatMoney(item.freight)} freight and ${formatMoney(item.tax)} tax; line total ${formatMoney(item.total)}. Purpose: ${item.purpose}. Milestone: ${item.milestone}.`,
+    )
     .join("; ");
   const institutional = input.institutional
     .filter((item) => item.amount > 0)
-    .map((item) => `${item.category} (${item.basis}): ${formatMoney(item.amount)}. Purpose: ${item.purpose}. Milestone: ${item.milestone}.`)
+    .map(
+      (item) =>
+        `${item.category} (${item.basis}): ${formatMoney(item.amount)}. Purpose: ${item.purpose}. Milestone: ${item.milestone}.`,
+    )
     .join("; ");
 
   const lines = [
     `The total project budget is ${formatMoney(calculation.totalProjectCost)}.`,
-    equipment ? `Equipment costs total ${formatMoney(calculation.equipmentTotal)} and cover ${equipment}.` : "",
+    equipment
+      ? `Equipment costs total ${formatMoney(calculation.equipmentTotal)} and cover ${equipment}.`
+      : "",
     input.track === "federal" && input.federalCosts
-      ? `Federal SF-424A planning categories: ${Object.entries(input.federalCosts).filter(([, amount]) => amount > 0).map(([category, amount]) => `${category} ${formatMoney(amount)}`).join("; ") || "no amounts entered"}. This is a planning worksheet, not the official SF-424A form.`
-      : institutional ? `Institutional costs total ${formatMoney(calculation.institutionalTotal)} and cover ${institutional}.` : "",
+      ? `Federal SF-424A planning categories: ${
+          Object.entries(input.federalCosts)
+            .filter(([, amount]) => amount > 0)
+            .map(([category, amount]) => `${category} ${formatMoney(amount)}`)
+            .join("; ") || "no amounts entered"
+        }. This is a planning worksheet, not the official SF-424A form.`
+      : institutional
+        ? `Institutional costs total ${formatMoney(calculation.institutionalTotal)} and cover ${institutional}.`
+        : "",
     `The grant request is ${formatMoney(calculation.grantRequest)}.`,
     input.costSharingPercentage === null
       ? "No cost-sharing percentage was entered because none was stated in the terms provided; no match is included in this estimate."

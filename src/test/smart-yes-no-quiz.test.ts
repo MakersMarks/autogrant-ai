@@ -62,11 +62,9 @@ describe("Smart Match yes/no question bank", () => {
     const einQuestion = STARTER_QUESTIONS.find((question) => question.tag === "ein_ready");
     expect(einQuestion).toBeDefined();
 
-    const sequence = buildQuestionSequence(
-      new Set(),
-      new Set(["ein_letter"]),
-      { [einQuestion!.id]: "no" },
-    );
+    const sequence = buildQuestionSequence(new Set(), new Set(["ein_letter"]), {
+      [einQuestion!.id]: "no",
+    });
 
     expect(sequence.some((question) => question.id === einQuestion!.id)).toBe(false);
   });

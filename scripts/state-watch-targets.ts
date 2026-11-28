@@ -28,7 +28,8 @@ export const stateWatchTargets: StateWatchTarget[] = [
     category: "corporate",
     label: "Verizon Small Business Digital Ready ($10k)",
     url: "https://www.verizon.com/about/responsibility/digital-inclusion/small-business-training",
-    directApplyUrl: "https://www.verizon.com/about/responsibility/digital-inclusion/small-business-training",
+    directApplyUrl:
+      "https://www.verizon.com/about/responsibility/digital-inclusion/small-business-training",
   },
   {
     id: "hello-alice-small-biz",

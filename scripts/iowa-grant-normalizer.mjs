@@ -39,7 +39,7 @@ export function parseIowaGrantRow(row) {
   const applyUrl = row.href
     ? new URL(row.href, "https://www.iowagrants.gov/").toString()
     : "https://www.iowagrants.gov/storefrontFOList.do";
-  const deadline = deadlineIndex >= 0 ? cells[deadlineIndex] ?? "" : "";
+  const deadline = deadlineIndex >= 0 ? (cells[deadlineIndex] ?? "") : "";
   return {
     rawId,
     title,
@@ -81,8 +81,7 @@ export function normalizeGrantRecord(item, { isClosed = false, now = new Date() 
         ...(amountMax > 0 && amountMax <= 25000 ? ["microgrant"] : []),
       ];
 
-  const itemStatus =
-    typeof item.status === "string" ? item.status.trim().toLowerCase() : "";
+  const itemStatus = typeof item.status === "string" ? item.status.trim().toLowerCase() : "";
   const opensInFuture = parseDeadline(item.open_date);
   const notOpenYet = opensInFuture !== null && utcDay(opensInFuture) > utcDay(now);
   const isInactive =

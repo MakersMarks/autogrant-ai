@@ -55,8 +55,14 @@ test("does not label missing or not-applicable deadlines open", () => {
   const now = new Date("2026-11-26T00:00:00.000Z");
   const base = { id: "sample", title: "Sample Grant" };
 
-  assert.equal(normalizeGrantRecord({ ...base, deadline: "Not Applicable" }, { now }).status, "unknown");
-  assert.equal(normalizeGrantRecord({ ...base, deadline: "Check Current Cycle" }, { now }).status, "unknown");
+  assert.equal(
+    normalizeGrantRecord({ ...base, deadline: "Not Applicable" }, { now }).status,
+    "unknown",
+  );
+  assert.equal(
+    normalizeGrantRecord({ ...base, deadline: "Check Current Cycle" }, { now }).status,
+    "unknown",
+  );
   assert.equal(
     normalizeGrantRecord(
       { ...base, deadline: "Jan 29, 2027", open_date: "Jan 4, 2027", status: "open" },
@@ -71,8 +77,14 @@ test("does not label missing or not-applicable deadlines open", () => {
     ).status,
     "open",
   );
-  assert.equal(normalizeGrantRecord({ ...base, deadline: "Apr 14, 2027 4:30 PM" }, { now }).status, "open");
-  assert.equal(normalizeGrantRecord({ ...base, deadline: "Apr 14, 2024" }, { now }).status, "closed");
+  assert.equal(
+    normalizeGrantRecord({ ...base, deadline: "Apr 14, 2027 4:30 PM" }, { now }).status,
+    "open",
+  );
+  assert.equal(
+    normalizeGrantRecord({ ...base, deadline: "Apr 14, 2024" }, { now }).status,
+    "closed",
+  );
   assert.equal(
     normalizeGrantRecord({ ...base, deadline: "Rolling", is_rolling: true }, { now }).status,
     "open",

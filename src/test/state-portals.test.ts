@@ -7,7 +7,11 @@ describe("state funding source directory", () => {
     expect(stateFundingPortals).toHaveLength(55);
     expect(new Set(stateFundingPortals.map((portal) => portal.stateCode)).size).toBe(55);
     expect(stateFundingPortals.every((portal) => portal.url.startsWith("https://"))).toBe(true);
-    expect(["AS", "GU", "MP", "PR", "VI"].every((code) => stateFundingPortals.some((portal) => portal.stateCode === code))).toBe(true);
+    expect(
+      ["AS", "GU", "MP", "PR", "VI"].every((code) =>
+        stateFundingPortals.some((portal) => portal.stateCode === code),
+      ),
+    ).toBe(true);
   });
 
   it("resolves states and territories from a full business address with a ZIP code", () => {

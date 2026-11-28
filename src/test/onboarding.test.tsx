@@ -1,6 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { mergeDemographicTags, Onboarding, type ProfileInput } from "@/components/autogrant/Onboarding";
+import {
+  mergeDemographicTags,
+  Onboarding,
+  type ProfileInput,
+} from "@/components/autogrant/Onboarding";
 
 const initial: ProfileInput = {
   entity_type: "LLC / Corporation",
@@ -14,8 +18,13 @@ const initial: ProfileInput = {
 
 describe("Priority 5 onboarding qualifier", () => {
   it("preserves unselected profile tags while replacing selected tags", () => {
-    expect(mergeDemographicTags(["Existing Certification", "Women-Owned"], ["Women-Owned"], ["Woman-Owned"]))
-      .toEqual(["Existing Certification", "Woman-Owned"]);
+    expect(
+      mergeDemographicTags(
+        ["Existing Certification", "Women-Owned"],
+        ["Women-Owned"],
+        ["Woman-Owned"],
+      ),
+    ).toEqual(["Existing Certification", "Woman-Owned"]);
   });
 
   it("renders all six sliding cards and clearly notes the unsaved card", () => {

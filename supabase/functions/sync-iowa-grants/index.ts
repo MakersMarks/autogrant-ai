@@ -64,7 +64,9 @@ async function fetchIowaGrantsGov(): Promise<SiteGrantUpsert[]> {
       const cells = Array.from(rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map((c) => c[1]);
       if (cells.length < 4) continue;
 
-      const hrefMatch = rowHtml.match(/href=["']([^"']*(?:foId|fundingOpportunity|storefront)[^"']*)["']/i);
+      const hrefMatch = rowHtml.match(
+        /href=["']([^"']*(?:foId|fundingOpportunity|storefront)[^"']*)["']/i,
+      );
       const rawId = stripHtml(cells[0]);
       const { title: rawTitle, agency: rawAgency } = inferOpportunityColumns(
         cells.map((cell) => stripHtml(cell)),
@@ -169,12 +171,20 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
       geographic_restriction: "state",
       geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
       application_method: "email_package",
-      direct_apply_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
-      official_application_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
+      direct_apply_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
+      official_application_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
       portal_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      source_solicitation_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
-      summary_text: "Supports Iowa-based startups in advanced manufacturing, biosciences, or IT with functional prototypes to validate market potential and commercial feasibility.",
-      prerequisites: ["Iowa-registered business (fewer than 500 employees)", "Functional prototype / proof-of-concept", "1:2 non-state matching funds"],
+      source_solicitation_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding/proof-commercial-relevance",
+      summary_text:
+        "Supports Iowa-based startups in advanced manufacturing, biosciences, or IT with functional prototypes to validate market potential and commercial feasibility.",
+      prerequisites: [
+        "Iowa-registered business (fewer than 500 employees)",
+        "Functional prototype / proof-of-concept",
+        "1:2 non-state matching funds",
+      ],
       source_system: "ieda_catalog",
       source_external_id: "ieda-pocr",
     },
@@ -201,12 +211,20 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
       geographic_restriction: "state",
       geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
       application_method: "email_package",
-      direct_apply_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
-      official_application_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
+      direct_apply_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
+      official_application_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
       portal_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      source_solicitation_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
-      summary_text: "Assists Iowa companies with market-ready innovative technologies in advanced manufacturing, biosciences, or IT for marketing, equipment, and business development.",
-      prerequisites: ["Iowa-based company (fewer than 500 employees)", "Market-ready innovative product", "1:2 non-state matching funds"],
+      source_solicitation_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding/demonstration-fund",
+      summary_text:
+        "Assists Iowa companies with market-ready innovative technologies in advanced manufacturing, biosciences, or IT for marketing, equipment, and business development.",
+      prerequisites: [
+        "Iowa-based company (fewer than 500 employees)",
+        "Market-ready innovative product",
+        "1:2 non-state matching funds",
+      ],
       source_system: "ieda_catalog",
       source_external_id: "ieda-demonstration-fund",
     },
@@ -234,11 +252,17 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
       geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
       application_method: "online_portal",
       direct_apply_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      official_application_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+      official_application_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
       portal_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      source_solicitation_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      summary_text: "Provides proposal preparation support and state matching commitments for Iowa small businesses pursuing federal Phase I and Phase II SBIR/STTR research awards.",
-      prerequisites: ["Iowa-based small business", "Federal SBIR or STTR Phase I/II applicant or awardee"],
+      source_solicitation_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+      summary_text:
+        "Provides proposal preparation support and state matching commitments for Iowa small businesses pursuing federal Phase I and Phase II SBIR/STTR research awards.",
+      prerequisites: [
+        "Iowa-based small business",
+        "Federal SBIR or STTR Phase I/II applicant or awardee",
+      ],
       source_system: "ieda_catalog",
       source_external_id: "ieda-sbir-sttr-match",
     },
@@ -266,11 +290,17 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
       geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
       application_method: "email_package",
       direct_apply_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      official_application_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+      official_application_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
       portal_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      source_solicitation_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      summary_text: "Promotes formation and rapid market expansion of high-growth Iowa technology transfer companies creating skilled jobs and private capital investment.",
-      prerequisites: ["Iowa-based high-growth technology company", "Documented private matching investment"],
+      source_solicitation_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+      summary_text:
+        "Promotes formation and rapid market expansion of high-growth Iowa technology transfer companies creating skilled jobs and private capital investment.",
+      prerequisites: [
+        "Iowa-based high-growth technology company",
+        "Documented private matching investment",
+      ],
       source_system: "ieda_catalog",
       source_external_id: "ieda-innovation-acceleration",
     },
@@ -298,11 +328,17 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
       geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
       application_method: "online_portal",
       direct_apply_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      official_application_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+      official_application_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
       portal_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      source_solicitation_url: "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
-      summary_text: "Helps small-to-mid-sized Iowa manufacturers adopt automation, smart sensors, robotics, and manufacturing software.",
-      prerequisites: ["Iowa manufacturing facility (3 to 150 employees)", "1:1 matching capital investment"],
+      source_solicitation_url:
+        "https://opportunityiowa.gov/business/financial-assistance/grants-funding",
+      summary_text:
+        "Helps small-to-mid-sized Iowa manufacturers adopt automation, smart sensors, robotics, and manufacturing software.",
+      prerequisites: [
+        "Iowa manufacturing facility (3 to 150 employees)",
+        "1:1 matching capital investment",
+      ],
       source_system: "ieda_catalog",
       source_external_id: "ieda-manufacturing-4-0",
     },
@@ -325,16 +361,27 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
       cost_sharing_required: false,
       cost_sharing_percentage: null,
       eligible_entity_types: ["for_profit", "small_business"],
-      demographic_set_asides: ["women_owned", "minority_owned", "veteran_owned", "disability_owned"],
+      demographic_set_asides: [
+        "women_owned",
+        "minority_owned",
+        "veteran_owned",
+        "disability_owned",
+      ],
       geographic_restriction: "state",
       geographic_scope: { level: "state_specific", allowedStates: ["IA"] },
       application_method: "online_portal",
       direct_apply_url: "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
-      official_application_url: "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+      official_application_url:
+        "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
       portal_url: "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
-      source_solicitation_url: "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
-      summary_text: "Supports certified Iowa Targeted Small Businesses (51% or more owned and operated by women, minorities, service-disabled veterans, or people with disabilities).",
-      prerequisites: ["Iowa Targeted Small Business (TSB) certification", "51% or more majority ownership by eligible group"],
+      source_solicitation_url:
+        "https://opportunityiowa.gov/business/start-grow/targeted-small-business",
+      summary_text:
+        "Supports certified Iowa Targeted Small Businesses (51% or more owned and operated by women, minorities, service-disabled veterans, or people with disabilities).",
+      prerequisites: [
+        "Iowa Targeted Small Business (TSB) certification",
+        "51% or more majority ownership by eligible group",
+      ],
       source_system: "ieda_catalog",
       source_external_id: "ieda-tsb",
     },
@@ -365,7 +412,8 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
       official_application_url: "https://www.chooseiowa.com/grants",
       portal_url: "https://www.chooseiowa.com/grants",
       source_solicitation_url: "https://www.chooseiowa.com/grants",
-      summary_text: "Cost-share grants for Iowa farmers, food processors, and small businesses expanding processing, packaging, or distribution of Iowa agricultural products.",
+      summary_text:
+        "Cost-share grants for Iowa farmers, food processors, and small businesses expanding processing, packaging, or distribution of Iowa agricultural products.",
       prerequisites: ["Iowa-based agricultural or food business", "1:1 dollar-for-dollar match"],
       source_system: "idals_catalog",
       source_external_id: "choose-iowa-value-added",
@@ -391,13 +439,18 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
       eligible_entity_types: ["nonprofit_501c3", "fiscal_sponsor"],
       demographic_set_asides: [],
       geographic_restriction: "county",
-      geographic_scope: { level: "local_county", allowedStates: ["IA"], counties: ["Polk", "Dallas", "Warren"] },
+      geographic_scope: {
+        level: "local_county",
+        allowedStates: ["IA"],
+        counties: ["Polk", "Dallas", "Warren"],
+      },
       application_method: "online_portal",
       direct_apply_url: "https://www.desmoinesfoundation.org/nonprofits/grants",
       official_application_url: "https://www.desmoinesfoundation.org/nonprofits/grants",
       portal_url: "https://www.desmoinesfoundation.org/nonprofits/grants",
       source_solicitation_url: "https://www.desmoinesfoundation.org/nonprofits/grants",
-      summary_text: "Supports charitable projects, community development, and regional initiatives serving Central Iowa and Greater Des Moines.",
+      summary_text:
+        "Supports charitable projects, community development, and regional initiatives serving Central Iowa and Greater Des Moines.",
       prerequisites: ["501(c)(3) nonprofit or eligible fiscal sponsor in Greater Des Moines"],
       source_system: "foundation_catalog",
       source_external_id: "cfgdm-leadership",
@@ -423,13 +476,18 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
       eligible_entity_types: ["nonprofit_501c3"],
       demographic_set_asides: [],
       geographic_restriction: "county",
-      geographic_scope: { level: "local_county", allowedStates: ["IA", "IL"], counties: ["Scott", "Muscatine", "Rock Island"] },
+      geographic_scope: {
+        level: "local_county",
+        allowedStates: ["IA", "IL"],
+        counties: ["Scott", "Muscatine", "Rock Island"],
+      },
       application_method: "online_portal",
       direct_apply_url: "https://www.qccommunityfoundation.org/grants",
       official_application_url: "https://www.qccommunityfoundation.org/grants",
       portal_url: "https://www.qccommunityfoundation.org/grants",
       source_solicitation_url: "https://www.qccommunityfoundation.org/grants",
-      summary_text: "Funds nonprofits strengthening Scott and Muscatine counties in eastern Iowa (and Rock Island County, IL).",
+      summary_text:
+        "Funds nonprofits strengthening Scott and Muscatine counties in eastern Iowa (and Rock Island County, IL).",
       prerequisites: ["501(c)(3) nonprofit serving Scott or Muscatine County, IA"],
       source_system: "foundation_catalog",
       source_external_id: "qccf-impact",
@@ -461,7 +519,8 @@ function getStructuredIowaCatalog(): SiteGrantUpsert[] {
       official_application_url: "https://cfjc.org/grants/",
       portal_url: "https://cfjc.org/grants/",
       source_solicitation_url: "https://cfjc.org/grants/",
-      summary_text: "Supports charitable programs, community projects, and local initiatives benefiting residents across Johnson County, Iowa.",
+      summary_text:
+        "Supports charitable programs, community projects, and local initiatives benefiting residents across Johnson County, Iowa.",
       prerequisites: ["501(c)(3) nonprofit or public entity serving Johnson County, IA"],
       source_system: "foundation_catalog",
       source_external_id: "cfjc-competitive",
@@ -476,7 +535,10 @@ serve(async (_req) => {
 
     if (!supabaseUrl || !serviceRoleKey) {
       return new Response(
-        JSON.stringify({ ok: false, error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment." }),
+        JSON.stringify({
+          ok: false,
+          error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment.",
+        }),
         { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
@@ -499,10 +561,10 @@ serve(async (_req) => {
     const { error } = await supabase.from("site_grants").upsert(records, { onConflict: "id" });
 
     if (error) {
-      return new Response(
-        JSON.stringify({ ok: false, error: error.message }),
-        { status: 500, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ ok: false, error: error.message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     return new Response(

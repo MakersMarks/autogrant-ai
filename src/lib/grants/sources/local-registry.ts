@@ -1,7 +1,7 @@
 import type { UnifiedGrant } from "../../grants";
 
 export const localRegistry: UnifiedGrant[] = [
- {
+  {
     id: "metro-arts-nashville-microgrant",
     grantTier: "Local",
     directoryOnly: false,
@@ -62,9 +62,10 @@ export const localRegistry: UnifiedGrant[] = [
     demographicSetAsides: [],
     geographicScope: { level: "local_county", allowedStates: ["IA"] },
     applicationMethod: "online_portal",
-    directApplyUrl: "https://grantedai.com/grants/small-business-community-grant-program-greene-county-greene-county-development-corporation-gc-66d6a6c8",
+    directApplyUrl:
+      "https://grantedai.com/grants/small-business-community-grant-program-greene-county-greene-county-development-corporation-gc-66d6a6c8",
     isFreeToApply: true,
     summaryText:
       "Local small-business grant support for businesses in Greene County, Iowa communities around Jefferson.",
-  }
+  },
 ];

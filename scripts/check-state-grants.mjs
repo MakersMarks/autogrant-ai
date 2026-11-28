@@ -43,11 +43,12 @@ async function run() {
 
   for (const target of targets) {
     const prevEntry = previous[target.id] ?? null;
-       try {
+    try {
       const res = await fetch(target.url, {
         signal: AbortSignal.timeout(15000),
-        headers: { 
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" 
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         },
       });
       if (!res.ok) {
@@ -59,21 +60,21 @@ async function run() {
       const hasChanged = prevEntry !== null && prevEntry.hash !== hash;
 
       // Automated deadline & active state detection
-      const isClosed = 
+      const isClosed =
         clean.includes("applications are closed") ||
         clean.includes("applications closed") ||
         clean.includes("grant cycle has closed") ||
         clean.includes("not accepting applications") ||
         clean.includes("program has ended");
 
-      const isOpen = 
+      const isOpen =
         clean.includes("applications are now open") ||
         clean.includes("apply now") ||
         clean.includes("submit your application") ||
         clean.includes("open rolling") ||
         clean.includes("now accepting applications");
 
-      const status = isClosed ? "closed" : (isOpen ? "open" : "active");
+      const status = isClosed ? "closed" : isOpen ? "open" : "active";
 
       next[target.id] = {
         state: target.state ?? "National",
@@ -83,7 +84,7 @@ async function run() {
         directApplyUrl: target.directApplyUrl || target.url,
         hash,
         lastChecked: new Date().toISOString(),
-        lastChangedAt: hasChanged ? new Date().toISOString() : prevEntry?.lastChangedAt ?? null,
+        lastChangedAt: hasChanged ? new Date().toISOString() : (prevEntry?.lastChangedAt ?? null),
         status,
       };
 
@@ -109,7 +110,9 @@ async function run() {
   fs.mkdirSync(path.dirname(SNAPSHOT_PATH), { recursive: true });
   fs.writeFileSync(SNAPSHOT_PATH, `${JSON.stringify(next, null, 2)}\n`, "utf8");
 
-  console.log(`Checked ${targets.length} TN/IA targets. Changed: ${changed.length}, Errors: ${errors.length}`);
+  console.log(
+    `Checked ${targets.length} TN/IA targets. Changed: ${changed.length}, Errors: ${errors.length}`,
+  );
   for (const item of changed) {
     console.log(`CHANGED [${item.state}] ${item.label}: ${item.url}`);
   }
