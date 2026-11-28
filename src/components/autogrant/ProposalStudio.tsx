@@ -352,7 +352,7 @@ export function ProposalStudio({
       .join("\n\n");
     if (!text.trim()) {
       toast.error(
-        "Generate a proposal document or enter a complete, verified budget before saving.",
+        "Generate a proposal document or enter a complete budget with a stated basis for every line before saving.",
       );
       return;
     }

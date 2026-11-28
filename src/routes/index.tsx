@@ -27,6 +27,7 @@ import { ProposalStudio } from "@/components/autogrant/ProposalStudio";
 import { BudgetBuilder } from "@/components/autogrant/BudgetBuilder";
 import type { LiveGrant } from "@/lib/grants-gov/rules";
 import { getIndustryDocumentRequirements } from "@/lib/compliance/industry-documents";
+import { RECORDED_AWARDED_LABEL, RECORDED_AWARDED_NOTE, recordedAwardedTotal } from "@/lib/funding";
 import { evaluateAutopilotGate } from "@/lib/grants-gov/scoring";
 import { CopilotDrawer } from "@/components/autogrant/CopilotDrawer";
 import { Onboarding, type ProfileInput } from "@/components/autogrant/Onboarding";
@@ -34,7 +35,6 @@ import type { CopilotAction } from "@/lib/ai/ai.functions";
 
 export interface LinkedBusinessBankAccount {
   connected: boolean;
-  provider: "manual";
   institutionName: string;
   accountType: "checking" | "savings";
   mask: string;
@@ -52,19 +52,12 @@ export interface BankDepositRecord {
 
 const DEFAULT_BANK_ACCOUNT: LinkedBusinessBankAccount = {
   connected: false,
-  provider: "manual",
   institutionName: "",
   accountType: "checking",
   mask: "",
   routingLast4: "",
   lastSyncedAt: null,
 };
-
-function parseAmountNumber(raw: string | undefined): number {
-  if (!raw) return 0;
-  const cleaned = Number(String(raw).replace(/[^0-9.]/g, ""));
-  return Number.isFinite(cleaned) && cleaned > 0 ? cleaned : 0;
-}
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -660,16 +653,7 @@ function IndexComponent() {
     }
   };
 
-  const totalAwarded = useMemo(() => {
-    const recordedDepositSum = bankDeposits.reduce(
-      (sum, deposit) => sum + parseAmountNumber(String(deposit.amount)),
-      0,
-    );
-    if (recordedDepositSum > 0) return recordedDepositSum;
-    return proposals
-      .filter((proposal) => proposal.status === "submitted")
-      .reduce((sum, proposal) => sum + parseAmountNumber(proposal.amount), 0);
-  }, [bankDeposits, proposals]);
+  const totalAwarded = useMemo(() => recordedAwardedTotal(bankDeposits), [bankDeposits]);
   const remainingNeeded = Math.max(fundingGoal - totalAwarded, 0);
   const fundingProgress =
     fundingGoal > 0 ? Math.min(Math.round((totalAwarded / fundingGoal) * 100), 100) : 0;
@@ -1020,7 +1004,7 @@ function IndexComponent() {
               </div>
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
                 <p className="text-[11px] font-mono text-slate-400 uppercase">
-                  Recorded awarded funds
+                  {RECORDED_AWARDED_LABEL}
                 </p>
                 <p className="text-lg font-mono font-bold text-emerald-400">
                   ${totalAwarded.toLocaleString()}
@@ -1078,11 +1062,7 @@ function IndexComponent() {
                   />
                 </div>
               </div>
-              <p className="text-[11px] text-slate-400 col-span-full">
-                Awarded funds are the deposits and submitted applications you recorded yourself.
-                AutoGrant has no bank connection, so nothing is pulled from your account
-                automatically — confirm every deposit against your bank statement.
-              </p>
+              <p className="text-[11px] text-slate-400 col-span-full">{RECORDED_AWARDED_NOTE}</p>
             </div>
 
             <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
