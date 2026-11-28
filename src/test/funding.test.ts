@@ -19,6 +19,17 @@ describe("recorded awarded funds", () => {
     expect(parseRecordedAmount("$12,500")).toBe(12500);
   });
 
+  it("never turns a negative or accounting-style correction into an award", () => {
+    expect(parseRecordedAmount(-500)).toBe(0);
+    expect(parseRecordedAmount("-250.00")).toBe(0);
+    expect(parseRecordedAmount("(300)")).toBe(0);
+    expect(recordedAwardedTotal([{ amount: -500 }, { amount: 100 }])).toBe(100);
+  });
+
+  it("rounds the total to whole cents", () => {
+    expect(recordedAwardedTotal([{ amount: 0.1 }, { amount: 0.2 }])).toBe(0.3);
+  });
+
   it("counts nothing for a submitted application that is not a recorded deposit", () => {
     expect(recordedAwardedTotal([])).toBe(0);
     expect(recordedAwardedTotal([{ amount: 100 }])).toBe(100);
